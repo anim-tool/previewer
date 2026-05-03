@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spine Animation Player</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        .left-panel {
+            width: 300px;
+            background-color: #333;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            border-right: 1px solid #555;
+            min-width: 0;
+            height: 100vh;
+            box-sizing: border-box;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #333;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .left-panel::-webkit-scrollbar-track {
+            background: #333;
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 4px;
+            border: 2px solid #333;
+        }
+
+        .left-panel::-webkit-scrollbar-thumb:hover {
+            background-color: #666;
+        }
+
+        .resize-handle {
+            width: 20px;
+            height: 100%;
+            cursor: col-resize;
+            background-color: #444;
+            border-right: 1px solid #555;
+            position: relative;
+            z-index: 10;
+        }
+
+        .resize-handle:hover {
+            background-color: #555;
+        }
+
+        .resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 30px;
+            background-color: #666;
+            border-radius: 1px;
+        }
+
+        .left-panel h2 {
+            font-size: 16px;
+            font-weight: bold;
+            color: #aaa;
+            margin-bottom: 15px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #444;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .tab {
+            font-size: 14px;
+            font-weight: bold;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: color 0.2s, background-color 0.2s;
+            user-select: none;
+            border-radius: 4px;
+        }
+
+        .tab:hover {
+            color: #ccc;
+            background-color: #444;
+        }
+
+        .tab.active {
+            color: white;
+            background-color: #555;
+        }
+
+        .tab.inactive {
+            color: #666;
+        }
+
+        .tab-content-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .tab-content {
+            display: none;
+            flex: 1;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        .playlist-input {
+            width: 100%;
+            height: 100%;
+            background-color: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 12px;
+            resize: none;
+            outline: none;
+        }
+
+        .playlist-input:focus {
+            border-color: #888;
+        }
+
+        .menu-section {
+            padding-top: 10px;
+            border-top: 1px solid #444;
+        }
+
+        .slider-container {
+            margin-bottom: 15px;
+        }
+
+        .slider-label {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .slider {
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-runnable-track {
+            height: 4px;
+            background: #666;
+            border-radius: 2px;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 16px;
+            width: 16px;
+            background: #aaa;
+            border-radius: 50%;
+            margin-top: -6px;
+            cursor: pointer;
+            border: 2px solid #333;
+        }
+
+        .slider::-moz-range-track {
+            height: 4px;
+            background: #666;
+            border-radius: 2px;
+        }
+
+        .slider::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            background: #aaa;
+            border-radius: 50%;
+            border: 2px solid #333;
+            cursor: pointer;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 8px;
+            accent-color: #aaa;
+            transform: scale(1.2);
+        }
+
+        .checkbox-item label {
+            font-size: 12px;
+            color: #aaa;
+            cursor: pointer;
+        }
+
+        button {
+            background: #555;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+            width: 100%;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background: #666;
+        }
+
+        button:active {
+            background: #777;
+        }
+
+        .slider-value {
+            font-size: 12px;
+            color: #aaa;
+            text-align: right;
+            margin-top: 2px;
+        }
+
+        .right-area {
+            flex: 1;
+            position: relative;
+            background-color: #222;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            outline: none;
+            overflow: hidden;
+        }
+
+        .upload-section {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .upload-btn {
+            background: #444;
+            color: #ccc;
+            border: 2px dashed #666;
+            padding: 12px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            flex: 1;
+            transition: all 0.2s;
+            font-weight: bold;
+        }
+
+        .upload-btn:hover {
+            background: #555;
+            border-color: #999;
+            color: #fff;
+        }
+
+        .drop-zone {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .drop-zone.active {
+            display: flex;
+        }
+
+        .drop-zone-inner {
+            border: 3px dashed #888;
+            border-radius: 15px;
+            padding: 40px 60px;
+            text-align: center;
+        }
+
+        .drop-zone-title {
+            font-size: 18px;
+            color: #ddd;
+            margin-bottom: 8px;
+        }
+
+        .drop-zone-hint {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .loading-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 90;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-text {
+            color: #ddd;
+            font-size: 16px;
+        }
+
+        .animations-list {
+            flex: 1;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #333;
+        }
+
+        .animations-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .animations-list::-webkit-scrollbar-track {
+            background: #333;
+        }
+
+        .animations-list::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 3px;
+        }
+
+        .animation-item {
+            padding: 4px 8px;
+            color: #666;
+            cursor: pointer;
+            font-size: 12px;
+            border-radius: 3px;
+            transition: background-color 0.15s, color 0.15s;
+            font-family: monospace;
+        }
+
+        .animation-item:hover {
+            background-color: #444;
+            color: #bbb;
+        }
+
+        .animation-item.active {
+            color: white;
+        }
+
+        .error-block {
+            display: none;
+            position: relative;
+            background-color: #552222;
+            color: #ff8888;
+            border: 1px solid #773333;
+            border-radius: 4px;
+            padding: 8px 28px 8px 8px;
+            font-size: 11px;
+            font-family: monospace;
+            line-height: 1.4;
+            max-height: 120px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            white-space: pre-wrap;
+            scrollbar-width: thin;
+            scrollbar-color: #555 #442222;
+        }
+
+        .error-block::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .error-block::-webkit-scrollbar-track {
+            background: #442222;
+        }
+
+        .error-block::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 3px;
+        }
+
+        .error-block.visible {
+            display: block;
+        }
+
+        .error-block-close {
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            background: none;
+            border: none;
+            color: #ff8888;
+            cursor: pointer;
+            font-size: 13px;
+            line-height: 1;
+            padding: 0;
+            width: auto;
+            margin: 0;
+        }
+
+        .error-block-close:hover {
+            color: #ffaaaa;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .scenario-timeline {
+            display: none;
+            height: 28px;
+            background: #2a2a2a;
+            padding: 0 12px;
+            align-items: center;
+            border-top: 1px solid #3a3a3a;
+        }
+
+        .scenario-timeline.visible {
+            display: flex;
+        }
+
+        .player-bar {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            background: #2a2a2a;
+            padding: 0 8px;
+            gap: 4px;
+            border-top: 1px solid #3a3a3a;
+        }
+
+        .player-buttons {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .player-btn {
+            width: 32px;
+            height: 32px;
+            background: none;
+            border: 1px solid transparent;
+            cursor: pointer;
+            color: #777;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            margin: 0;
+            transition: color 0.15s, background-color 0.15s;
+            box-sizing: border-box;
+            font-size: inherit;
+            font-weight: inherit;
+        }
+
+        .player-btn:hover {
+            background: #3a3a3a;
+            color: #bbb;
+        }
+
+        .player-btn:active {
+            background: #444;
+        }
+
+        .player-btn.toggle-btn.active {
+            color: #ddd;
+            background: #3a3a3a;
+            border-color: #555;
+        }
+
+        .player-btn svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        .player-slider-wrap {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            min-width: 0;
+        }
+
+        .player-slider {
+            width: 100%;
+            height: 28px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+        }
+
+        .player-slider::-webkit-slider-runnable-track {
+            height: 4px;
+            background: #555;
+            border-radius: 2px;
+        }
+
+        .player-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 14px;
+            width: 14px;
+            background: #aaa;
+            border-radius: 50%;
+            margin-top: -5px;
+            cursor: pointer;
+            border: 2px solid #2a2a2a;
+        }
+
+        .player-slider::-moz-range-track {
+            height: 4px;
+            background: #555;
+            border-radius: 2px;
+        }
+
+        .player-slider::-moz-range-thumb {
+            height: 14px;
+            width: 14px;
+            background: #aaa;
+            border-radius: 50%;
+            border: 2px solid #2a2a2a;
+            cursor: pointer;
+        }
+
+        .info-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+
+        .info-overlay.visible {
+            display: block;
+        }
+
+        .info-skeleton-name {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+            font-family: Arial, sans-serif;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .info-animation-name {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+            font-family: Arial, sans-serif;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .info-animation-duration {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="upload-section">
+                <button id="uploadButton" class="upload-btn">Files</button>
+                <input type="file" id="fileInput" multiple accept=".skel,.atlas,.webp,.png,.jpg" style="display:none">
+                <button id="folderButton" class="upload-btn">Folder</button>
+                <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
+            </div>
+            <div class="tabs">
+                <div id="scenarioHeader" class="tab active">Scenario</div>
+                <div id="animationsHeader" class="tab inactive">Animations</div>
+            </div>
+            <div class="tab-content-container">
+                <div id="scenarioContent" class="tab-content">
+                    <textarea id="playlist-input" class="playlist-input">game-logo|hd-idle</textarea>
+                </div>
+                <div id="animationsContent" class="tab-content">
+                    <div id="animationsList" class="animations-list"></div>
+                </div>
+            </div>
+            <div id="errorBlock" class="error-block">
+                <button id="errorBlockClose" class="error-block-close">&times;</button>
+                <div id="errorBlockText"></div>
+            </div>
+            <div class="menu-section">
+                <div class="slider-container">
+                    <label class="slider-label">Scale</label>
+                    <input type="range" id="scaleSlider" class="slider" min="0.1" max="2" step="0.001" value="1.0">
+                    <div class="slider-value" id="scaleValue">1.0x</div>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="sdCheckbox">
+                    <label for="sdCheckbox">View SD textures</label>
+                </div>
+                <button id="resetButton">Reset Scale and Position</button>
+            </div>
+        </div>
+
+        <div class="resize-handle" id="resize-handle"></div>
+
+        <div class="right-area">
+            <div class="canvas-container">
+                <div id="infoOverlay" class="info-overlay visible">
+                    <div id="infoSkeletonName" class="info-skeleton-name"></div>
+                    <div id="infoAnimationLine" class="info-animation-name"></div>
+                </div>
+                <div id="dropZone" class="drop-zone">
+                    <div class="drop-zone-inner">
+                        <div class="drop-zone-title">Drag files or folders here</div>
+                        <div class="drop-zone-hint">.skel, .atlas, .webp, .png</div>
+                    </div>
+                </div>
+                <div id="loadingOverlay" class="loading-overlay">
+                    <div class="loading-text">Loading...</div>
+                </div>
+                <canvas id="canvas"></canvas>
+            </div>
+            <div id="scenarioTimeline" class="scenario-timeline">
+                <input type="range" id="scenarioSlider" class="player-slider" min="0" max="1000" value="0" step="1">
+            </div>
+            <div class="player-bar">
+                <div class="player-buttons">
+                    <button id="playPauseBtn" class="player-btn" title="Pause">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>
+                    </button>
+                    <button id="loopBtn" class="player-btn toggle-btn active" title="Loop">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l4 4-4 4"/><path d="M3 12V10a4 4 0 014-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 12v2a4 4 0 01-4 4H3"/></svg>
+                    </button>
+                    <button id="pauseBeforeBtn" class="player-btn toggle-btn" title="Pause Before">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="2.5" height="10"/><rect x="6.5" y="7" width="2.5" height="10"/><polygon points="12,12 18,7 18,17"/><rect x="18" y="11" width="4" height="2"/></svg>
+                    </button>
+                    <button id="pauseAfterBtn" class="player-btn toggle-btn" title="Pause After">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="11" width="4" height="2"/><polygon points="12,12 6,7 6,17"/><rect x="16" y="7" width="2.5" height="10"/><rect x="20.5" y="7" width="2.5" height="10"/></svg>
+                    </button>
+                </div>
+                <div class="player-slider-wrap">
+                    <input type="range" id="positionSlider" class="player-slider" min="0" max="1000" value="0" step="1">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./lib/pixi.js"></script>
+    <script src="./lib/spine-pixi-v8.js"></script>
+
+    <script>
+        (function() {
+            function showError(message) {
+                const block = document.getElementById('errorBlock');
+                const text = document.getElementById('errorBlockText');
+                text.textContent = message;
+                block.classList.add('visible');
+            }
+
+            function hideError() {
+                const block = document.getElementById('errorBlock');
+                block.classList.remove('visible');
+            }
+
+            const state = {
+                app: null,
+                currentSkeleton: null,
+                currentSkeletonName: '',
+                playlist: [],
+                currentIndex: 0,
+                redLineGraphics: null,
+                isPlaying: false,
+                skeletons: {},
+                skeletonResolution: {},
+                availableResolutions: {},
+                isResizing: false,
+                resizeStartX: 0,
+                leftPanelStartWidth: 0,
+                currentScale: 1.0,
+                cameraX: 0,
+                cameraY: 0,
+                isDragging: false,
+                dragStartX: 0,
+                dragStartY: 0,
+                skeletonStartX: 0,
+                skeletonStartY: 0,
+                loadedSkeletons: new Set(),
+                sdMode: false,
+                showInfo: true,
+                activeMode: 'scenario',
+                activeAnimation: null,
+                availableAnimations: [],
+                scenarioGeneration: 0,
+                blobUrls: [],
+                pixiTextures: [],
+                hasLoadError: false,
+                hasPlaylistError: false,
+                player: {
+                    playing: true,
+                    loop: true,
+                    pauseBefore: false,
+                    pauseAfter: false,
+                    seeking: false,
+                    seekType: null,
+                    phase: 'none',
+                    phaseElapsed: 0,
+                    lastTickTime: 0,
+                    pendingAction: null
+                }
+            };
+
+            function getEffectiveResolution(skeletonName, animationName) {
+                const available = state.availableResolutions[skeletonName];
+                if (!available) return '2x';
+                const keys = Object.keys(available);
+                if (keys.length === 0) return '2x';
+
+                const animNeedsSD = animationName && animationName.startsWith('sd-');
+                let preferred;
+                if (animNeedsSD) {
+                    preferred = '1x';
+                } else {
+                    preferred = state.sdMode ? '1x' : '2x';
+                }
+
+                if (available[preferred]) return preferred;
+                return keys[0];
+            }
+
+            const skeletonManager = {
+                getAtlasAlias(skeletonName, resolution) {
+                    const available = state.availableResolutions[skeletonName];
+                    if (available && available[resolution]) {
+                        return skeletonName + 'A@' + resolution;
+                    }
+                    if (available) {
+                        const keys = Object.keys(available);
+                        if (keys.length > 0) {
+                            return skeletonName + 'A@' + keys[0];
+                        }
+                    }
+                    return skeletonName + 'A';
+                },
+
+                createSkeleton(skeletonName, resolution) {
+                    const atlasAlias = this.getAtlasAlias(skeletonName, resolution);
+                    try {
+                        const skeleton = spine.Spine.from({
+                            skeleton: skeletonName + 'D',
+                            atlas: atlasAlias
+                        });
+
+                        skeleton.x = state.cameraX;
+                        skeleton.y = state.cameraY;
+                        skeleton.scale.set(state.currentScale);
+                        return skeleton;
+                    } catch (e) {
+                        throw new Error('[' + skeletonName + '] ' + e.message);
+                    }
+                },
+
+                switchTo(skeletonName, resolution) {
+                    const neededRes = resolution || '2x';
+                    const currentRes = state.skeletonResolution[skeletonName];
+                    const needsRecreation = !state.skeletons[skeletonName] || currentRes !== neededRes;
+
+                    if (needsRecreation) {
+                        if (state.skeletons[skeletonName]) {
+                            if (state.currentSkeleton === state.skeletons[skeletonName]) {
+                                state.app.stage.removeChild(state.skeletons[skeletonName]);
+                            }
+                        }
+
+                        state.skeletons[skeletonName] = this.createSkeleton(skeletonName, neededRes);
+                        state.skeletonResolution[skeletonName] = neededRes;
+                    }
+
+                    if (state.currentSkeleton && state.currentSkeleton !== state.skeletons[skeletonName]) {
+                        state.app.stage.removeChild(state.currentSkeleton);
+                    }
+
+                    state.currentSkeleton = state.skeletons[skeletonName];
+                    state.currentSkeleton.x = state.cameraX;
+                    state.currentSkeleton.y = state.cameraY;
+                    state.currentSkeleton.scale.set(state.currentScale);
+                    state.app.stage.addChild(state.currentSkeleton);
+                    state.currentSkeletonName = skeletonName;
+
+                    Object.keys(state.skeletons).forEach(key => {
+                        state.skeletons[key].hidden = (key !== skeletonName);
+                    });
+
+                    graphicsManager.drawRedLine();
+                },
+
+                updateScale(newScale, updateSlider = true) {
+                    state.currentScale = newScale;
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.scale.set(state.currentScale);
+                    }
+                    if (updateSlider) {
+                        uiControls.updateScaleSlider(state.currentScale);
+                    }
+                },
+
+                updatePosition(x, y) {
+                    state.cameraX = x;
+                    state.cameraY = y;
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.x = x;
+                        state.currentSkeleton.y = y;
+                    }
+                },
+
+                reset() {
+                    this.updateScale(1.0, true);
+                    this.updatePosition(state.app.screen.width / 2, state.app.screen.height / 2);
+                    uiControls.resetCheckbox();
+                    graphicsManager.drawRedLine();
+                }
+            };
+
+            const graphicsManager = {
+                drawRedLine() {
+                    if (!state.redLineGraphics) {
+                        state.redLineGraphics = new PIXI.Graphics();
+                        state.app.stage.addChild(state.redLineGraphics);
+                    }
+
+                    state.redLineGraphics.clear();
+
+                    const skeletonX = state.cameraX || state.app.screen.width / 2;
+                    const skeletonY = state.cameraY || state.app.screen.height / 2;
+
+                    state.redLineGraphics.setStrokeStyle({ width: 1, color: 0x000001, alpha: 1 });
+                    state.redLineGraphics.moveTo(0, skeletonY);
+                    state.redLineGraphics.lineTo(state.app.screen.width, skeletonY);
+                    state.redLineGraphics.stroke();
+                    state.redLineGraphics.moveTo(skeletonX, 0);
+                    state.redLineGraphics.lineTo(skeletonX, state.app.screen.height);
+                    state.redLineGraphics.stroke();
+                }
+            };
+
+            const playlistManager = {
+                parse(text) {
+                    return text
+                        .split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line.length > 0 && line.includes('|'))
+                        .map(line => {
+                            const [skeletonName, animationName] = line.split('|').map(s => s.trim());
+                            return { skeletonName, animationName };
+                        });
+                },
+
+                playAnimation(skeletonName, animationName, loop) {
+                    if (!state.loadedSkeletons.has(skeletonName)) return;
+
+                    const resolution = getEffectiveResolution(skeletonName, animationName);
+                    skeletonManager.switchTo(skeletonName, resolution);
+
+                    const trackEntry = state.currentSkeleton.state.setAnimation(0, animationName, loop);
+                    return trackEntry;
+                },
+
+                async playAtIndex(index) {
+                    if (index >= state.playlist.length) {
+                        if (!state.player.loop) {
+                            state.player.playing = false;
+                            playerManager.updatePlayPauseButton();
+                            return;
+                        }
+                        index = 0;
+                    }
+
+                    if (state.playlist.length === 0) return;
+
+                    const item = state.playlist[index];
+                    if (!state.loadedSkeletons.has(item.skeletonName)) return;
+
+                    state.currentIndex = index;
+                    playerManager.resetPhase();
+                    uiControls.updateHighlighting();
+
+                    const gen = state.scenarioGeneration;
+                    const trackEntry = this.playAnimation(item.skeletonName, item.animationName, false);
+
+                    uiControls.updateInfoOverlay();
+
+                    if (trackEntry) {
+                        if (state.player.pauseBefore) {
+                            playerManager.startPauseBefore();
+                        }
+
+                        trackEntry.listener = {
+                            complete: () => {
+                                if (state.scenarioGeneration === gen && state.activeMode === 'scenario') {
+                                    if (state.player.pauseAfter) {
+                                        playerManager.startPauseAfter(() => {
+                                            this.playAtIndex(index + 1);
+                                        });
+                                    } else {
+                                        this.playAtIndex(index + 1);
+                                    }
+                                }
+                            }
+                        };
+                    }
+                },
+
+                playSingleAnimation(skeletonName, animationName) {
+                    state.scenarioGeneration++;
+                    state.activeMode = 'animation';
+                    state.activeAnimation = { skeletonName, animationName };
+                    playerManager.resetPhase();
+
+                    const useNativeLoop = state.player.loop && !state.player.pauseBefore && !state.player.pauseAfter;
+                    const trackEntry = this.playAnimation(skeletonName, animationName, useNativeLoop);
+                    uiControls.updateHighlighting();
+                    uiControls.updateInfoOverlay();
+
+                    if (trackEntry) {
+                        if (state.player.pauseBefore) {
+                            playerManager.startPauseBefore();
+                        }
+
+                        if (!useNativeLoop) {
+                            trackEntry.listener = {
+                                complete: () => {
+                                    if (state.activeMode === 'animation' && state.activeAnimation &&
+                                        state.activeAnimation.skeletonName === skeletonName &&
+                                        state.activeAnimation.animationName === animationName) {
+
+                                        const handleEnd = () => {
+                                            if (state.player.loop) {
+                                                const t = state.currentSkeleton.state.setAnimation(0, animationName, false);
+                                                if (t) {
+                                                    t.listener = trackEntry.listener;
+                                                    if (state.player.pauseBefore) {
+                                                        playerManager.startPauseBefore();
+                                                    }
+                                                }
+                                            }
+                                        };
+
+                                        if (state.player.pauseAfter) {
+                                            playerManager.startPauseAfter(handleEnd);
+                                        } else {
+                                            handleEnd();
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    }
+                },
+
+                validatePlaylist(playlist) {
+                    const errors = [];
+                    const seen = new Set();
+                    playlist.forEach((item, idx) => {
+                        const key = item.skeletonName + '|' + item.animationName;
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        if (!state.loadedSkeletons.has(item.skeletonName)) {
+                            errors.push('Line ' + (idx + 1) + ': skeleton "' + item.skeletonName + '" not loaded');
+                        } else {
+                            const anims = state.availableAnimations
+                                .filter(a => a.skeletonName === item.skeletonName)
+                                .map(a => a.animationName);
+                            if (!anims.includes(item.animationName)) {
+                                errors.push('Line ' + (idx + 1) + ': animation "' + item.animationName + '" not found in "' + item.skeletonName + '"');
+                            }
+                        }
+                    });
+                    return errors;
+                },
+
+                async onTextChange(text) {
+                    state.scenarioGeneration++;
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.state.clearTracks();
+                    }
+
+                    state.playlist = this.parse(text);
+                    const errors = this.validatePlaylist(state.playlist);
+                    if (errors.length > 0) {
+                        showError(errors.join('\n'));
+                        state.hasPlaylistError = true;
+                    } else {
+                        state.hasPlaylistError = false;
+                        const errorBlock = document.getElementById('errorBlock');
+                        if (errorBlock.classList.contains('visible') && !state.hasLoadError) {
+                            hideError();
+                        }
+                    }
+
+                    if (state.playlist.length > 0) {
+                        state.player.playing = true;
+                        playerManager.updatePlayPauseButton();
+                        if (state.activeMode === 'scenario') {
+                            await this.playAtIndex(0);
+                        }
+                    } else {
+                        state.player.playing = false;
+                        playerManager.updatePlayPauseButton();
+                    }
+                    playerManager.updateScenarioTimelineVisibility();
+                },
+
+                activateScenario() {
+                    state.scenarioGeneration++;
+                    state.activeMode = 'scenario';
+                    state.activeAnimation = null;
+                    playerManager.updateScenarioTimelineVisibility();
+                    if (state.playlist.length > 0) {
+                        state.player.playing = true;
+                        playerManager.updatePlayPauseButton();
+                        this.playAtIndex(0);
+                    }
+                    uiControls.updateHighlighting();
+                }
+            };
+
+            const playerManager = {
+                PAUSE_DURATION: 1.0,
+
+                getAnimationDuration(skeletonName, animationName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk) return 0;
+                    const data = sk.skeleton ? sk.skeleton.data : null;
+                    if (!data || !data.animations) return 0;
+                    for (let i = 0; i < data.animations.length; i++) {
+                        if (data.animations[i].name === animationName) {
+                            return data.animations[i].duration;
+                        }
+                    }
+                    return 0;
+                },
+
+                getScenarioTotalDuration() {
+                    let total = 0;
+                    for (let i = 0; i < state.playlist.length; i++) {
+                        total += this.getItemEffectiveDuration(state.playlist[i]);
+                    }
+                    return total;
+                },
+
+                getItemEffectiveDuration(item) {
+                    let dur = this.getAnimationDuration(item.skeletonName, item.animationName);
+                    if (state.player.pauseBefore) dur += this.PAUSE_DURATION;
+                    if (state.player.pauseAfter) dur += this.PAUSE_DURATION;
+                    return dur;
+                },
+
+                play() {
+                    state.player.playing = true;
+                    this.updatePlayPauseButton();
+                    if (state.currentSkeleton && state.player.phase === 'none') {
+                        state.currentSkeleton.state.timeScale = 1;
+                    }
+                    state.player.lastTickTime = performance.now();
+                },
+
+                pause() {
+                    state.player.playing = false;
+                    this.updatePlayPauseButton();
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.state.timeScale = 0;
+                    }
+                },
+
+                togglePlay() {
+                    if (state.player.playing) {
+                        this.pause();
+                    } else {
+                        this.play();
+                    }
+                },
+
+                toggleLoop() {
+                    state.player.loop = !state.player.loop;
+                    this.updateLoopButton();
+                    if (state.activeMode === 'animation' && state.currentSkeleton) {
+                        const track = state.currentSkeleton.state.getCurrent(0);
+                        if (track) {
+                            track.loop = state.player.loop && !state.player.pauseBefore && !state.player.pauseAfter;
+                        }
+                    }
+                },
+
+                togglePauseBefore() {
+                    state.player.pauseBefore = !state.player.pauseBefore;
+                    this.updatePauseBeforeButton();
+                    this.updateScenarioTimelineVisibility();
+                },
+
+                togglePauseAfter() {
+                    state.player.pauseAfter = !state.player.pauseAfter;
+                    this.updatePauseAfterButton();
+                    this.updateScenarioTimelineVisibility();
+                },
+
+                updatePlayPauseButton() {
+                    const btn = document.getElementById('playPauseBtn');
+                    if (state.player.playing) {
+                        btn.title = 'Pause';
+                        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>';
+                    } else {
+                        btn.title = 'Play';
+                        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 20,12 6,21"/></svg>';
+                    }
+                },
+
+                updateLoopButton() {
+                    const btn = document.getElementById('loopBtn');
+                    if (state.player.loop) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                },
+
+                updatePauseBeforeButton() {
+                    const btn = document.getElementById('pauseBeforeBtn');
+                    if (state.player.pauseBefore) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                },
+
+                updatePauseAfterButton() {
+                    const btn = document.getElementById('pauseAfterBtn');
+                    if (state.player.pauseAfter) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                },
+
+                updateScenarioTimelineVisibility() {
+                    const timeline = document.getElementById('scenarioTimeline');
+                    const wasVisible = timeline.classList.contains('visible');
+                    const shouldBeVisible = state.activeMode === 'scenario';
+                    if (wasVisible !== shouldBeVisible) {
+                        if (shouldBeVisible) {
+                            timeline.classList.add('visible');
+                        } else {
+                            timeline.classList.remove('visible');
+                        }
+                        this.resizeCanvas();
+                    }
+                },
+
+                resizeCanvas() {
+                    if (state.app) {
+                        const container = document.querySelector('.canvas-container');
+                        if (container && state.app.screen.width > 0 && state.app.screen.height > 0) {
+                            const relX = state.cameraX / state.app.screen.width;
+                            const relY = state.cameraY / state.app.screen.height;
+                            state.app.renderer.resize(container.clientWidth, container.clientHeight);
+                            skeletonManager.updatePosition(
+                                state.app.screen.width * relX,
+                                state.app.screen.height * relY
+                            );
+                            graphicsManager.drawRedLine();
+                        }
+                    }
+                },
+
+                startSeeking(type) {
+                    state.player._wasPlayingBeforeSeek = state.player.playing;
+                    state.player.seeking = true;
+                    state.player.seekType = type;
+                    this.pause();
+                },
+
+                endSeeking() {
+                    state.player.seeking = false;
+                    state.player.seekType = null;
+                    if (state.player._wasPlayingBeforeSeek) {
+                        this.play();
+                    }
+                },
+
+                seekPosition(ratio) {
+                    if (!state.currentSkeleton) return;
+                    const track = state.currentSkeleton.state.getCurrent(0);
+                    if (!track || !track.animation) return;
+                    const duration = track.animation.duration;
+                    if (duration <= 0) return;
+                    track.trackTime = ratio * duration;
+                },
+
+                seekScenario(ratio) {
+                    const totalDuration = this.getScenarioTotalDuration();
+                    if (totalDuration <= 0) return;
+                    const targetTime = ratio * totalDuration;
+
+                    let elapsed = 0;
+                    for (let i = 0; i < state.playlist.length; i++) {
+                        const item = state.playlist[i];
+                        const itemDur = this.getAnimationDuration(item.skeletonName, item.animationName);
+                        const pb = state.player.pauseBefore ? this.PAUSE_DURATION : 0;
+                        const pa = state.player.pauseAfter ? this.PAUSE_DURATION : 0;
+                        const effective = pb + itemDur + pa;
+
+                        if (i === state.playlist.length - 1 || elapsed + effective > targetTime) {
+                            const itemOffset = targetTime - elapsed;
+
+                            state.scenarioGeneration++;
+                            state.currentIndex = i;
+                            this.resetPhase();
+                            uiControls.updateHighlighting();
+
+                            const resolution = getEffectiveResolution(item.skeletonName, item.animationName);
+                            skeletonManager.switchTo(item.skeletonName, resolution);
+                            const gen = state.scenarioGeneration;
+                            const track = state.currentSkeleton.state.setAnimation(0, item.animationName, false);
+
+                            uiControls.updateInfoOverlay();
+
+                            if (track) {
+                                if (itemDur <= 0) {
+                                    track.trackTime = 0;
+                                } else if (itemOffset < pb) {
+                                    track.trackTime = 0;
+                                } else if (itemOffset < pb + itemDur) {
+                                    track.trackTime = itemOffset - pb;
+                                } else {
+                                    track.trackTime = itemDur;
+                                }
+
+                                if (track.animation && track.animation.duration > 0) {
+                                    document.getElementById('positionSlider').value = Math.min((track.trackTime / track.animation.duration) * 1000, 1000);
+                                }
+
+                                track.listener = {
+                                    complete: () => {
+                                        if (state.scenarioGeneration === gen && state.activeMode === 'scenario') {
+                                            if (state.player.pauseAfter) {
+                                                playerManager.startPauseAfter(() => {
+                                                    playlistManager.playAtIndex(i + 1);
+                                                });
+                                            } else {
+                                                playlistManager.playAtIndex(i + 1);
+                                            }
+                                        }
+                                    }
+                                };
+                            }
+                            return;
+                        }
+                        elapsed += effective;
+                    }
+                },
+
+                resetPhase() {
+                    state.player.phase = 'none';
+                    state.player.phaseElapsed = 0;
+                    state.player.pendingAction = null;
+                },
+
+                startPauseBefore() {
+                    state.player.phase = 'pauseBefore';
+                    state.player.phaseElapsed = 0;
+                    if (state.currentSkeleton) {
+                        const track = state.currentSkeleton.state.getCurrent(0);
+                        if (track) track.trackTime = 0;
+                        state.currentSkeleton.state.timeScale = 0;
+                    }
+                },
+
+                startPauseAfter(callback) {
+                    state.player.phase = 'pauseAfter';
+                    state.player.phaseElapsed = 0;
+                    state.player.pendingAction = callback;
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.state.timeScale = 0;
+                    }
+                },
+
+                onTick() {
+                    const now = performance.now();
+                    const delta = (now - state.player.lastTickTime) / 1000;
+                    state.player.lastTickTime = now;
+
+                    if (!state.currentSkeleton) return;
+
+                    if (state.player.phase === 'pauseBefore') {
+                        if (state.player.playing) {
+                            state.player.phaseElapsed += delta;
+                        }
+                        if (state.player.phaseElapsed >= this.PAUSE_DURATION) {
+                            state.player.phase = 'none';
+                            if (state.player.playing) {
+                                state.currentSkeleton.state.timeScale = 1;
+                            }
+                        }
+                        document.getElementById('positionSlider').value = 0;
+                        if (state.activeMode === 'scenario') this.updateScenarioSliderPosition();
+                        return;
+                    }
+
+                    if (state.player.phase === 'pauseAfter') {
+                        if (state.player.playing) {
+                            state.player.phaseElapsed += delta;
+                        }
+                        if (state.player.phaseElapsed >= this.PAUSE_DURATION) {
+                            state.player.phase = 'none';
+                            if (state.player.pendingAction) {
+                                const action = state.player.pendingAction;
+                                state.player.pendingAction = null;
+                                action();
+                                return;
+                            }
+                        }
+                        const track = state.currentSkeleton.state.getCurrent(0);
+                        if (track && track.animation && track.animation.duration > 0) {
+                            document.getElementById('positionSlider').value = 1000;
+                        }
+                        if (state.activeMode === 'scenario') this.updateScenarioSliderPosition();
+                        return;
+                    }
+
+                    if (state.player.seeking) return;
+
+                    const track = state.currentSkeleton.state.getCurrent(0);
+                    if (!track || !track.animation) return;
+
+                    const duration = track.animation.duration;
+                    if (duration > 0) {
+                        let ratio;
+                        if (track.loop) {
+                            ratio = (track.trackTime % duration) / duration;
+                        } else {
+                            ratio = Math.min(track.trackTime / duration, 1);
+                        }
+                        document.getElementById('positionSlider').value = ratio * 1000;
+                    } else {
+                        document.getElementById('positionSlider').value = 0;
+                    }
+
+                    if (state.activeMode === 'scenario' && state.playlist.length > 0) {
+                        this.updateScenarioSliderPosition();
+                    }
+                },
+
+                updateScenarioSliderPosition() {
+                    let elapsed = 0;
+
+                    for (let i = 0; i < state.currentIndex; i++) {
+                        elapsed += this.getItemEffectiveDuration(state.playlist[i]);
+                    }
+
+                    const currentItem = state.playlist[state.currentIndex];
+                    if (!currentItem) return;
+
+                    const itemDur = this.getAnimationDuration(currentItem.skeletonName, currentItem.animationName);
+                    const pb = state.player.pauseBefore ? this.PAUSE_DURATION : 0;
+
+                    if (state.player.phase === 'pauseBefore') {
+                        elapsed += Math.min(state.player.phaseElapsed, this.PAUSE_DURATION);
+                    } else if (state.player.phase === 'pauseAfter') {
+                        elapsed += pb + itemDur + Math.min(state.player.phaseElapsed, this.PAUSE_DURATION);
+                    } else {
+                        elapsed += pb;
+                        const track = state.currentSkeleton ? state.currentSkeleton.state.getCurrent(0) : null;
+                        if (track && track.animation && track.animation.duration > 0) {
+                            elapsed += Math.min(track.trackTime, track.animation.duration);
+                        }
+                    }
+
+                    const totalDuration = this.getScenarioTotalDuration();
+                    if (totalDuration > 0) {
+                        document.getElementById('scenarioSlider').value = Math.min((elapsed / totalDuration) * 1000, 1000);
+                    }
+                },
+
+                init() {
+                    document.getElementById('playPauseBtn').addEventListener('click', () => this.togglePlay());
+                    document.getElementById('loopBtn').addEventListener('click', () => this.toggleLoop());
+                    document.getElementById('pauseBeforeBtn').addEventListener('click', () => this.togglePauseBefore());
+                    document.getElementById('pauseAfterBtn').addEventListener('click', () => this.togglePauseAfter());
+
+                    const positionSlider = document.getElementById('positionSlider');
+                    positionSlider.addEventListener('mousedown', (e) => { e.stopPropagation(); this.startSeeking('position'); });
+                    positionSlider.addEventListener('touchstart', () => this.startSeeking('position'), { passive: true });
+                    positionSlider.addEventListener('input', () => {
+                        this.seekPosition(positionSlider.value / 1000);
+                        if (state.activeMode === 'scenario' && state.playlist.length > 0) {
+                            this.updateScenarioSliderPosition();
+                        }
+                    });
+                    const endSeekPos = () => this.endSeeking();
+                    positionSlider.addEventListener('mouseup', endSeekPos);
+                    positionSlider.addEventListener('touchend', endSeekPos);
+
+                    const scenarioSlider = document.getElementById('scenarioSlider');
+                    scenarioSlider.addEventListener('mousedown', (e) => { e.stopPropagation(); this.startSeeking('scenario'); });
+                    scenarioSlider.addEventListener('touchstart', () => this.startSeeking('scenario'), { passive: true });
+                    scenarioSlider.addEventListener('input', () => {
+                        this.seekScenario(scenarioSlider.value / 1000);
+                    });
+                    const endSeekSc = () => this.endSeeking();
+                    scenarioSlider.addEventListener('mouseup', endSeekSc);
+                    scenarioSlider.addEventListener('touchend', endSeekSc);
+
+                    this.updatePlayPauseButton();
+                    this.updateLoopButton();
+                    this.updatePauseBeforeButton();
+                    this.updatePauseAfterButton();
+                }
+            };
+
+            const uiControls = {
+                updateScaleSlider(scale) {
+                    const slider = document.getElementById('scaleSlider');
+                    const valueDisplay = document.getElementById('scaleValue');
+                    if (slider && valueDisplay) {
+                        slider.value = scale;
+                        valueDisplay.textContent = scale.toFixed(2).replace(/\.00$/, '') + 'x';
+                    }
+                },
+
+                initScaleSlider() {
+                    const slider = document.getElementById('scaleSlider');
+                    const valueDisplay = document.getElementById('scaleValue');
+                    if (!slider || !valueDisplay) return;
+                    slider.value = state.currentScale;
+                    valueDisplay.textContent = state.currentScale.toFixed(2) + 'x';
+                    slider.addEventListener('input', (e) => {
+                        const newValue = parseFloat(e.target.value);
+                        skeletonManager.updateScale(newValue, false);
+                        valueDisplay.textContent = newValue.toFixed(2) + 'x';
+                    });
+                },
+
+                initCheckbox() {
+                    const checkbox = document.getElementById('sdCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = false;
+                    state.sdMode = false;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.sdMode = e.target.checked;
+                        this.onResolutionChange();
+                    });
+                },
+
+                resetCheckbox() {
+                    const checkbox = document.getElementById('sdCheckbox');
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        state.sdMode = false;
+                    }
+                },
+
+                updateInfoOverlay() {
+                    const overlay = document.getElementById('infoOverlay');
+                    const skeletonEl = document.getElementById('infoSkeletonName');
+                    const animEl = document.getElementById('infoAnimationLine');
+
+                    overlay.classList.add('visible');
+
+                    let skeletonName = '';
+                    let animationName = '';
+                    let duration = 0;
+
+                    if (state.activeMode === 'scenario' && state.playlist.length > 0) {
+                        const item = state.playlist[state.currentIndex];
+                        if (item) {
+                            skeletonName = item.skeletonName;
+                            animationName = item.animationName;
+                            duration = playerManager.getAnimationDuration(skeletonName, animationName);
+                        }
+                    } else if (state.activeMode === 'animation' && state.activeAnimation) {
+                        skeletonName = state.activeAnimation.skeletonName;
+                        animationName = state.activeAnimation.animationName;
+                        duration = playerManager.getAnimationDuration(skeletonName, animationName);
+                    }
+
+                    skeletonEl.textContent = skeletonName;
+                    const durationStr = duration > 0 ? ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>' : '';
+                    animEl.innerHTML = animationName + durationStr;
+                },
+
+                onResolutionChange() {
+                    if (!state.currentSkeletonName) return;
+
+                    if (state.activeMode === 'scenario' && state.playlist.length > 0) {
+                        const item = state.playlist[state.currentIndex];
+                        if (item && !item.animationName.startsWith('sd-')) {
+                            const newRes = getEffectiveResolution(item.skeletonName, item.animationName);
+                            const curRes = state.skeletonResolution[state.currentSkeletonName];
+                            if (newRes !== curRes) {
+                                playlistManager.playAtIndex(state.currentIndex);
+                            }
+                        }
+                    } else if (state.activeMode === 'animation' && state.activeAnimation) {
+                        const anim = state.activeAnimation;
+                        if (!anim.animationName.startsWith('sd-')) {
+                            const newRes = getEffectiveResolution(anim.skeletonName, anim.animationName);
+                            const curRes = state.skeletonResolution[state.currentSkeletonName];
+                            if (newRes !== curRes) {
+                                playlistManager.playSingleAnimation(anim.skeletonName, anim.animationName);
+                            }
+                        }
+                    }
+                },
+
+                initResetButton() {
+                    const button = document.getElementById('resetButton');
+                    if (button) {
+                        button.addEventListener('click', () => skeletonManager.reset());
+                    }
+                },
+
+                initTextarea() {
+                    const textarea = document.getElementById('playlist-input');
+                    textarea.value = '';
+                    textarea.addEventListener('input', async () => {
+                        await playlistManager.onTextChange(textarea.value);
+                    });
+                },
+
+                initScenarioHeader() {
+                    const scenarioHeader = document.getElementById('scenarioHeader');
+                    const animationsHeader = document.getElementById('animationsHeader');
+                    const scenarioContent = document.getElementById('scenarioContent');
+                    const animationsContent = document.getElementById('animationsContent');
+
+                    scenarioHeader.addEventListener('click', () => {
+                        playlistManager.activateScenario();
+                    });
+
+                    animationsHeader.addEventListener('click', () => {
+                        if (state.availableAnimations.length > 0) {
+                            state.activeMode = 'animation';
+                            this.updateHighlighting();
+                        }
+                    });
+                },
+
+                renderAnimationsList() {
+                    const container = document.getElementById('animationsList');
+                    container.innerHTML = '';
+
+                    state.availableAnimations.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'animation-item';
+                        div.textContent = item.skeletonName + ' | ' + item.animationName;
+
+                        div.addEventListener('click', () => {
+                            playlistManager.playSingleAnimation(item.skeletonName, item.animationName);
+                        });
+
+                        container.appendChild(div);
+                    });
+                },
+
+                updateHighlighting() {
+                    const scenarioHeader = document.getElementById('scenarioHeader');
+                    const animationsHeader = document.getElementById('animationsHeader');
+                    const scenarioContent = document.getElementById('scenarioContent');
+                    const animationsContent = document.getElementById('animationsContent');
+
+                    if (state.activeMode === 'scenario') {
+                        scenarioHeader.className = 'tab active';
+                        animationsHeader.className = 'tab inactive';
+                        scenarioContent.classList.add('active');
+                        animationsContent.classList.remove('active');
+                    } else {
+                        scenarioHeader.className = 'tab inactive';
+                        animationsHeader.className = 'tab active';
+                        scenarioContent.classList.remove('active');
+                        animationsContent.classList.add('active');
+                    }
+
+                    playerManager.updateScenarioTimelineVisibility();
+
+                    const items = document.querySelectorAll('#animationsList .animation-item');
+                    items.forEach(el => {
+                        const parts = el.textContent.split(' | ');
+                        const sn = parts[0];
+                        const an = parts.slice(1).join(' | ');
+
+                        if (state.activeMode === 'animation' &&
+                            state.activeAnimation &&
+                            state.activeAnimation.skeletonName === sn &&
+                            state.activeAnimation.animationName === an) {
+                            el.classList.add('active');
+                        } else {
+                            el.classList.remove('active');
+                        }
+                    });
+                }
+            };
+
+            const fileHandler = {
+                showLoading() {
+                    document.getElementById('loadingOverlay').classList.add('active');
+                },
+
+                hideLoading() {
+                    document.getElementById('loadingOverlay').classList.remove('active');
+                },
+
+                findTextureForAtlas(atlasFileName, textureFiles) {
+                    const baseName = atlasFileName.replace('.atlas', '');
+                    return textureFiles.find(f => {
+                        const name = f.name.replace(/\.(webp|png|jpg)$/, '');
+                        return name === baseName;
+                    });
+                },
+
+                async loadAtlasTexture(skeletonName, resolution, atlasFile, textureFile) {
+                    const atlasText = await atlasFile.text();
+                    const textureBlobUrl = URL.createObjectURL(textureFile);
+                    state.blobUrls.push(textureBlobUrl);
+                    const img = new Image();
+                    img.src = textureBlobUrl;
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                    });
+                    const pixiTexture = PIXI.Texture.from(img);
+                    state.pixiTextures.push(pixiTexture);
+
+                    const spineAtlas = new spine.TextureAtlas(atlasText);
+                    for (const page of spineAtlas.pages) {
+                        page.setTexture(spine.SpineTexture.from(pixiTexture.source));
+                    }
+
+                    const cacheKey = skeletonName + 'A@' + resolution;
+                    PIXI.Cache.remove(cacheKey);
+                    PIXI.Cache.set(cacheKey, spineAtlas);
+                },
+
+                collectSpineErrors(fn) {
+                    const errors = [];
+                    const origError = console.error;
+                    const origWarn = console.warn;
+                    console.error = (...args) => {
+                        errors.push(args.map(a => typeof a === 'string' ? a : a instanceof Error ? a.message : String(a)).join(' '));
+                        origError.apply(console, args);
+                    };
+                    console.warn = (...args) => {
+                        errors.push(args.map(a => typeof a === 'string' ? a : a instanceof Error ? a.message : String(a)).join(' '));
+                        origWarn.apply(console, args);
+                    };
+                    try {
+                        const result = fn();
+                        console.error = origError;
+                        console.warn = origWarn;
+                        return { result, errors };
+                    } catch (e) {
+                        console.error = origError;
+                        console.warn = origWarn;
+                        errors.push(e.message);
+                        return { result: null, errors };
+                    }
+                },
+
+                cleanupPrevious() {
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.state.clearTracks();
+                        state.app.stage.removeChild(state.currentSkeleton);
+                    }
+
+                    Object.keys(state.skeletons).forEach(key => {
+                        const sk = state.skeletons[key];
+                        if (sk) sk.destroy();
+                    });
+
+                    state.pixiTextures.forEach(tex => {
+                        try { tex.destroy(true); } catch(e) {}
+                    });
+                    state.pixiTextures = [];
+
+                    state.blobUrls.forEach(url => {
+                        URL.revokeObjectURL(url);
+                    });
+                    state.blobUrls = [];
+
+                    Object.keys(state.availableResolutions).forEach(skeletonName => {
+                        const resKeys = Object.keys(state.availableResolutions[skeletonName]);
+                        resKeys.forEach(res => {
+                            PIXI.Cache.remove(skeletonName + 'A@' + res);
+                        });
+                    });
+
+                    Object.keys(state.skeletonResolution).forEach(skeletonName => {
+                        PIXI.Cache.remove(skeletonName + 'D');
+                    });
+
+                    Object.keys(state.skeletonResolution).forEach(skeletonName => {
+                        const resKeys = state.availableResolutions[skeletonName]
+                            ? Object.keys(state.availableResolutions[skeletonName])
+                            : [];
+                        resKeys.forEach(res => {
+                            const cacheKey = skeletonName + 'D-' + skeletonName + 'A@' + res + '-1';
+                            PIXI.Cache.remove(cacheKey);
+                        });
+                    });
+
+                    state.skeletons = {};
+                    state.skeletonResolution = {};
+                    state.availableResolutions = {};
+                    state.loadedSkeletons.clear();
+                    state.availableAnimations = [];
+                    state.currentSkeleton = null;
+                    state.currentSkeletonName = '';
+                    state.currentScale = 1.0;
+                    state.cameraX = state.app.screen.width / 2;
+                    state.cameraY = state.app.screen.height / 2;
+                    state.currentIndex = 0;
+                    state.isPlaying = false;
+                    state.activeAnimation = null;
+
+                    state.player.playing = true;
+                    state.player.loop = true;
+                    state.player.pauseBefore = false;
+                    state.player.pauseAfter = false;
+                    state.player.phase = 'none';
+                    state.player.phaseElapsed = 0;
+                    state.player.pendingAction = null;
+                    state.player.lastTickTime = performance.now();
+                    playerManager.updatePlayPauseButton();
+                    playerManager.updateLoopButton();
+                    playerManager.updatePauseBeforeButton();
+                    playerManager.updatePauseAfterButton();
+
+                    if (state.redLineGraphics) {
+                        state.app.stage.removeChild(state.redLineGraphics);
+                        state.redLineGraphics.destroy();
+                        state.redLineGraphics = null;
+                    }
+
+                    skeletonManager.updateScale(1.0, true);
+                    skeletonManager.updatePosition(state.cameraX, state.cameraY);
+                    graphicsManager.drawRedLine();
+                    hideError();
+                    state.hasLoadError = false;
+                    state.hasPlaylistError = false;
+                },
+
+                async handleFiles(fileList) {
+                    const files = Array.from(fileList);
+                    const skelFiles = files.filter(f => f.name.endsWith('.skel'));
+                    const atlasFiles = files.filter(f => f.name.endsWith('.atlas'));
+                    const textureFiles = files.filter(f => /\.(webp|png|jpg)$/.test(f.name));
+
+                    if (skelFiles.length === 0) {
+                        alert('Skeleton file (.skel) not found');
+                        return;
+                    }
+
+                    this.showLoading();
+
+                    try {
+                        this.cleanupPrevious();
+                        state.scenarioGeneration++;
+
+                        const textarea = document.getElementById('playlist-input');
+                        textarea.value = '';
+
+                        for (const skelFile of skelFiles) {
+                            const skeletonName = skelFile.name.replace('.skel', '');
+
+                            const skelData = new Uint8Array(await skelFile.arrayBuffer());
+                            PIXI.Cache.set(skeletonName + 'D', skelData);
+
+                            const resolutions = {};
+
+                            const atlas2x = atlasFiles.find(f => f.name === skeletonName + '@2x.atlas');
+                            if (atlas2x) {
+                                const tex2x = this.findTextureForAtlas(atlas2x.name, textureFiles);
+                                if (tex2x) {
+                                    await this.loadAtlasTexture(skeletonName, '2x', atlas2x, tex2x);
+                                    resolutions['2x'] = true;
+                                }
+                            }
+
+                            const atlas1x = atlasFiles.find(f => f.name === skeletonName + '@1x.atlas');
+                            if (atlas1x) {
+                                const tex1x = this.findTextureForAtlas(atlas1x.name, textureFiles);
+                                if (tex1x) {
+                                    await this.loadAtlasTexture(skeletonName, '1x', atlas1x, tex1x);
+                                    resolutions['1x'] = true;
+                                }
+                            }
+
+                            if (!resolutions['2x'] && !resolutions['1x']) {
+                                const atlasDefault = atlasFiles.find(f => f.name === skeletonName + '.atlas');
+                                if (atlasDefault) {
+                                    const texDefault = this.findTextureForAtlas(atlasDefault.name, textureFiles);
+                                    if (texDefault) {
+                                        await this.loadAtlasTexture(skeletonName, '2x', atlasDefault, texDefault);
+                                        resolutions['2x'] = true;
+                                    }
+                                }
+                            }
+
+                            if (Object.keys(resolutions).length === 0) {
+                                console.warn('No atlas/texture found for ' + skeletonName);
+                                continue;
+                            }
+
+                            state.availableResolutions[skeletonName] = resolutions;
+                            state.loadedSkeletons.add(skeletonName);
+
+                            const initialRes = state.sdMode ? (resolutions['1x'] ? '1x' : Object.keys(resolutions)[0]) : (resolutions['2x'] ? '2x' : Object.keys(resolutions)[0]);
+
+                            if (!state.skeletons[skeletonName]) {
+                                const { result, errors } = this.collectSpineErrors(() => {
+                                    return skeletonManager.createSkeleton(skeletonName, initialRes);
+                                });
+                                if (result) {
+                                    state.skeletons[skeletonName] = result;
+                                    state.skeletonResolution[skeletonName] = initialRes;
+                                }
+                                if (errors.length > 0) {
+                                    showError('[' + skeletonName + '] ' + errors.join('\n'));
+                                    state.hasLoadError = true;
+                                }
+                            }
+
+                            const skeletonObj = state.skeletons[skeletonName];
+                            if (!skeletonObj) continue;
+
+                            let animations = [];
+                            try {
+                                const skeletonData = skeletonObj.skeleton?.data || skeletonObj.state?.data?.skeletonData;
+                                animations = (skeletonData?.animations || []).map(a => a.name);
+                            } catch (e) {
+                                console.error('Failed to read animations:', e);
+                            }
+
+                            animations.forEach(anim => {
+                                state.availableAnimations.push({ skeletonName, animationName: anim });
+                            });
+
+                            const newLines = animations.map(anim => skeletonName + '|' + anim);
+                            if (textarea.value.trim()) {
+                                textarea.value += '\n' + newLines.join('\n');
+                            } else {
+                                textarea.value = newLines.join('\n');
+                            }
+                        }
+
+                        uiControls.renderAnimationsList();
+                        await playlistManager.onTextChange(textarea.value);
+                    } catch (error) {
+                        console.error('Upload error:', error);
+                        showError('Upload error: ' + error.message);
+                        state.hasLoadError = true;
+                    } finally {
+                        this.hideLoading();
+                    }
+                },
+
+                async traverseEntry(entry) {
+                    if (entry.isFile) {
+                        return new Promise((resolve) => {
+                            entry.file((file) => {
+                                if (/\.(skel|atlas|webp|png|jpg)$/.test(file.name)) {
+                                    resolve([file]);
+                                } else {
+                                    resolve([]);
+                                }
+                            }, () => resolve([]));
+                        });
+                    } else if (entry.isDirectory) {
+                        const reader = entry.createReader();
+                        const entries = await new Promise((resolve) => {
+                            const results = [];
+                            const readBatch = () => {
+                                reader.readEntries((batch) => {
+                                    if (batch.length === 0) {
+                                        resolve(results);
+                                    } else {
+                                        results.push(...batch);
+                                        readBatch();
+                                    }
+                                }, () => resolve(results));
+                            };
+                            readBatch();
+                        });
+                        const nested = await Promise.all(entries.map(e => this.traverseEntry(e)));
+                        return nested.flat();
+                    }
+                    return [];
+                },
+
+                async collectFilesFromDataTransfer(dataTransfer) {
+                    const items = dataTransfer.items;
+                    if (items && items.length > 0 && items[0].webkitGetAsEntry) {
+                        const entries = [];
+                        for (let i = 0; i < items.length; i++) {
+                            const entry = items[i].webkitGetAsEntry();
+                            if (entry) entries.push(entry);
+                        }
+                        const nested = await Promise.all(entries.map(e => this.traverseEntry(e)));
+                        return nested.flat();
+                    }
+                    return Array.from(dataTransfer.files).filter(f => /\.(skel|atlas|webp|png|jpg)$/.test(f.name));
+                },
+
+                initDragDrop() {
+                    const dropZone = document.getElementById('dropZone');
+                    let dragCounter = 0;
+
+                    document.addEventListener('dragenter', (e) => {
+                        e.preventDefault();
+                        if (e.dataTransfer.types.includes('Files')) {
+                            dragCounter++;
+                            dropZone.classList.add('active');
+                        }
+                    });
+
+                    document.addEventListener('dragleave', (e) => {
+                        e.preventDefault();
+                        dragCounter--;
+                        if (dragCounter <= 0) {
+                            dragCounter = 0;
+                            dropZone.classList.remove('active');
+                        }
+                    });
+
+                    document.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                    });
+
+                    document.addEventListener('drop', async (e) => {
+                        e.preventDefault();
+                        dragCounter = 0;
+                        dropZone.classList.remove('active');
+                        const files = await this.collectFilesFromDataTransfer(e.dataTransfer);
+                        if (files.length > 0) {
+                            this.handleFiles(files);
+                        }
+                    });
+                },
+
+                initUploadButton() {
+                    const uploadButton = document.getElementById('uploadButton');
+                    const fileInput = document.getElementById('fileInput');
+                    uploadButton.addEventListener('click', () => fileInput.click());
+                    fileInput.addEventListener('change', () => {
+                        if (fileInput.files.length > 0) {
+                            this.handleFiles(fileInput.files);
+                            fileInput.value = '';
+                        }
+                    });
+                },
+
+                initFolderButton() {
+                    const folderButton = document.getElementById('folderButton');
+                    const folderInput = document.getElementById('folderInput');
+                    folderButton.addEventListener('click', () => folderInput.click());
+                    folderInput.addEventListener('change', () => {
+                        if (folderInput.files.length > 0) {
+                            const filtered = Array.from(folderInput.files).filter(
+                                f => /\.(skel|atlas|webp|png|jpg)$/.test(f.name)
+                            );
+                            if (filtered.length > 0) {
+                                this.handleFiles(filtered);
+                            } else {
+                                alert('No .skel, .atlas, or .webp files found in folder');
+                            }
+                            folderInput.value = '';
+                        }
+                    });
+                }
+            };
+
+            const eventHandlers = {
+                initResize() {
+                    const resizeHandle = document.getElementById('resize-handle');
+                    const leftPanel = document.querySelector('.left-panel');
+
+                    resizeHandle.addEventListener('mousedown', (e) => {
+                        state.isResizing = true;
+                        state.resizeStartX = e.clientX;
+                        state.leftPanelStartWidth = leftPanel.offsetWidth;
+                        document.body.style.cursor = 'col-resize';
+                        document.body.style.userSelect = 'none';
+                        e.preventDefault();
+                    });
+
+                    document.addEventListener('mousemove', (e) => {
+                        if (!state.isResizing) return;
+                        const deltaX = e.clientX - state.resizeStartX;
+                        const newWidth = state.leftPanelStartWidth + deltaX;
+                        if (newWidth > 0) {
+                            leftPanel.style.width = newWidth + 'px';
+                            this.handlePanelResize(newWidth);
+                            graphicsManager.drawRedLine();
+                        }
+                    });
+
+                    document.addEventListener('mouseup', () => {
+                        if (state.isResizing) {
+                            state.isResizing = false;
+                            document.body.style.cursor = '';
+                            document.body.style.userSelect = '';
+                        }
+                    });
+                },
+
+                handlePanelResize(panelWidth) {
+                    if (state.app) {
+                        const container = document.querySelector('.canvas-container');
+                        if (!container) return;
+                        const oldWidth = state.app.screen.width;
+                        const oldHeight = state.app.screen.height;
+                        if (oldWidth === 0 || oldHeight === 0) return;
+                        let relativeX = state.cameraX / oldWidth;
+                        let relativeY = state.cameraY / oldHeight;
+                        state.app.renderer.resize(container.clientWidth, container.clientHeight);
+                        skeletonManager.updatePosition(
+                            state.app.screen.width * relativeX,
+                            state.app.screen.height * relativeY
+                        );
+                    }
+                },
+
+                initDragControl() {
+                    const canvas = document.getElementById('canvas');
+                    canvas.addEventListener('mousedown', (e) => {
+                        if (!state.currentSkeleton) return;
+                        state.isDragging = true;
+                        state.dragStartX = e.clientX;
+                        state.dragStartY = e.clientY;
+                        state.skeletonStartX = state.cameraX;
+                        state.skeletonStartY = state.cameraY;
+                        canvas.style.cursor = 'grabbing';
+                    });
+                    document.addEventListener('mousemove', (e) => {
+                        if (!state.isDragging || !state.currentSkeleton) return;
+                        const deltaX = e.clientX - state.dragStartX;
+                        const deltaY = e.clientY - state.dragStartY;
+                        skeletonManager.updatePosition(
+                            state.skeletonStartX + deltaX,
+                            state.skeletonStartY + deltaY
+                        );
+                        graphicsManager.drawRedLine();
+                    });
+                    document.addEventListener('mouseup', () => {
+                        if (state.isDragging) {
+                            state.isDragging = false;
+                            canvas.style.cursor = '';
+                        }
+                    });
+                },
+
+                initScaleControl() {
+                    const canvas = document.getElementById('canvas');
+                    canvas.addEventListener('wheel', (e) => {
+                        e.preventDefault();
+                        const factor = e.deltaY > 0 ? 0.9 : 1.1;
+                        const newScale = Math.round(state.currentScale * factor * 100) / 100;
+                        skeletonManager.updateScale(newScale, true);
+                    });
+                },
+
+                onWindowResize() {
+                    const leftPanel = document.querySelector('.left-panel');
+                    this.handlePanelResize(leftPanel.offsetWidth);
+                    graphicsManager.drawRedLine();
+                }
+            };
+
+            async function initPixi() {
+                state.app = new PIXI.Application();
+                const container = document.querySelector('.canvas-container');
+                await state.app.init({
+                    canvas: document.getElementById('canvas'),
+                    width: container ? container.clientWidth : (window.innerWidth - 300),
+                    height: container ? container.clientHeight : window.innerHeight,
+                    backgroundColor: 0x222222,
+                    antialias: true,
+                    resolution: window.devicePixelRatio || 1,
+                    autoDensity: true
+                });
+                window.addEventListener('resize', () => eventHandlers.onWindowResize());
+            }
+
+            async function init() {
+                await initPixi();
+
+                state.cameraX = state.app.screen.width / 2;
+                state.cameraY = state.app.screen.height / 2;
+                state.player.lastTickTime = performance.now();
+
+                const leftPanel = document.querySelector('.left-panel');
+                leftPanel.style.width = '300px';
+
+                eventHandlers.initResize();
+                eventHandlers.initDragControl();
+                eventHandlers.initScaleControl();
+
+                uiControls.initScaleSlider();
+                uiControls.initCheckbox();
+                uiControls.initResetButton();
+                uiControls.initTextarea();
+                uiControls.initScenarioHeader();
+
+                document.getElementById('errorBlockClose').addEventListener('click', hideError);
+
+                fileHandler.initDragDrop();
+                fileHandler.initUploadButton();
+                fileHandler.initFolderButton();
+
+                playerManager.init();
+                state.app.ticker.add(() => playerManager.onTick());
+
+                graphicsManager.drawRedLine();
+                uiControls.updateHighlighting();
+
+                const textarea = document.getElementById('playlist-input');
+                await playlistManager.onTextChange(textarea.value);
+            }
+
+            window.addEventListener('load', init);
+        })();
+    </script>
+</body>
+</html>
