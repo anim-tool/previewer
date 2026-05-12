@@ -152,12 +152,19 @@
             padding: 10px;
             font-family: monospace;
             font-size: 12px;
-            resize: none;
             outline: none;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.4;
         }
 
         .playlist-input:focus {
             border-color: #888;
+        }
+
+        .playlist-input div {
+            min-height: 1.2em;
         }
 
         .menu-section {
@@ -637,7 +644,7 @@
             </div>
             <div class="tab-content-container">
                 <div id="scenarioContent" class="tab-content">
-                    <textarea id="playlist-input" class="playlist-input">game-logo|hd-idle</textarea>
+                    <div id="playlist-input" class="playlist-input" contenteditable="true">game-logo|hd-idle</div>
                 </div>
                 <div id="animationsContent" class="tab-content">
                     <div id="animationsList" class="animations-list"></div>
@@ -750,6 +757,8 @@
                 activeMode: 'scenario',
                 activeAnimation: null,
                 availableAnimations: [],
+                _lastScenarioText: '',
+                _suppressScenarioInput: false,
                 scenarioGeneration: 0,
                 blobUrls: [],
                 pixiTextures: [],
@@ -768,6 +777,80 @@
                     pendingAction: null
                 }
             };
+
+            function getScenarioPlainText() {
+                const el = document.getElementById('playlist-input');
+                let text = el.innerText || '';
+                text = text.replace(/\u200B/g, '');
+                if (text.endsWith('\n')) text = text.slice(0, -1);
+                return text;
+            }
+
+            function escapeHtml(str) {
+                return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            }
+
+            function setScenarioContent(text, activeIndex) {
+                const el = document.getElementById('playlist-input');
+                const lines = text.split('\n');
+                let html = '';
+                for (let i = 0; i < lines.length; i++) {
+                    const lineText = lines[i] || '';
+                    const color = (i === activeIndex) ? '#ffffff' : '#888888';
+                    const escaped = escapeHtml(lineText);
+                    if (escaped === '') {
+                        html += '<div style="color:' + color + '">\u200B</div>';
+                    } else {
+                        html += '<div style="color:' + color + '">' + escaped + '</div>';
+                    }
+                }
+                state._suppressScenarioInput = true;
+                el.innerHTML = html;
+                state._suppressScenarioInput = false;
+            }
+
+            function saveCursorPosition(el) {
+                const sel = window.getSelection();
+                if (sel.rangeCount === 0) return -1;
+                const range = sel.getRangeAt(0);
+                const preRange = range.cloneRange();
+                preRange.selectNodeContents(el);
+                preRange.setEnd(range.startContainer, range.startOffset);
+                return preRange.toString().length;
+            }
+
+            function restoreCursorPosition(el, pos) {
+                if (pos < 0) return;
+                const range = document.createRange();
+                const sel = window.getSelection();
+                let currentPos = 0;
+                const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                while (node = walker.nextNode()) {
+                    const nextPos = currentPos + node.textContent.length;
+                    if (pos <= nextPos) {
+                        range.setStart(node, pos - currentPos);
+                        range.collapse(true);
+                        break;
+                    }
+                    currentPos = nextPos;
+                }
+                if (node) {
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+            }
+
+            function updateScenarioLineHighlighting() {
+                const el = document.getElementById('playlist-input');
+                if (document.activeElement === el) return;
+
+                const text = state._lastScenarioText;
+                const activeIndex = (state.activeMode === 'scenario' && state.playlist.length > 0)
+                    ? state.currentIndex : -1;
+
+                setScenarioContent(text, activeIndex);
+            }
 
             function getEffectiveResolution(skeletonName, animationName) {
                 const available = state.availableResolutions[skeletonName];
@@ -1038,6 +1121,7 @@
                 },
 
                 async onTextChange(text) {
+                    state._lastScenarioText = text;
                     state.scenarioGeneration++;
                     if (state.currentSkeleton) {
                         state.currentSkeleton.state.clearTracks();
@@ -1380,6 +1464,8 @@
                         const track = state.currentSkeleton.state.getCurrent(0);
                         if (track && track.animation && track.animation.duration > 0) {
                             document.getElementById('positionSlider').value = 1000;
+                        } else {
+                            document.getElementById('positionSlider').value = 0;
                         }
                         if (state.activeMode === 'scenario') this.updateScenarioSliderPosition();
                         return;
@@ -1543,7 +1629,7 @@
                     }
 
                     skeletonEl.textContent = skeletonName;
-                    const durationStr = duration > 0 ? ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>' : '';
+                    const durationStr = ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>';
                     animEl.innerHTML = animationName + durationStr;
                 },
 
@@ -1579,10 +1665,25 @@
                 },
 
                 initTextarea() {
-                    const textarea = document.getElementById('playlist-input');
-                    textarea.value = '';
-                    textarea.addEventListener('input', async () => {
-                        await playlistManager.onTextChange(textarea.value);
+                    const el = document.getElementById('playlist-input');
+                    el.innerHTML = '';
+                    state._lastScenarioText = '';
+
+                    el.addEventListener('input', () => {
+                        if (state._suppressScenarioInput) return;
+                        const text = getScenarioPlainText();
+                        if (text === state._lastScenarioText) return;
+                        playlistManager.onTextChange(text);
+                    });
+
+                    el.addEventListener('blur', () => {
+                        updateScenarioLineHighlighting();
+                    });
+
+                    el.addEventListener('paste', (e) => {
+                        e.preventDefault();
+                        const text = e.clipboardData.getData('text/plain');
+                        document.execCommand('insertText', false, text);
                     });
                 },
 
@@ -1656,6 +1757,8 @@
                             el.classList.remove('active');
                         }
                     });
+
+                    updateScenarioLineHighlighting();
                 }
             };
 
@@ -1766,19 +1869,20 @@
                         });
                     });
 
-                    state.skeletons = {};
-                    state.skeletonResolution = {};
-                    state.availableResolutions = {};
-                    state.loadedSkeletons.clear();
-                    state.availableAnimations = [];
-                    state.currentSkeleton = null;
-                    state.currentSkeletonName = '';
-                    state.currentScale = 1.0;
-                    state.cameraX = state.app.screen.width / 2;
-                    state.cameraY = state.app.screen.height / 2;
-                    state.currentIndex = 0;
-                    state.isPlaying = false;
-                    state.activeAnimation = null;
+                        state.skeletons = {};
+                        state.skeletonResolution = {};
+                        state.availableResolutions = {};
+                        state.loadedSkeletons.clear();
+                        state.availableAnimations = [];
+                        state.currentSkeleton = null;
+                        state.currentSkeletonName = '';
+                        state.currentScale = 1.0;
+                        state.cameraX = state.app.screen.width / 2;
+                        state.cameraY = state.app.screen.height / 2;
+                        state.currentIndex = 0;
+                        state.isPlaying = false;
+                        state.activeAnimation = null;
+                        state._lastScenarioText = '';
 
                     state.player.playing = true;
                     state.player.loop = true;
@@ -1824,8 +1928,7 @@
                         this.cleanupPrevious();
                         state.scenarioGeneration++;
 
-                        const textarea = document.getElementById('playlist-input');
-                        textarea.value = '';
+                        let scenarioText = '';
 
                         for (const skelFile of skelFiles) {
                             const skeletonName = skelFile.name.replace('.skel', '');
@@ -1904,15 +2007,15 @@
                             });
 
                             const newLines = animations.map(anim => skeletonName + '|' + anim);
-                            if (textarea.value.trim()) {
-                                textarea.value += '\n' + newLines.join('\n');
+                            if (scenarioText.trim()) {
+                                scenarioText += '\n' + newLines.join('\n');
                             } else {
-                                textarea.value = newLines.join('\n');
+                                scenarioText = newLines.join('\n');
                             }
                         }
 
                         uiControls.renderAnimationsList();
-                        await playlistManager.onTextChange(textarea.value);
+                        await playlistManager.onTextChange(scenarioText);
                     } catch (error) {
                         console.error('Upload error:', error);
                         showError('Upload error: ' + error.message);
@@ -2181,8 +2284,7 @@
                 graphicsManager.drawRedLine();
                 uiControls.updateHighlighting();
 
-                const textarea = document.getElementById('playlist-input');
-                await playlistManager.onTextChange(textarea.value);
+                await playlistManager.onTextChange(getScenarioPlainText());
             }
 
             window.addEventListener('load', init);
