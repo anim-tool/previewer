@@ -271,6 +271,37 @@
             margin-top: 2px;
         }
 
+        .skin-section {
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .skin-section.visible {
+            display: block;
+        }
+
+        .skin-select {
+            width: 100%;
+            background-color: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 4px;
+            padding: 6px 8px;
+            font-size: 12px;
+            outline: none;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+        }
+
+        .skin-select:focus {
+            border-color: #888;
+        }
+
+        .skin-select option {
+            background-color: #444;
+            color: white;
+        }
+
         .right-area {
             flex: 1;
             position: relative;
@@ -664,6 +695,10 @@
                     <input type="checkbox" id="sdCheckbox">
                     <label for="sdCheckbox">View SD textures</label>
                 </div>
+                <div id="skinSection" class="skin-section">
+                    <label class="slider-label">Skin</label>
+                    <select id="skinSelect" class="skin-select"></select>
+                </div>
                 <button id="resetButton">Reset Scale and Position</button>
             </div>
         </div>
@@ -764,6 +799,8 @@
                 pixiTextures: [],
                 hasLoadError: false,
                 hasPlaylistError: false,
+                availableSkins: {},
+                selectedSkins: {},
                 player: {
                     playing: true,
                     loop: true,
@@ -933,6 +970,8 @@
                         state.skeletons[key].hidden = (key !== skeletonName);
                     });
 
+                    skinManager.restoreSkin(skeletonName);
+                    skinManager.updateDropdown(skeletonName);
                     graphicsManager.drawRedLine();
                 },
 
@@ -960,6 +999,69 @@
                     this.updatePosition(state.app.screen.width / 2, state.app.screen.height / 2);
                     uiControls.resetCheckbox();
                     graphicsManager.drawRedLine();
+                }
+            };
+
+            const skinManager = {
+                readSkins(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return [];
+                    const skins = sk.skeleton.data.skins;
+                    if (!skins) return [];
+                    return skins.map(s => s.name);
+                },
+
+                updateDropdown(skeletonName) {
+                    const section = document.getElementById('skinSection');
+                    const select = document.getElementById('skinSelect');
+                    if (!section || !select) return;
+
+                    const skins = state.availableSkins[skeletonName] || [];
+                    const nonDefaultSkins = skins.filter(s => s !== 'default');
+
+                    if (nonDefaultSkins.length === 0) {
+                        section.classList.remove('visible');
+                        return;
+                    }
+
+                    select.innerHTML = '';
+                    skins.forEach(skinName => {
+                        const opt = document.createElement('option');
+                        opt.value = skinName;
+                        opt.textContent = skinName;
+                        select.appendChild(opt);
+                    });
+
+                    const saved = state.selectedSkins[skeletonName] || 'default';
+                    select.value = saved;
+                    section.classList.add('visible');
+                },
+
+                applySkin(skeletonName, skinName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton) return;
+                    sk.skeleton.setSkinByName(skinName);
+                    sk.skeleton.setSlotsToSetupPose();
+                    state.selectedSkins[skeletonName] = skinName;
+                },
+
+                restoreSkin(skeletonName) {
+                    const skinName = state.selectedSkins[skeletonName];
+                    if (!skinName || skinName === 'default') return;
+                    const skins = state.availableSkins[skeletonName] || [];
+                    if (skins.includes(skinName)) {
+                        this.applySkin(skeletonName, skinName);
+                    }
+                },
+
+                init() {
+                    const select = document.getElementById('skinSelect');
+                    if (!select) return;
+                    select.addEventListener('change', (e) => {
+                        if (state.currentSkeletonName) {
+                            this.applySkin(state.currentSkeletonName, e.target.value);
+                        }
+                    });
                 }
             };
 
@@ -1464,8 +1566,6 @@
                         const track = state.currentSkeleton.state.getCurrent(0);
                         if (track && track.animation && track.animation.duration > 0) {
                             document.getElementById('positionSlider').value = 1000;
-                        } else {
-                            document.getElementById('positionSlider').value = 0;
                         }
                         if (state.activeMode === 'scenario') this.updateScenarioSliderPosition();
                         return;
@@ -1629,7 +1729,7 @@
                     }
 
                     skeletonEl.textContent = skeletonName;
-                    const durationStr = ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>';
+                    const durationStr = duration > 0 ? ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>' : '';
                     animEl.innerHTML = animationName + durationStr;
                 },
 
@@ -1874,6 +1974,7 @@
                         state.availableResolutions = {};
                         state.loadedSkeletons.clear();
                         state.availableAnimations = [];
+                        state.availableSkins = {};
                         state.currentSkeleton = null;
                         state.currentSkeletonName = '';
                         state.currentScale = 1.0;
@@ -1909,6 +2010,7 @@
                     hideError();
                     state.hasLoadError = false;
                     state.hasPlaylistError = false;
+                    document.getElementById('skinSection').classList.remove('visible');
                 },
 
                 async handleFiles(fileList) {
@@ -2005,6 +2107,9 @@
                             animations.forEach(anim => {
                                 state.availableAnimations.push({ skeletonName, animationName: anim });
                             });
+
+                            const skins = skinManager.readSkins(skeletonName);
+                            state.availableSkins[skeletonName] = skins;
 
                             const newLines = animations.map(anim => skeletonName + '|' + anim);
                             if (scenarioText.trim()) {
@@ -2271,6 +2376,7 @@
                 uiControls.initResetButton();
                 uiControls.initTextarea();
                 uiControls.initScenarioHeader();
+                skinManager.init();
 
                 document.getElementById('errorBlockClose').addEventListener('click', hideError);
 
