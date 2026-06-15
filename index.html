@@ -953,6 +953,7 @@
 
                         state.skeletons[skeletonName] = this.createSkeleton(skeletonName, neededRes);
                         state.skeletonResolution[skeletonName] = neededRes;
+                        placeholderManager.buildFor(skeletonName);
                     }
 
                     if (state.currentSkeleton && state.currentSkeleton !== state.skeletons[skeletonName]) {
@@ -1084,6 +1085,88 @@
                     state.redLineGraphics.moveTo(skeletonX, 0);
                     state.redLineGraphics.lineTo(skeletonX, state.app.screen.height);
                     state.redLineGraphics.stroke();
+                }
+            };
+
+            function slotCollectRenderables(instructionSet, renderer) {
+                const { renderPipes, renderableGC } = renderer;
+                renderPipes.blendMode.setBlendMode(this, this.groupBlendMode, instructionSet);
+                this.didViewUpdate = false;
+                renderPipes[this.renderPipeId].addRenderable(this, instructionSet);
+                renderableGC.addRenderable(this, instructionSet);
+            }
+
+            const placeholderManager = {
+                PREFIX: 'placeholder-',
+                FONT_SIZE: 60,
+                entries: {},
+
+                buildFor(skeletonName) {
+                    this.clearFor(skeletonName);
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.addSlotObject) return;
+                    const slots = sk.skeleton.slots || [];
+                    const items = [];
+                    for (let i = 0; i < slots.length; i++) {
+                        const slot = slots[i];
+                        const name = slot.data && slot.data.name;
+                        if (!name || name.indexOf(this.PREFIX) !== 0) continue;
+                        const text = new PIXI.Text({
+                            text: name,
+                            style: {
+                                fontFamily: 'Arial',
+                                fontSize: this.FONT_SIZE,
+                                fill: 0xffffff,
+                                stroke: { color: 0x000000, width: 3, join: 'round' },
+                                align: 'center'
+                            }
+                        });
+                        text.anchor.set(0.5, 0.5);
+                        text.collectRenderables = slotCollectRenderables;
+                        sk.addSlotObject(name, text);
+                        items.push({ slot: slot, text: text });
+                    }
+                    this.entries[skeletonName] = { spine: sk, items: items };
+                    sk.afterUpdateWorldTransforms = () => {
+                        this.applyColor(skeletonName);
+                    };
+                    this.applyColor(skeletonName);
+                },
+
+                clearFor(skeletonName) {
+                    const entry = this.entries[skeletonName];
+                    if (entry) {
+                        const sk = entry.spine;
+                        if (sk && !sk.destroyed && sk.skeleton) {
+                            sk.afterUpdateWorldTransforms = () => {};
+                        }
+                        for (let i = 0; i < entry.items.length; i++) {
+                            const it = entry.items[i];
+                            if (sk && !sk.destroyed && sk.removeSlotObject) {
+                                try { sk.removeSlotObject(it.slot); } catch (e) {}
+                            }
+                            if (it.text && !it.text.destroyed) it.text.destroy({ children: true });
+                        }
+                    }
+                    delete this.entries[skeletonName];
+                },
+
+                resetAll() {
+                    Object.keys(this.entries).forEach(name => this.clearFor(name));
+                },
+
+                applyColor(skeletonName) {
+                    const entry = this.entries[skeletonName];
+                    if (!entry) return;
+                    for (let i = 0; i < entry.items.length; i++) {
+                        const it = entry.items[i];
+                        const c = it.slot.color;
+                        if (!c || !it.text || it.text.destroyed) continue;
+                        const r = Math.round(c.r * 255);
+                        const g = Math.round(c.g * 255);
+                        const b = Math.round(c.b * 255);
+                        it.text.tint = (r << 16) | (g << 8) | b;
+                    }
                 }
             };
 
@@ -1970,6 +2053,7 @@
                     });
 
                         state.skeletons = {};
+                        placeholderManager.resetAll();
                         state.skeletonResolution = {};
                         state.availableResolutions = {};
                         state.loadedSkeletons.clear();
@@ -2086,6 +2170,7 @@
                                 if (result) {
                                     state.skeletons[skeletonName] = result;
                                     state.skeletonResolution[skeletonName] = initialRes;
+                                    placeholderManager.buildFor(skeletonName);
                                 }
                                 if (errors.length > 0) {
                                     showError('[' + skeletonName + '] ' + errors.join('\n'));
