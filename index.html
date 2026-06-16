@@ -695,6 +695,10 @@
                     <input type="checkbox" id="sdCheckbox">
                     <label for="sdCheckbox">View SD textures</label>
                 </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="placeholdersCheckbox" checked>
+                    <label for="placeholdersCheckbox">Show placeholders</label>
+                </div>
                 <div id="skinSection" class="skin-section">
                     <label class="slider-label">Skin</label>
                     <select id="skinSelect" class="skin-select"></select>
@@ -788,6 +792,7 @@
                 skeletonStartY: 0,
                 loadedSkeletons: new Set(),
                 sdMode: false,
+                showPlaceholders: true,
                 showInfo: true,
                 activeMode: 'scenario',
                 activeAnimation: null,
@@ -1089,6 +1094,7 @@
             };
 
             function slotCollectRenderables(instructionSet, renderer) {
+                if (!state.showPlaceholders) return;
                 const { renderPipes, renderableGC } = renderer;
                 renderPipes.blendMode.setBlendMode(this, this.groupBlendMode, instructionSet);
                 this.didViewUpdate = false;
@@ -1122,6 +1128,7 @@
                             }
                         });
                         text.anchor.set(0.5, 0.5);
+                        text.renderable = state.showPlaceholders;
                         text.collectRenderables = slotCollectRenderables;
                         sk.addSlotObject(name, text);
                         items.push({ slot: slot, text: text });
@@ -1155,9 +1162,20 @@
                     Object.keys(this.entries).forEach(name => this.clearFor(name));
                 },
 
+                setVisible(visible) {
+                    Object.keys(this.entries).forEach(skeletonName => {
+                        const entry = this.entries[skeletonName];
+                        for (let i = 0; i < entry.items.length; i++) {
+                            const it = entry.items[i];
+                            if (it.text && !it.text.destroyed) it.text.renderable = visible;
+                        }
+                    });
+                },
+
                 applyColor(skeletonName) {
                     const entry = this.entries[skeletonName];
                     if (!entry) return;
+                    if (!state.showPlaceholders) return;
                     for (let i = 0; i < entry.items.length; i++) {
                         const it = entry.items[i];
                         const c = it.slot.color;
@@ -1776,6 +1794,17 @@
                     checkbox.addEventListener('change', (e) => {
                         state.sdMode = e.target.checked;
                         this.onResolutionChange();
+                    });
+                },
+
+                initPlaceholdersCheckbox() {
+                    const checkbox = document.getElementById('placeholdersCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.showPlaceholders;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.showPlaceholders = e.target.checked;
+                        placeholderManager.setVisible(state.showPlaceholders);
                     });
                 },
 
@@ -2458,6 +2487,7 @@
 
                 uiControls.initScaleSlider();
                 uiControls.initCheckbox();
+                uiControls.initPlaceholdersCheckbox();
                 uiControls.initResetButton();
                 uiControls.initTextarea();
                 uiControls.initScenarioHeader();
