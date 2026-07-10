@@ -447,7 +447,7 @@
             color: #ff8888;
             border: 1px solid #773333;
             border-radius: 4px;
-            padding: 8px 28px 8px 8px;
+            padding: 8px 72px 8px 8px;
             font-size: 11px;
             font-family: monospace;
             line-height: 1.4;
@@ -492,6 +492,25 @@
         }
 
         .error-block-close:hover {
+            color: #ffaaaa;
+        }
+
+        .error-block-copy {
+            position: absolute;
+            top: 4px;
+            right: 28px;
+            background: none;
+            border: none;
+            color: #ff8888;
+            cursor: pointer;
+            font-size: 11px;
+            font-family: monospace;
+            line-height: 1;
+            padding: 0;
+            margin: 0;
+        }
+
+        .error-block-copy:hover {
             color: #ffaaaa;
         }
 
@@ -682,6 +701,7 @@
                 </div>
             </div>
             <div id="errorBlock" class="error-block">
+                <button id="errorBlockCopy" class="error-block-copy" title="Copy">Copy</button>
                 <button id="errorBlockClose" class="error-block-close">&times;</button>
                 <div id="errorBlockText"></div>
             </div>
@@ -698,6 +718,10 @@
                 <div class="checkbox-item">
                     <input type="checkbox" id="placeholdersCheckbox">
                     <label for="placeholdersCheckbox">Show placeholders</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="zeroAlphaCheckbox">
+                    <label for="zeroAlphaCheckbox">Check placeholders zero alpha</label>
                 </div>
                 <div id="skinSection" class="skin-section">
                     <label class="slider-label">Skin</label>
@@ -768,6 +792,16 @@
                 block.classList.remove('visible');
             }
 
+            function showZeroAlphaIfAny() {
+                if (!state.checkZeroAlpha) { hideError(); return; }
+                if (state.hasLoadError || state.hasPlaylistError) return;
+                if (state.zeroAlphaWarnings && state.zeroAlphaWarnings.length > 0) {
+                    showError(state.zeroAlphaWarnings.join('\n'));
+                } else {
+                    hideError();
+                }
+            }
+
             const state = {
                 app: null,
                 currentSkeleton: null,
@@ -804,6 +838,8 @@
                 pixiTextures: [],
                 hasLoadError: false,
                 hasPlaylistError: false,
+                zeroAlphaWarnings: [],
+                checkZeroAlpha: false,
                 availableSkins: {},
                 selectedSkins: {},
                 player: {
@@ -1185,6 +1221,58 @@
                         const b = Math.round(c.b * 255);
                         it.text.tint = (r << 16) | (g << 8) | b;
                     }
+                },
+
+                detectZeroAlpha(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return [];
+                    const data = sk.skeleton.data;
+                    const slotsData = data.slots || [];
+                    const placeholderSlots = {};
+                    for (let i = 0; i < slotsData.length; i++) {
+                        const name = slotsData[i].name;
+                        if (name && name.indexOf(this.PREFIX) === 0) {
+                            placeholderSlots[i] = name;
+                        }
+                    }
+                    if (Object.keys(placeholderSlots).length === 0) return [];
+
+                    const PROP_ALPHA = '9';
+                    const animations = data.animations || [];
+                    const warnings = [];
+                    for (let a = 0; a < animations.length; a++) {
+                        const anim = animations[a];
+                        const timelines = anim.timelines || [];
+                        for (let t = 0; t < timelines.length; t++) {
+                            const timeline = timelines[t];
+                            const propIds = timeline.getPropertyIds ? timeline.getPropertyIds() : timeline.propertyIds;
+                            if (!propIds) continue;
+                            let slotIndex = -1;
+                            for (let p = 0; p < propIds.length; p++) {
+                                const pid = String(propIds[p]);
+                                const sep = pid.indexOf('|');
+                                if (sep < 0) continue;
+                                if (pid.substring(0, sep) !== PROP_ALPHA) continue;
+                                const idx = parseInt(pid.substring(sep + 1), 10);
+                                if (placeholderSlots[idx] !== undefined) { slotIndex = idx; break; }
+                            }
+                            if (slotIndex < 0) continue;
+                            const entries = timeline.getFrameEntries();
+                            const frameCount = timeline.getFrameCount();
+                            const alphaOffset = entries === 2 ? 1 : 4;
+                            const times = [];
+                            for (let f = 0; f < frameCount; f++) {
+                                const base = f * entries;
+                                if (timeline.frames[base + alphaOffset] === 0) {
+                                    times.push(Math.round(timeline.frames[base] * 30));
+                                }
+                            }
+                            if (times.length > 0) {
+                                warnings.push('[' + skeletonName + '] "' + placeholderSlots[slotIndex] + '" in "' + anim.name + '": 0 alpha at frames: ' + times.join(', '));
+                            }
+                        }
+                    }
+                    return warnings;
                 }
             };
 
@@ -1337,10 +1425,7 @@
                         state.hasPlaylistError = true;
                     } else {
                         state.hasPlaylistError = false;
-                        const errorBlock = document.getElementById('errorBlock');
-                        if (errorBlock.classList.contains('visible') && !state.hasLoadError) {
-                            hideError();
-                        }
+                        showZeroAlphaIfAny();
                     }
 
                     if (state.playlist.length > 0) {
@@ -1808,6 +1893,17 @@
                     });
                 },
 
+                initZeroAlphaCheckbox() {
+                    const checkbox = document.getElementById('zeroAlphaCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkZeroAlpha;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkZeroAlpha = e.target.checked;
+                        showZeroAlphaIfAny();
+                    });
+                },
+
                 resetCheckbox() {
                     const checkbox = document.getElementById('sdCheckbox');
                     if (checkbox) {
@@ -2123,6 +2219,7 @@
                     hideError();
                     state.hasLoadError = false;
                     state.hasPlaylistError = false;
+                    state.zeroAlphaWarnings = [];
                     document.getElementById('skinSection').classList.remove('visible');
                 },
 
@@ -2221,6 +2318,11 @@
                             animations.forEach(anim => {
                                 state.availableAnimations.push({ skeletonName, animationName: anim });
                             });
+
+                            const zeroWarnings = placeholderManager.detectZeroAlpha(skeletonName);
+                            if (zeroWarnings.length > 0) {
+                                state.zeroAlphaWarnings = state.zeroAlphaWarnings.concat(zeroWarnings);
+                            }
 
                             const skins = skinManager.readSkins(skeletonName);
                             state.availableSkins[skeletonName] = skins;
@@ -2488,12 +2590,33 @@
                 uiControls.initScaleSlider();
                 uiControls.initCheckbox();
                 uiControls.initPlaceholdersCheckbox();
+                uiControls.initZeroAlphaCheckbox();
                 uiControls.initResetButton();
                 uiControls.initTextarea();
                 uiControls.initScenarioHeader();
                 skinManager.init();
 
                 document.getElementById('errorBlockClose').addEventListener('click', hideError);
+
+                document.getElementById('errorBlockCopy').addEventListener('click', () => {
+                    const text = document.getElementById('errorBlockText').textContent || '';
+                    if (!text) return;
+                    const fallback = (str) => {
+                        const ta = document.createElement('textarea');
+                        ta.value = str;
+                        ta.style.position = 'fixed';
+                        ta.style.opacity = '0';
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try { document.execCommand('copy'); } catch (e) {}
+                        document.body.removeChild(ta);
+                    };
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).catch(() => fallback(text));
+                    } else {
+                        fallback(text);
+                    }
+                });
 
                 fileHandler.initDragDrop();
                 fileHandler.initUploadButton();
