@@ -11,11 +11,26 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --bg-rgb: 30, 30, 30;
+            --fg-rgb: 255, 255, 255;
+            --bg: rgb(var(--bg-rgb));
+            --fg: rgb(var(--fg-rgb));
+            --n1: rgba(var(--fg-rgb), 0.08);
+            --n2: rgba(var(--fg-rgb), 0.14);
+            --n3: rgba(var(--fg-rgb), 0.20);
+            --n4: rgba(var(--fg-rgb), 0.30);
+            --n5: rgba(var(--fg-rgb), 0.42);
+            --n-text: rgba(var(--fg-rgb), 0.62);
+            --n-text-dim: rgba(var(--fg-rgb), 0.40);
+        }
+
         body {
             font-family: Arial, sans-serif;
             overflow: hidden;
             height: 100vh;
             width: 100vw;
+            background-color: var(--bg);
         }
 
         .container {
@@ -26,17 +41,17 @@
 
         .left-panel {
             width: 300px;
-            background-color: #333;
-            color: white;
+            background-color: var(--bg);
+            color: var(--fg);
             display: flex;
             flex-direction: column;
             padding: 10px;
-            border-right: 1px solid #555;
+            border-right: 1px solid var(--n2);
             min-width: 0;
             height: 100vh;
             box-sizing: border-box;
             scrollbar-width: thin;
-            scrollbar-color: #555 #333;
+            scrollbar-color: var(--n4) transparent;
         }
 
         .left-panel::-webkit-scrollbar {
@@ -44,31 +59,32 @@
         }
 
         .left-panel::-webkit-scrollbar-track {
-            background: #333;
+            background: transparent;
         }
 
         .left-panel::-webkit-scrollbar-thumb {
-            background-color: #555;
+            background-color: var(--n4);
             border-radius: 4px;
-            border: 2px solid #333;
+            border: 2px solid transparent;
+            background-clip: padding-box;
         }
 
         .left-panel::-webkit-scrollbar-thumb:hover {
-            background-color: #666;
+            background-color: var(--n-text);
         }
 
         .resize-handle {
             width: 20px;
             height: 100%;
             cursor: col-resize;
-            background-color: #444;
-            border-right: 1px solid #555;
+            background-color: var(--n1);
+            border-right: 1px solid var(--n2);
             position: relative;
             z-index: 10;
         }
 
         .resize-handle:hover {
-            background-color: #555;
+            background-color: var(--n3);
         }
 
         .resize-handle::after {
@@ -79,17 +95,17 @@
             transform: translate(-50%, -50%);
             width: 2px;
             height: 30px;
-            background-color: #666;
+            background-color: var(--n4);
             border-radius: 1px;
         }
 
         .left-panel h2 {
             font-size: 16px;
             font-weight: bold;
-            color: #aaa;
+            color: var(--n-text);
             margin-bottom: 15px;
             padding-bottom: 5px;
-            border-bottom: 1px solid #444;
+            border-bottom: 1px solid var(--n2);
         }
 
         .tabs {
@@ -103,23 +119,23 @@
             font-weight: bold;
             padding: 8px 12px;
             cursor: pointer;
-            transition: color 0.2s, background-color 0.2s;
+            color: var(--n-text);
             user-select: none;
             border-radius: 4px;
         }
 
         .tab:hover {
-            color: #ccc;
-            background-color: #444;
+            color: var(--fg);
+            background-color: var(--n2);
         }
 
         .tab.active {
-            color: white;
-            background-color: #555;
+            color: var(--fg);
+            background-color: var(--n3);
         }
 
         .tab.inactive {
-            color: #666;
+            color: var(--n-text-dim);
         }
 
         .tab-content-container {
@@ -145,9 +161,9 @@
         .playlist-input {
             width: 100%;
             height: 100%;
-            background-color: #444;
-            color: white;
-            border: 1px solid #666;
+            background-color: var(--n1);
+            color: var(--fg);
+            border: 1px solid var(--n2);
             border-radius: 4px;
             padding: 10px;
             font-family: monospace;
@@ -160,7 +176,7 @@
         }
 
         .playlist-input:focus {
-            border-color: #888;
+            border-color: var(--n4);
         }
 
         .playlist-input div {
@@ -169,16 +185,20 @@
 
         .menu-section {
             padding-top: 10px;
-            border-top: 1px solid #444;
+            border-top: 1px solid var(--n2);
         }
 
         .slider-container {
             margin-bottom: 15px;
         }
 
+        .theme-container {
+            margin-top: 10px;
+        }
+
         .slider-label {
             font-size: 12px;
-            color: #aaa;
+            color: var(--n-text);
             margin-bottom: 5px;
             display: block;
         }
@@ -193,7 +213,7 @@
 
         .slider::-webkit-slider-runnable-track {
             height: 4px;
-            background: #666;
+            background: var(--n4);
             border-radius: 2px;
         }
 
@@ -202,25 +222,25 @@
             appearance: none;
             height: 16px;
             width: 16px;
-            background: #aaa;
+            background: var(--n-text);
             border-radius: 50%;
             margin-top: -6px;
             cursor: pointer;
-            border: 2px solid #333;
+            border: 2px solid var(--bg);
         }
 
         .slider::-moz-range-track {
             height: 4px;
-            background: #666;
+            background: var(--n4);
             border-radius: 2px;
         }
 
         .slider::-moz-range-thumb {
             height: 16px;
             width: 16px;
-            background: #aaa;
+            background: var(--n-text);
             border-radius: 50%;
-            border: 2px solid #333;
+            border: 2px solid var(--bg);
             cursor: pointer;
         }
 
@@ -232,19 +252,19 @@
 
         .checkbox-item input[type="checkbox"] {
             margin-right: 8px;
-            accent-color: #aaa;
+            accent-color: var(--n-text);
             transform: scale(1.2);
         }
 
         .checkbox-item label {
             font-size: 12px;
-            color: #aaa;
+            color: var(--n-text);
             cursor: pointer;
         }
 
         button {
-            background: #555;
-            color: white;
+            background: var(--n3);
+            color: var(--fg);
             border: none;
             padding: 10px 16px;
             border-radius: 4px;
@@ -253,20 +273,19 @@
             font-weight: bold;
             margin-top: 5px;
             width: 100%;
-            transition: background-color 0.2s;
         }
 
         button:hover {
-            background: #666;
+            background: var(--n4);
         }
 
         button:active {
-            background: #777;
+            background: var(--n5);
         }
 
         .slider-value {
             font-size: 12px;
-            color: #aaa;
+            color: var(--n-text);
             text-align: right;
             margin-top: 2px;
         }
@@ -282,9 +301,9 @@
 
         .skin-select {
             width: 100%;
-            background-color: #444;
-            color: white;
-            border: 1px solid #666;
+            background-color: var(--n1);
+            color: var(--fg);
+            border: 1px solid var(--n2);
             border-radius: 4px;
             padding: 6px 8px;
             font-size: 12px;
@@ -294,18 +313,18 @@
         }
 
         .skin-select:focus {
-            border-color: #888;
+            border-color: var(--n4);
         }
 
         .skin-select option {
-            background-color: #444;
-            color: white;
+            background-color: var(--bg);
+            color: var(--fg);
         }
 
         .right-area {
             flex: 1;
             position: relative;
-            background-color: #222;
+            background-color: var(--bg);
             min-width: 0;
             display: flex;
             flex-direction: column;
@@ -326,22 +345,21 @@
         }
 
         .upload-btn {
-            background: #444;
-            color: #ccc;
-            border: 2px dashed #666;
+            background: var(--n1);
+            color: var(--n-text);
+            border: 2px dashed var(--n3);
             padding: 12px 8px;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
             flex: 1;
-            transition: all 0.2s;
             font-weight: bold;
         }
 
         .upload-btn:hover {
-            background: #555;
-            border-color: #999;
-            color: #fff;
+            background: var(--n2);
+            border-color: var(--n4);
+            color: var(--fg);
         }
 
         .drop-zone {
@@ -405,7 +423,7 @@
             flex: 1;
             overflow-y: auto;
             scrollbar-width: thin;
-            scrollbar-color: #555 #333;
+            scrollbar-color: var(--n4) transparent;
         }
 
         .animations-list::-webkit-scrollbar {
@@ -413,39 +431,38 @@
         }
 
         .animations-list::-webkit-scrollbar-track {
-            background: #333;
+            background: transparent;
         }
 
         .animations-list::-webkit-scrollbar-thumb {
-            background-color: #555;
+            background-color: var(--n4);
             border-radius: 3px;
         }
 
         .animation-item {
             padding: 4px 8px;
-            color: #666;
+            color: var(--n-text-dim);
             cursor: pointer;
             font-size: 12px;
             border-radius: 3px;
-            transition: background-color 0.15s, color 0.15s;
             font-family: monospace;
         }
 
         .animation-item:hover {
-            background-color: #444;
-            color: #bbb;
+            background-color: var(--n2);
+            color: var(--n-text);
         }
 
         .animation-item.active {
-            color: white;
+            color: var(--fg);
         }
 
         .error-block {
             display: none;
             position: relative;
-            background-color: #552222;
-            color: #ff8888;
-            border: 1px solid #773333;
+            background-color: var(--n1);
+            color: rgb(var(--error-fg));
+            border: 1px solid rgba(var(--error-fg), 0.5);
             border-radius: 4px;
             padding: 8px 72px 8px 8px;
             font-size: 11px;
@@ -456,7 +473,7 @@
             margin-bottom: 10px;
             white-space: pre-wrap;
             scrollbar-width: thin;
-            scrollbar-color: #555 #442222;
+            scrollbar-color: var(--n4) transparent;
         }
 
         .error-block::-webkit-scrollbar {
@@ -464,11 +481,11 @@
         }
 
         .error-block::-webkit-scrollbar-track {
-            background: #442222;
+            background: transparent;
         }
 
         .error-block::-webkit-scrollbar-thumb {
-            background-color: #555;
+            background-color: var(--n4);
             border-radius: 3px;
         }
 
@@ -482,7 +499,7 @@
             right: 6px;
             background: none;
             border: none;
-            color: #ff8888;
+            color: rgb(var(--error-fg));
             cursor: pointer;
             font-size: 13px;
             line-height: 1;
@@ -492,7 +509,7 @@
         }
 
         .error-block-close:hover {
-            color: #ffaaaa;
+            color: rgb(var(--error-fg-hover));
         }
 
         .error-block-copy {
@@ -501,7 +518,7 @@
             right: 28px;
             background: none;
             border: none;
-            color: #ff8888;
+            color: rgb(var(--error-fg));
             cursor: pointer;
             font-size: 11px;
             font-family: monospace;
@@ -511,7 +528,7 @@
         }
 
         .error-block-copy:hover {
-            color: #ffaaaa;
+            color: rgb(var(--error-fg-hover));
         }
 
         .canvas-container {
@@ -524,10 +541,10 @@
         .scenario-timeline {
             display: none;
             height: 28px;
-            background: #2a2a2a;
+            background: var(--bg);
             padding: 0 12px;
             align-items: center;
-            border-top: 1px solid #3a3a3a;
+            border-top: 1px solid var(--n2);
         }
 
         .scenario-timeline.visible {
@@ -538,10 +555,10 @@
             display: flex;
             align-items: center;
             height: 40px;
-            background: #2a2a2a;
+            background: var(--bg);
             padding: 0 8px;
             gap: 4px;
-            border-top: 1px solid #3a3a3a;
+            border-top: 1px solid var(--n2);
         }
 
         .player-buttons {
@@ -557,32 +574,31 @@
             background: none;
             border: 1px solid transparent;
             cursor: pointer;
-            color: #777;
+            color: var(--n-text-dim);
             padding: 4px;
             display: flex;
             align-items: center;
             justify-content: center;
             border-radius: 4px;
             margin: 0;
-            transition: color 0.15s, background-color 0.15s;
             box-sizing: border-box;
             font-size: inherit;
             font-weight: inherit;
         }
 
         .player-btn:hover {
-            background: #3a3a3a;
-            color: #bbb;
+            background: var(--n2);
+            color: var(--n-text);
         }
 
         .player-btn:active {
-            background: #444;
+            background: var(--n3);
         }
 
         .player-btn.toggle-btn.active {
-            color: #ddd;
-            background: #3a3a3a;
-            border-color: #555;
+            color: var(--fg);
+            background: var(--n2);
+            border-color: var(--n3);
         }
 
         .player-btn svg {
@@ -608,7 +624,7 @@
 
         .player-slider::-webkit-slider-runnable-track {
             height: 4px;
-            background: #555;
+            background: var(--n3);
             border-radius: 2px;
         }
 
@@ -617,25 +633,25 @@
             appearance: none;
             height: 14px;
             width: 14px;
-            background: #aaa;
+            background: var(--n-text);
             border-radius: 50%;
             margin-top: -5px;
             cursor: pointer;
-            border: 2px solid #2a2a2a;
+            border: 2px solid var(--bg);
         }
 
         .player-slider::-moz-range-track {
             height: 4px;
-            background: #555;
+            background: var(--n3);
             border-radius: 2px;
         }
 
         .player-slider::-moz-range-thumb {
             height: 14px;
             width: 14px;
-            background: #aaa;
+            background: var(--n-text);
             border-radius: 50%;
-            border: 2px solid #2a2a2a;
+            border: 2px solid var(--bg);
             cursor: pointer;
         }
 
@@ -658,20 +674,20 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            color: white;
+            color: var(--fg);
             font-size: 20px;
             font-family: Arial, sans-serif;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            text-shadow: 1px 1px 3px rgba(var(--bg-rgb), 0.85);
         }
 
         .info-animation-name {
             position: absolute;
             bottom: 10px;
             left: 10px;
-            color: white;
+            color: var(--fg);
             font-size: 20px;
             font-family: Arial, sans-serif;
-            text-shadow: 1px 1px 3px rgba(0,0,0,0.8);
+            text-shadow: 1px 1px 3px rgba(var(--bg-rgb), 0.85);
         }
 
         .info-animation-duration {
@@ -728,6 +744,10 @@
                     <select id="skinSelect" class="skin-select"></select>
                 </div>
                 <button id="resetButton">Reset Scale and Position</button>
+                <div class="slider-container theme-container">
+                    <label class="slider-label" for="themeSlider">Theme</label>
+                    <input type="range" id="themeSlider" class="slider" min="0" max="255" step="1" value="30">
+                </div>
             </div>
         </div>
 
@@ -780,6 +800,30 @@
 
     <script>
         (function() {
+            (function earlyTheme() {
+                let raw = null;
+                try { raw = localStorage.getItem('spineViewerThemeLuminance'); } catch (e) {}
+                const L = (raw === null || raw === undefined) ? 30 : Math.max(0, Math.min(255, parseInt(raw, 10) || 0));
+                const fg = L < 128 ? 255 : 0;
+                const rs = document.documentElement.style;
+                rs.setProperty('--bg-rgb', L + ',' + L + ',' + L);
+                rs.setProperty('--fg-rgb', fg + ',' + fg + ',' + fg);
+                applyErrorColors(rs, L);
+            })();
+
+            function applyErrorColors(rs, L) {
+                let e, eh;
+                if (L < 128) {
+                    e = '255, 215, 215';
+                    eh = '255, 240, 240';
+                } else {
+                    e = '80, 24, 24';
+                    eh = '50, 12, 12';
+                }
+                rs.setProperty('--error-fg', e);
+                rs.setProperty('--error-fg-hover', eh);
+            }
+
             function showError(message) {
                 const block = document.getElementById('errorBlock');
                 const text = document.getElementById('errorBlockText');
@@ -852,8 +896,12 @@
                     phase: 'none',
                     phaseElapsed: 0,
                     lastTickTime: 0,
-                    pendingAction: null
-                }
+                    pendingAction: null,
+                    stallIndex: -1,
+                    stallSince: 0
+                },
+                themeL: 30,
+                themeFg: 255
             };
 
             function getScenarioPlainText() {
@@ -874,7 +922,7 @@
                 let html = '';
                 for (let i = 0; i < lines.length; i++) {
                     const lineText = lines[i] || '';
-                    const color = (i === activeIndex) ? '#ffffff' : '#888888';
+                    const color = (i === activeIndex) ? 'var(--fg)' : 'rgba(var(--fg-rgb), 0.45)';
                     const escaped = escapeHtml(lineText);
                     if (escaped === '') {
                         html += '<div style="color:' + color + '">\u200B</div>';
@@ -1119,7 +1167,8 @@
                     const skeletonX = state.cameraX || state.app.screen.width / 2;
                     const skeletonY = state.cameraY || state.app.screen.height / 2;
 
-                    state.redLineGraphics.setStrokeStyle({ width: 1, color: 0x000001, alpha: 1 });
+                    const lineColor = state.themeFg === 0 ? 0x000001 : 0xfffffe;
+                    state.redLineGraphics.setStrokeStyle({ width: 1, color: lineColor, alpha: 0.1 });
                     state.redLineGraphics.moveTo(0, skeletonY);
                     state.redLineGraphics.lineTo(state.app.screen.width, skeletonY);
                     state.redLineGraphics.stroke();
@@ -1129,13 +1178,65 @@
                 }
             };
 
+            const themeManager = {
+                STORAGE_KEY: 'spineViewerThemeLuminance',
+                DEFAULT_L: 30,
+
+                getStoredL() {
+                    let raw = null;
+                    try { raw = localStorage.getItem(this.STORAGE_KEY); } catch (e) {}
+                    if (raw === null || raw === undefined) return this.DEFAULT_L;
+                    const v = parseInt(raw, 10);
+                    if (isNaN(v)) return this.DEFAULT_L;
+                    return Math.max(0, Math.min(255, v));
+                },
+
+                apply(L) {
+                    L = Math.max(0, Math.min(255, Math.round(L)));
+                    const fg = L < 128 ? 255 : 0;
+                    const rs = document.documentElement.style;
+                    rs.setProperty('--bg-rgb', L + ',' + L + ',' + L);
+                    rs.setProperty('--fg-rgb', fg + ',' + fg + ',' + fg);
+                    applyErrorColors(rs, L);
+                    state.themeL = L;
+                    state.themeFg = fg;
+                    if (state.app && state.app.renderer && state.app.renderer.background && state.app.renderer.background.color) {
+                        const hex = (L << 16) | (L << 8) | L;
+                        try { state.app.renderer.background.color.setValue(hex); } catch (e) {}
+                    }
+                    if (state.redLineGraphics) {
+                        graphicsManager.drawRedLine();
+                    }
+                },
+
+                init() {
+                    const slider = document.getElementById('themeSlider');
+                    const L = this.getStoredL();
+                    if (slider) {
+                        slider.value = L;
+                        slider.addEventListener('input', (e) => {
+                            const v = parseInt(e.target.value, 10);
+                            this.apply(v);
+                            try { localStorage.setItem(this.STORAGE_KEY, String(v)); } catch (err) {}
+                        });
+                    }
+                    this.apply(L);
+                }
+            };
+
             function slotCollectRenderables(instructionSet, renderer) {
                 if (!state.showPlaceholders) return;
+                if (!this || this.destroyed) return;
+                if (!this.renderPipeId || !renderer || !renderer.renderPipes) return;
                 const { renderPipes, renderableGC } = renderer;
-                renderPipes.blendMode.setBlendMode(this, this.groupBlendMode, instructionSet);
-                this.didViewUpdate = false;
-                renderPipes[this.renderPipeId].addRenderable(this, instructionSet);
-                renderableGC.addRenderable(this, instructionSet);
+                const pipe = renderPipes[this.renderPipeId];
+                if (!pipe) return;
+                try {
+                    renderPipes.blendMode.setBlendMode(this, this.groupBlendMode, instructionSet);
+                    this.didViewUpdate = false;
+                    pipe.addRenderable(this, instructionSet);
+                    renderableGC.addRenderable(this, instructionSet);
+                } catch (e) {}
             }
 
             const placeholderManager = {
@@ -1693,6 +1794,8 @@
                     state.player.phase = 'none';
                     state.player.phaseElapsed = 0;
                     state.player.pendingAction = null;
+                    state.player.stallIndex = -1;
+                    state.player.stallSince = 0;
                 },
 
                 startPauseBefore() {
@@ -1777,6 +1880,29 @@
 
                     if (state.activeMode === 'scenario' && state.playlist.length > 0) {
                         this.updateScenarioSliderPosition();
+                    }
+
+                    if (state.activeMode === 'scenario' && state.playlist.length > 0 &&
+                        state.player.playing && !state.player.seeking &&
+                        !track.loop && duration > 0) {
+                        if (track.trackTime >= duration) {
+                            if (state.player.stallIndex !== state.currentIndex) {
+                                state.player.stallIndex = state.currentIndex;
+                                state.player.stallSince = now;
+                            } else if (now - state.player.stallSince > 1500) {
+                                const item = state.playlist[state.currentIndex];
+                                const animName = item ? item.animationName : '';
+                                const skName = item ? item.skeletonName : '';
+                                showError('Animation "' + animName + '" of "' + skName + '" did not complete; auto-advancing.');
+                                state.player.stallIndex = -1;
+                                state.player.stallSince = 0;
+                                playlistManager.playAtIndex(state.currentIndex + 1);
+                                return;
+                            }
+                        } else {
+                            state.player.stallIndex = -1;
+                            state.player.stallSince = 0;
+                        }
                     }
                 },
 
@@ -2141,6 +2267,8 @@
                         state.app.stage.removeChild(state.currentSkeleton);
                     }
 
+                    placeholderManager.resetAll();
+
                     Object.keys(state.skeletons).forEach(key => {
                         const sk = state.skeletons[key];
                         if (sk) sk.destroy();
@@ -2178,7 +2306,6 @@
                     });
 
                         state.skeletons = {};
-                        placeholderManager.resetAll();
                         state.skeletonResolution = {};
                         state.availableResolutions = {};
                         state.loadedSkeletons.clear();
@@ -2514,6 +2641,7 @@
 
                 initDragControl() {
                     const canvas = document.getElementById('canvas');
+                    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
                     canvas.addEventListener('mousedown', (e) => {
                         if (!state.currentSkeleton) return;
                         state.isDragging = true;
@@ -2561,20 +2689,49 @@
             async function initPixi() {
                 state.app = new PIXI.Application();
                 const container = document.querySelector('.canvas-container');
+                const L = state.themeL != null ? state.themeL : 30;
+                const bgHex = (L << 16) | (L << 8) | L;
                 await state.app.init({
                     canvas: document.getElementById('canvas'),
                     width: container ? container.clientWidth : (window.innerWidth - 300),
                     height: container ? container.clientHeight : window.innerHeight,
-                    backgroundColor: 0x222222,
+                    backgroundColor: bgHex,
                     antialias: true,
                     resolution: window.devicePixelRatio || 1,
                     autoDensity: true
                 });
+
+                const renderer = state.app.renderer;
+                const origRendererRender = renderer.render.bind(renderer);
+                let lastRenderErrorTime = 0;
+                renderer.render = function(options) {
+                    try {
+                        return origRendererRender(options);
+                    } catch (e) {
+                        const now = Date.now();
+                        if (now - lastRenderErrorTime > 3000) {
+                            lastRenderErrorTime = now;
+                            showError('Render error: ' + (e && e.message ? e.message : String(e)));
+                        }
+                    }
+                };
+
+                window.addEventListener('error', (e) => {
+                    const msg = e && e.error && e.error.message ? e.error.message : (e && e.message ? e.message : '');
+                    if (msg) {
+                        showError('Uncaught error: ' + msg);
+                    }
+                });
+
                 window.addEventListener('resize', () => eventHandlers.onWindowResize());
             }
 
             async function init() {
+                themeManager.init();
+
                 await initPixi();
+
+                themeManager.apply(state.themeL);
 
                 state.cameraX = state.app.screen.width / 2;
                 state.cameraY = state.app.screen.height / 2;
@@ -2623,7 +2780,13 @@
                 fileHandler.initFolderButton();
 
                 playerManager.init();
-                state.app.ticker.add(() => playerManager.onTick());
+                state.app.ticker.add(() => {
+                    try {
+                        playerManager.onTick();
+                    } catch (e) {
+                        console.error('Ticker error:', e);
+                    }
+                });
 
                 graphicsManager.drawRedLine();
                 uiControls.updateHighlighting();
