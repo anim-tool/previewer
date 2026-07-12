@@ -834,14 +834,16 @@
         .museum-item {
             display: flex;
             align-items: center;
-            padding: 2px 4px;
-            border-radius: 4px;
-            gap: 4px;
+            padding: 1px 4px;
+            border-radius: 3px;
+            gap: 6px;
             user-select: none;
+            font-family: monospace;
+            font-size: 12px;
         }
 
         .museum-item:hover {
-            background-color: var(--n2);
+            background-color: var(--n1);
         }
 
         .museum-item.dragging {
@@ -852,9 +854,16 @@
             border-top: 2px solid var(--n4);
         }
 
+        .museum-item.selected {
+            background-color: var(--n2);
+            color: var(--fg);
+        }
+
+        .museum-item.selected .museum-name {
+            color: var(--fg);
+        }
+
         .museum-drag-handle {
-            width: 20px;
-            height: 24px;
             cursor: grab;
             display: flex;
             align-items: center;
@@ -873,29 +882,26 @@
         }
 
         .museum-visibility-btn {
-            width: 24px;
-            height: 24px;
-            background: var(--n1);
-            border: 1px solid var(--n2);
-            border-radius: 3px;
+            background: none;
+            border: none;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             color: var(--n-text-dim);
             font-size: 14px;
+            padding: 2px 2px;
+            margin: 0;
+            width: auto;
             flex-shrink: 0;
+            font-family: inherit;
+            font-weight: inherit;
+            line-height: 1;
         }
 
         .museum-visibility-btn:hover {
-            background: var(--n2);
             color: var(--n-text);
         }
 
         .museum-visibility-btn.visible {
-            background: var(--n3);
             color: var(--fg);
-            border-color: var(--n4);
         }
 
         .museum-name {
@@ -906,12 +912,12 @@
             overflow: hidden;
             text-overflow: ellipsis;
             min-width: 0;
+            cursor: pointer;
         }
 
         .museum-animation-dropdown {
             position: relative;
-            width: 140px;
-            flex-shrink: 0;
+            width: 100%;
         }
 
         .museum-animation-trigger {
@@ -988,6 +994,33 @@
         .museum-animation-item.active::before {
             content: '▶';
             margin-right: 4px;
+        }
+
+        .selected-animation-row {
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+
+        .selected-controls {
+            display: flex;
+            gap: 4px;
+        }
+
+        .selected-controls .player-btn {
+            width: 28px;
+            height: 28px;
+        }
+
+        .selected-controls .player-btn.text-btn {
+            width: auto;
+            padding: 0 8px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .selected-position-slider {
+            flex: 1;
+            min-width: 0;
         }
 
         .museum-controls {
@@ -1077,8 +1110,9 @@
                     <div id="museumList" class="museum-list"></div>
                     <div class="museum-controls">
                         <div class="museum-position-io">
-                            <input type="text" id="museumPositionInput" class="museum-position-input" placeholder="Paste positions here...">
-                            <button id="museumCopyBtn" class="museum-position-btn">Copy</button>
+                            <input type="text" id="museumPositionInput" class="museum-position-input" placeholder="Paste state here...">
+                            <button id="museumCopyBtn" class="museum-position-btn">To buffer</button>
+                            <button id="museumResetBtn" class="museum-position-btn">Purge</button>
                         </div>
                     </div>
                 </div>
@@ -1101,10 +1135,23 @@
                             <input type="text" id="selectedYInput" class="coord-input">
                         </div>
                     </div>
+                    <div class="selected-animation-row">
+                        <div id="selectedAnimationDropdown" class="museum-animation-dropdown"></div>
+                    </div>
+                    <div class="selected-controls">
+                        <button id="museumPlayPauseBtn" class="player-btn" title="Play">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 21,12 6,21"/></svg>
+                        </button>
+                        <button id="museumStopBtn" class="player-btn" title="Stop">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14"/></svg>
+                        </button>
+                        <button id="museumPlayAllBtn" class="player-btn toggle-btn text-btn" title="Play all animations">All</button>
+                        <input type="range" id="selectedPositionSlider" class="player-slider selected-position-slider" min="0" max="1000" value="0" step="1" disabled>
+                    </div>
                 </div>
                 <div id="museumSection" class="museum-section">
                     <div class="checkbox-item">
-                        <input type="checkbox" id="snapCheckbox">
+                        <input type="checkbox" id="snapCheckbox" checked>
                         <label for="snapCheckbox">Snap to grid</label>
                     </div>
                 </div>
@@ -1303,13 +1350,15 @@
                     cameraOffsetX: 0,
                     cameraOffsetY: 0,
                     cameraScale: 1.0,
-                    snapToGrid: false,
+                    snapToGrid: true,
                     workspaceGraphics: null,
                     selectedSkeletons: [],
                     isSelecting: false,
                     selectionStartX: 0,
                     selectionStartY: 0,
-                    selectionGraphics: null
+                    selectionGraphics: null,
+                    visibilityPainting: false,
+                    visibilityPaintTarget: null
                 }
             };
 
@@ -1518,13 +1567,98 @@
                 DEFAULT_SPACING: 300,
                 SYM_SPACING: 500,
                 FIT_PADDING: 2560,
+                STORAGE_KEY: 'spineViewerMuseumState',
+                _savedState: null,
+
+                createMuseumProxy() {
+                    const manager = this;
+                    let initializationMode = true;
+                    
+                    setTimeout(() => {
+                        initializationMode = false;
+                    }, 1000);
+                    
+                    manager._isInitializationMode = () => initializationMode;
+
+                    const createSkeletonProxy = (skeletonObj) => {
+                        return new Proxy(skeletonObj, {
+                            set(target, prop, value) {
+                                const result = Reflect.set(target, prop, value);
+                                if (!initializationMode) manager.saveToStorage();
+                                return result;
+                            }
+                        });
+                    };
+
+                    return new Proxy(state.museum, {
+                        set(target, prop, value) {
+                            if (prop === 'skeletons' && Array.isArray(value)) {
+                                const proxiedValue = value.map((item) => createSkeletonProxy(item));
+                                const result = Reflect.set(target, prop, proxiedValue);
+                                if (!initializationMode) manager.saveToStorage();
+                                return result;
+                            }
+                            
+                            const result = Reflect.set(target, prop, value);
+                            if (!initializationMode) manager.saveToStorage();
+                            return result;
+                        },
+                        get(target, prop) {
+                            const value = Reflect.get(target, prop);
+                            
+                            if (prop === 'skeletons' && Array.isArray(value)) {
+                                return new Proxy(value, {
+                                    set(arrTarget, arrProp, arrValue) {
+                                        const result = Reflect.set(arrTarget, arrProp, arrValue);
+                                        if (!isNaN(parseInt(arrProp))) {
+                                            arrTarget[arrProp] = createSkeletonProxy(arrValue);
+                                        }
+                                        if (!initializationMode) manager.saveToStorage();
+                                        return result;
+                                    },
+                                    get(arrTarget, arrProp) {
+                                        const arrValue = Reflect.get(arrTarget, arrProp);
+                                        if (typeof arrProp !== 'symbol' && !isNaN(parseInt(arrProp))) {
+                                            if (arrValue && typeof arrValue === 'object') {
+                                                return createSkeletonProxy(arrValue);
+                                            }
+                                        }
+                                        if (typeof arrValue === 'function') {
+                                            return arrValue.bind(arrTarget);
+                                        }
+                                        return arrValue;
+                                    }
+                                });
+                            }
+                            
+                            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                                return new Proxy(value, {
+                                    set(objTarget, objProp, objValue) {
+                                        const result = Reflect.set(objTarget, objProp, objValue);
+                                        if (!initializationMode) manager.saveToStorage();
+                                        return result;
+                                    }
+                                });
+                            }
+                            
+                            if (typeof value === 'function') {
+                                return value.bind(target);
+                            }
+                            
+                            return value;
+                        }
+                    });
+                },
 
                 init() {
+                    state.museum = this.createMuseumProxy();
                     this.initTab();
                     this.initCopyButton();
                     this.initPositionInput();
+                    this.initResetButton();
                     this.initCanvasInteraction();
                     this.initSelectedInputs();
+                    this.initSelectedControls();
                 },
 
                 initTab() {
@@ -1805,6 +1939,9 @@
                         nameInput.value = '';
                         xInput.value = '';
                         yInput.value = '';
+                        this.buildSelectedAnimationDropdown();
+                        this.updateSelectedPlaybackButtons();
+                        this.updateListSelection();
                         return;
                     }
 
@@ -1817,6 +1954,9 @@
                     if (items.length === 0) {
                         xInput.value = '';
                         yInput.value = '';
+                        this.buildSelectedAnimationDropdown();
+                        this.updateSelectedPlaybackButtons();
+                        this.updateListSelection();
                         return;
                     }
 
@@ -1825,6 +1965,10 @@
 
                     xInput.value = allSameX ? String(Math.round(items[0].worldX)) : '';
                     yInput.value = allSameY ? String(Math.round(items[0].worldY)) : '';
+
+                    this.buildSelectedAnimationDropdown();
+                    this.updateSelectedPlaybackButtons();
+                    this.updateListSelection();
                 },
 
                 applyCoordinateInput(axis, value) {
@@ -1857,6 +2001,38 @@
 
                     xInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') xInput.blur(); });
                     yInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') yInput.blur(); });
+                },
+
+                initSelectedControls() {
+                    const playPauseBtn = document.getElementById('museumPlayPauseBtn');
+                    const stopBtn = document.getElementById('museumStopBtn');
+                    const playAllBtn = document.getElementById('museumPlayAllBtn');
+                    if (playPauseBtn) playPauseBtn.addEventListener('click', () => this.togglePlayPauseSelected());
+                    if (stopBtn) stopBtn.addEventListener('click', () => this.stopSelected());
+                    if (playAllBtn) playAllBtn.addEventListener('click', () => this.togglePlayAllSelected());
+
+                    const positionSlider = document.getElementById('selectedPositionSlider');
+                    if (positionSlider) {
+                        positionSlider.addEventListener('mousedown', (e) => { e.stopPropagation(); this._selectedSeeking = true; });
+                        positionSlider.addEventListener('touchstart', () => { this._selectedSeeking = true; }, { passive: true });
+                        positionSlider.addEventListener('input', () => {
+                            this.seekSelected(positionSlider.value / 1000);
+                        });
+                        const endSelectedSeek = () => { this._selectedSeeking = false; };
+                        positionSlider.addEventListener('mouseup', endSelectedSeek);
+                        positionSlider.addEventListener('touchend', endSelectedSeek);
+                    }
+
+                    document.addEventListener('click', (e) => {
+                        const container = document.getElementById('selectedAnimationDropdown');
+                        if (!container) return;
+                        if (!container.classList.contains('open')) return;
+                        if (container.contains(e.target)) return;
+                        container.classList.remove('open');
+                    });
+
+                    document.addEventListener('mouseup', () => this.endVisibilityPaint());
+                    document.addEventListener('mouseleave', () => this.endVisibilityPaint());
                 },
 
                 drawSelectionRect(x1, y1, x2, y2) {
@@ -1953,10 +2129,26 @@
 
                     const skeletonNames = Array.from(state.loadedSkeletons).sort((a, b) => this.sortSkeletonsForLayering(a, b));
                     const layout = this.computeLayout();
+                    const savedState = this.loadFromStorage();
+                    const isFirstBuild = state.museum.skeletons.length === 0;
 
-                    if (state.museum.skeletons.length === 0) {
+                    if (isFirstBuild) {
                         state.museum.skeletons = skeletonNames.map((name) => {
                             const pos = layout[name] || { x: 0, y: 0 };
+                            const saved = savedState.skeletonStates ? savedState.skeletonStates[name] : null;
+                            if (saved) {
+                                const anim = (saved.animation && this.hasAnimation(name, saved.animation))
+                                    ? saved.animation
+                                    : this.getDefaultAnimation(name);
+                                return {
+                                    skeletonName: name,
+                                    visible: saved.visible !== undefined ? saved.visible : true,
+                                    animation: anim,
+                                    isPlaying: saved.isPlaying !== undefined ? saved.isPlaying : true,
+                                    worldX: saved.x,
+                                    worldY: saved.y
+                                };
+                            }
                             return {
                                 skeletonName: name,
                                 visible: true,
@@ -1966,29 +2158,75 @@
                                 worldY: pos.y
                             };
                         });
+                        
+                        if (savedState.skeletonOrder && savedState.skeletonOrder.length > 0) {
+                            state.museum.skeletons.sort((a, b) => {
+                                const indexA = savedState.skeletonOrder.indexOf(a.skeletonName);
+                                const indexB = savedState.skeletonOrder.indexOf(b.skeletonName);
+                                return indexA - indexB;
+                            });
+                        }
+                        
+                        if (savedState.cameraState) {
+                            if (savedState.cameraState.cameraOffsetX !== undefined) {
+                                state.museum.cameraOffsetX = savedState.cameraState.cameraOffsetX;
+                            }
+                            if (savedState.cameraState.cameraOffsetY !== undefined) {
+                                state.museum.cameraOffsetY = savedState.cameraState.cameraOffsetY;
+                            }
+                            if (savedState.cameraState.cameraScale !== undefined) {
+                                state.museum.cameraScale = savedState.cameraState.cameraScale;
+                            }
+                            if (savedState.cameraState.snapToGrid !== undefined) {
+                                state.museum.snapToGrid = savedState.cameraState.snapToGrid;
+                            }
+                        }
                     } else {
                         const existingNames = state.museum.skeletons.map(s => s.skeletonName);
                         const newNames = skeletonNames.filter(n => !existingNames.includes(n));
 
                         newNames.forEach((name) => {
                             const pos = layout[name] || { x: 0, y: 0 };
-                            state.museum.skeletons.push({
-                                skeletonName: name,
-                                visible: true,
-                                animation: this.getDefaultAnimation(name),
-                                isPlaying: true,
-                                worldX: pos.x,
-                                worldY: pos.y
-                            });
+                            const saved = savedState.skeletonStates ? savedState.skeletonStates[name] : null;
+                            if (saved) {
+                                const anim = (saved.animation && this.hasAnimation(name, saved.animation))
+                                    ? saved.animation
+                                    : this.getDefaultAnimation(name);
+                                state.museum.skeletons.push({
+                                    skeletonName: name,
+                                    visible: saved.visible !== undefined ? saved.visible : true,
+                                    animation: anim,
+                                    isPlaying: saved.isPlaying !== undefined ? saved.isPlaying : true,
+                                    worldX: saved.x,
+                                    worldY: saved.y
+                                });
+                            } else {
+                                state.museum.skeletons.push({
+                                    skeletonName: name,
+                                    visible: true,
+                                    animation: this.getDefaultAnimation(name),
+                                    isPlaying: true,
+                                    worldX: pos.x,
+                                    worldY: pos.y
+                                });
+                            }
                         });
 
-                        state.museum.skeletons = state.museum.skeletons.filter(s => skeletonNames.includes(s.skeletonName));
-                        state.museum.skeletons.sort((a, b) => this.sortSkeletonsForLayering(a.skeletonName, b.skeletonName));
-                    }
+                         state.museum.skeletons = state.museum.skeletons.filter(s => skeletonNames.includes(s.skeletonName));
+                         state.museum.skeletons.sort((a, b) => this.sortSkeletonsForLayering(a.skeletonName, b.skeletonName));
+                     }
 
-                    this.fitCameraToContent(this.FIT_PADDING);
+                     const hasCameraState = savedState.cameraState && (
+                         savedState.cameraState.cameraOffsetX !== undefined ||
+                         savedState.cameraState.cameraOffsetY !== undefined ||
+                         savedState.cameraState.cameraScale !== undefined
+                     );
 
-                    skeletonNames.forEach(name => {
+                     if (isFirstBuild && !hasCameraState) {
+                         this.fitCameraToContent(this.FIT_PADDING);
+                     }
+
+                     skeletonNames.forEach(name => {
                         const item = state.museum.skeletons.find(s => s.skeletonName === name);
                         if (!item) return;
 
@@ -2010,6 +2248,21 @@
                         skeleton.visible = item.visible;
                         this.setAnimation(name, item.animation);
                         this.applyCameraTransform(skeleton, item.worldX, item.worldY);
+
+                        if (isFirstBuild) {
+                            skeleton.state.timeScale = item.isPlaying ? 1 : 0;
+                            const saved = savedState.skeletonStates ? savedState.skeletonStates[name] : null;
+                            if (saved && saved.trackTime !== undefined) {
+                                const track = skeleton.state.getCurrent(0);
+                                if (track) {
+                                    const dur = track.animation ? track.animation.duration : 0;
+                                    let tt = saved.trackTime;
+                                    if (dur > 0 && tt > dur) tt = tt % dur;
+                                    if (tt < 0) tt = 0;
+                                    track.trackTime = tt;
+                                }
+                            }
+                        }
                         
                         if (item.visible) {
                             state.app.stage.addChild(skeleton);
@@ -2047,7 +2300,19 @@
                 },
 
                 setCameraScale(scale) {
+                    const oldScale = state.museum.cameraScale;
+                    const screenW = state.app.screen.width;
+                    const screenH = state.app.screen.height;
+                    const screenCenterX = screenW / 2;
+                    const screenCenterY = screenH / 2;
+
+                    const worldCenterX = (screenCenterX - state.museum.cameraOffsetX) / oldScale;
+                    const worldCenterY = (screenCenterY - state.museum.cameraOffsetY) / oldScale;
+
                     state.museum.cameraScale = scale;
+                    state.museum.cameraOffsetX = screenCenterX - worldCenterX * scale;
+                    state.museum.cameraOffsetY = screenCenterY - worldCenterY * scale;
+
                     this.updateAllSkeletonPositions();
                     this.drawWorkspace();
                 },
@@ -2190,7 +2455,11 @@
 
                         const skeleton = state.skeletons[name];
                         skeleton.visible = item.visible;
-                        this.setAnimation(name, item.animation);
+                        if (item.playAll) {
+                            this._playAllStep(name);
+                        } else {
+                            this.setAnimation(name, item.animation);
+                        }
                         this.applyCameraTransform(skeleton, item.worldX, item.worldY);
                         skinManager.restoreSkin(name);
                         placeholderManager.setVisible(state.showPlaceholders);
@@ -2215,27 +2484,13 @@
                 toggleVisibility(skeletonName) {
                     const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
                     if (!item) return;
-
-                    item.visible = !item.visible;
-                    const skeleton = state.skeletons[skeletonName];
-                    if (skeleton) {
-                        skeleton.visible = item.visible;
-                    }
-
-                    if (!item.visible) {
-                        state.museum.selectedSkeletons = state.museum.selectedSkeletons.filter(n => n !== skeletonName);
-                    }
-
-                    this.updateDiamondPosition();
-                    this.updateSelectedInfo();
+                    this.setVisibility(skeletonName, !item.visible);
                     this.renderSkeletonList();
                 },
 
                 applyRenderOrder() {
-                    const sortedSkeletons = [...state.museum.skeletons].sort((a, b) => this.sortSkeletonsForLayering(a.skeletonName, b.skeletonName));
-                    
-                    for (let i = sortedSkeletons.length - 1; i >= 0; i--) {
-                        const item = sortedSkeletons[i];
+                    for (let i = state.museum.skeletons.length - 1; i >= 0; i--) {
+                        const item = state.museum.skeletons[i];
                         const skeleton = state.skeletons[item.skeletonName];
                         if (skeleton && item.visible) {
                             state.app.stage.addChild(skeleton);
@@ -2254,11 +2509,13 @@
                 renderSkeletonList() {
                     const container = document.getElementById('museumList');
                     container.innerHTML = '';
+                    const selectedSet = new Set(state.museum.selectedSkeletons);
 
                     state.museum.skeletons.forEach((item, index) => {
                         const div = document.createElement('div');
-                        div.className = 'museum-item';
+                        div.className = 'museum-item' + (selectedSet.has(item.skeletonName) ? ' selected' : '');
                         div.dataset.index = index;
+                        div.dataset.skeletonName = item.skeletonName;
 
                         const dragHandle = document.createElement('div');
                         dragHandle.className = 'museum-drag-handle';
@@ -2267,96 +2524,357 @@
 
                         const visibilityBtn = document.createElement('button');
                         visibilityBtn.className = 'museum-visibility-btn' + (item.visible ? ' visible' : '');
-                        visibilityBtn.textContent = item.visible ? '👁' : '○';
+                        visibilityBtn.textContent = item.visible ? '●' : '○';
+                        visibilityBtn.dataset.skeletonName = item.skeletonName;
 
                         const nameSpan = document.createElement('div');
                         nameSpan.className = 'museum-name';
                         nameSpan.textContent = item.skeletonName;
-
-                        const animationDropdown = this.createAnimationDropdown(item);
+                        nameSpan.dataset.skeletonName = item.skeletonName;
 
                         div.appendChild(dragHandle);
                         div.appendChild(visibilityBtn);
                         div.appendChild(nameSpan);
-                        div.appendChild(animationDropdown);
                         container.appendChild(div);
 
-                        visibilityBtn.addEventListener('click', () => this.toggleVisibility(item.skeletonName));
+                        visibilityBtn.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
+                            this.startVisibilityPaint(item.skeletonName);
+                        });
+                        visibilityBtn.addEventListener('mouseenter', () => {
+                            if (state.museum.visibilityPainting) {
+                                this.paintVisibility(item.skeletonName, visibilityBtn);
+                            }
+                        });
+
+                        nameSpan.addEventListener('click', () => this.selectSkeleton(item.skeletonName));
 
                         this.setupDragAndDrop(div, index);
                     });
                 },
 
-                createAnimationDropdown(item) {
-                    const skeleton = state.skeletons[item.skeletonName];
-                    if (!skeleton || !skeleton.skeleton || !skeleton.skeleton.data) {
-                        const div = document.createElement('div');
-                        return div;
+                updateVisibilityButton(btn, visible) {
+                    btn.textContent = visible ? '●' : '○';
+                    btn.classList.toggle('visible', visible);
+                },
+
+                setVisibility(skeletonName, visible, btn) {
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    if (!item || item.visible === visible) return false;
+
+                    item.visible = visible;
+                    const skeleton = state.skeletons[skeletonName];
+                    if (skeleton) {
+                        skeleton.visible = visible;
                     }
 
-                    const animations = skeleton.skeleton.data.animations || [];
-                    if (animations.length === 0) {
-                        const div = document.createElement('div');
-                        return div;
+                    if (!visible) {
+                        state.museum.selectedSkeletons = state.museum.selectedSkeletons.filter(n => n !== skeletonName);
                     }
 
-                    const dropdown = document.createElement('div');
-                    dropdown.className = 'museum-animation-dropdown';
+                    if (btn) this.updateVisibilityButton(btn, visible);
+
+                    this.updateDiamondPosition();
+                    this.updateSelectedInfo();
+                    return true;
+                },
+
+                startVisibilityPaint(skeletonName) {
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    if (!item) return;
+                    const newVisible = !item.visible;
+                    state.museum.visibilityPainting = true;
+                    state.museum.visibilityPaintTarget = newVisible;
+
+                    const btn = document.querySelector('.museum-visibility-btn[data-skeleton-name="' + CSS.escape(skeletonName) + '"]');
+                    this.setVisibility(skeletonName, newVisible, btn);
+                },
+
+                paintVisibility(skeletonName, btn) {
+                    this.setVisibility(skeletonName, state.museum.visibilityPaintTarget, btn);
+                },
+
+                endVisibilityPaint() {
+                    state.museum.visibilityPainting = false;
+                    state.museum.visibilityPaintTarget = null;
+                },
+
+                selectSkeleton(skeletonName) {
+                    state.museum.selectedSkeletons = [skeletonName];
+                    this.updateDiamondPosition();
+                    this.updateSelectedInfo();
+                    this.updateListSelection();
+                },
+
+                updateListSelection() {
+                    const selectedSet = new Set(state.museum.selectedSkeletons);
+                    const items = document.querySelectorAll('#museumList .museum-item');
+                    items.forEach(el => {
+                        const name = el.dataset.skeletonName;
+                        el.classList.toggle('selected', !!name && selectedSet.has(name));
+                    });
+                },
+
+                buildSelectedAnimationDropdown() {
+                    const container = document.getElementById('selectedAnimationDropdown');
+                    if (!container) return;
+                    container.innerHTML = '';
+                    container.classList.remove('open');
+
+                    const selected = state.museum.selectedSkeletons;
+                    if (selected.length === 0) return;
+
+                    const first = state.skeletons[selected[0]];
+                    if (!first || !first.skeleton || !first.skeleton.data) return;
+                    const animations = first.skeleton.data.animations || [];
+                    if (animations.length === 0) return;
+
+                    const items = selected
+                        .map(n => state.museum.skeletons.find(s => s.skeletonName === n))
+                        .filter(Boolean);
+                    const allSameAnim = items.length > 0 && items.every(i => i.animation === items[0].animation);
+                    const currentAnim = allSameAnim ? items[0].animation : '';
 
                     const trigger = document.createElement('div');
                     trigger.className = 'museum-animation-trigger';
-                    trigger.innerHTML = `<span>${item.animation}</span><span class="arrow">▼</span>`;
+                    const labelSpan = document.createElement('span');
+                    labelSpan.textContent = currentAnim || '—';
+                    const arrow = document.createElement('span');
+                    arrow.className = 'arrow';
+                    arrow.textContent = '▼';
+                    trigger.appendChild(labelSpan);
+                    trigger.appendChild(arrow);
 
                     const list = document.createElement('div');
                     list.className = 'museum-animation-list';
 
                     animations.sort((a, b) => a.name.localeCompare(b.name)).forEach(anim => {
                         const animItem = document.createElement('div');
-                        animItem.className = 'museum-animation-item' + (anim.name === item.animation ? ' active' : '');
+                        animItem.className = 'museum-animation-item' + (allSameAnim && anim.name === currentAnim ? ' active' : '');
                         animItem.textContent = anim.name;
 
                         animItem.addEventListener('click', (e) => {
                             e.stopPropagation();
-
-                            if (anim.name === item.animation) {
-                                this.toggleAnimationPlay(item.skeletonName);
-                            } else {
+                            for (const name of selected) {
+                                const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                                if (!item) continue;
+                                this.stopPlayAll(name);
                                 item.animation = anim.name;
                                 item.isPlaying = true;
-                                this.setAnimation(item.skeletonName, anim.name);
-                                trigger.querySelector('span').textContent = anim.name;
-                                this.updateAnimationList(list, item);
+                                this.setAnimation(name, anim.name);
+                                const sk = state.skeletons[name];
+                                if (sk) sk.state.timeScale = 1;
                             }
-
-                            dropdown.classList.remove('open');
+                            container.classList.remove('open');
+                            this.buildSelectedAnimationDropdown();
+                            this.updateSelectedPlaybackButtons();
+                            this.renderSkeletonList();
                         });
 
                         list.appendChild(animItem);
                     });
 
                     trigger.addEventListener('click', () => {
-                        dropdown.classList.toggle('open');
-                        this.closeOtherDropdowns(dropdown);
+                        container.classList.toggle('open');
+                        this.closeOtherDropdowns(container);
                     });
 
-                    dropdown.appendChild(trigger);
-                    dropdown.appendChild(list);
-
-                    return dropdown;
+                    container.appendChild(trigger);
+                    container.appendChild(list);
                 },
 
-                updateAnimationList(list, item) {
-                    const items = list.querySelectorAll('.museum-animation-item');
-                    items.forEach(el => {
-                        const animName = el.textContent;
-                        if (animName === item.animation) {
-                            el.classList.add('active');
-                            el.innerHTML = '▶ ' + animName;
-                        } else {
-                            el.classList.remove('active');
-                            el.innerHTML = animName;
+                playSelected() {
+                    for (const name of state.museum.selectedSkeletons) {
+                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                        const sk = state.skeletons[name];
+                        if (!item || !sk) continue;
+                        item.isPlaying = true;
+                        sk.state.timeScale = 1;
+                    }
+                    this.updateSelectedPlaybackButtons();
+                },
+
+                pauseSelected() {
+                    for (const name of state.museum.selectedSkeletons) {
+                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                        const sk = state.skeletons[name];
+                        if (!item || !sk) continue;
+                        item.isPlaying = false;
+                        sk.state.timeScale = 0;
+                    }
+                    this.updateSelectedPlaybackButtons();
+                },
+
+                stopSelected() {
+                    for (const name of state.museum.selectedSkeletons) {
+                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                        const sk = state.skeletons[name];
+                        if (!item || !sk) continue;
+                        this.stopPlayAll(name);
+                        item.isPlaying = false;
+                        this.setAnimation(name, item.animation);
+                        sk.state.timeScale = 0;
+                    }
+                    this.updateSelectedPlaybackButtons();
+                },
+
+                togglePlayPauseSelected() {
+                    const items = state.museum.selectedSkeletons
+                        .map(n => state.museum.skeletons.find(s => s.skeletonName === n))
+                        .filter(Boolean);
+                    if (items.length === 0) return;
+                    const allPlaying = items.every(i => i.isPlaying);
+                    if (allPlaying) {
+                        this.pauseSelected();
+                    } else {
+                        this.playSelected();
+                    }
+                },
+
+                getSortedAnimations(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return [];
+                    return (sk.skeleton.data.animations || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+                },
+
+                togglePlayAllSelected() {
+                    const items = state.museum.selectedSkeletons
+                        .map(n => state.museum.skeletons.find(s => s.skeletonName === n))
+                        .filter(Boolean);
+                    if (items.length === 0) return;
+                    const anyOn = items.some(i => i.playAll);
+                    if (anyOn) {
+                        for (const item of items) {
+                            this.stopPlayAll(item.skeletonName);
                         }
-                    });
+                    } else {
+                        for (const item of items) {
+                            this.startPlayAll(item.skeletonName);
+                        }
+                    }
+                    this.updateSelectedPlaybackButtons();
+                },
+
+                startPlayAll(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk) return;
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    if (!item) return;
+                    item.playAll = true;
+                    item.playAllIndex = 0;
+                    item.isPlaying = true;
+                    this._playAllStep(skeletonName);
+                },
+
+                _playAllStep(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.state) return;
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    if (!item || !item.playAll) return;
+                    const animations = this.getSortedAnimations(skeletonName);
+                    if (animations.length === 0) return;
+                    if (item.playAllIndex >= animations.length) item.playAllIndex = 0;
+                    const animName = animations[item.playAllIndex].name;
+                    item.animation = animName;
+                    const track = sk.state.setAnimation(0, animName, false);
+                    if (track) {
+                        track.timeScale = item.isPlaying ? 1 : 0;
+                        track.listener = {
+                            complete: () => {
+                                if (!item.playAll) return;
+                                item.playAllIndex = (item.playAllIndex + 1) % animations.length;
+                                this._playAllStep(skeletonName);
+                            }
+                        };
+                    }
+                    if (state.museum.selectedSkeletons.includes(skeletonName)) {
+                        this.buildSelectedAnimationDropdown();
+                    }
+                },
+
+                stopPlayAll(skeletonName) {
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    if (!item) return;
+                    if (!item.playAll) return;
+                    item.playAll = false;
+                    const sk = state.skeletons[skeletonName];
+                    if (sk && sk.state) {
+                        const track = sk.state.getCurrent(0);
+                        if (track) {
+                            track.listener = null;
+                            track.loop = true;
+                        }
+                    }
+                },
+
+                updateSelectedPlaybackButtons() {
+                    this.updateSelectedPositionSlider();
+                    const playPauseBtn = document.getElementById('museumPlayPauseBtn');
+                    const playAllBtn = document.getElementById('museumPlayAllBtn');
+                    const selected = state.museum.selectedSkeletons;
+                    const items = selected
+                        .map(n => state.museum.skeletons.find(s => s.skeletonName === n))
+                        .filter(Boolean);
+                    if (items.length === 0) {
+                        if (playPauseBtn) {
+                            playPauseBtn.title = 'Play';
+                            playPauseBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 21,12 6,21"/></svg>';
+                        }
+                        if (playAllBtn) playAllBtn.classList.remove('active');
+                        return;
+                    }
+                    const allPlaying = items.every(i => i.isPlaying);
+                    if (playPauseBtn) {
+                        if (allPlaying) {
+                            playPauseBtn.title = 'Pause';
+                            playPauseBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="3" width="4" height="18"/><rect x="15" y="3" width="4" height="18"/></svg>';
+                        } else {
+                            playPauseBtn.title = 'Play';
+                            playPauseBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6,3 21,12 6,21"/></svg>';
+                        }
+                    }
+                    const allPlayAll = items.every(i => i.playAll);
+                    if (playAllBtn) playAllBtn.classList.toggle('active', allPlayAll);
+                },
+
+                seekSelected(ratio) {
+                    for (const name of state.museum.selectedSkeletons) {
+                        const sk = state.skeletons[name];
+                        if (!sk || !sk.state) continue;
+                        const track = sk.state.getCurrent(0);
+                        if (!track || !track.animation) continue;
+                        const dur = track.animation.duration;
+                        if (dur <= 0) continue;
+                        track.trackTime = ratio * dur;
+                    }
+                },
+
+                updateSelectedPositionSlider() {
+                    const slider = document.getElementById('selectedPositionSlider');
+                    if (!slider) return;
+                    if (this._selectedSeeking) return;
+                    const selected = state.museum.selectedSkeletons;
+                    if (selected.length === 0) {
+                        slider.disabled = true;
+                        slider.value = 0;
+                        return;
+                    }
+                    const sk = state.skeletons[selected[0]];
+                    const track = sk && sk.state ? sk.state.getCurrent(0) : null;
+                    const dur = track && track.animation ? track.animation.duration : 0;
+                    if (dur <= 0) {
+                        slider.disabled = true;
+                        slider.value = 0;
+                        return;
+                    }
+                    slider.disabled = false;
+                    let ratio;
+                    if (track.loop) {
+                        ratio = (track.trackTime % dur) / dur;
+                    } else {
+                        ratio = Math.min(track.trackTime / dur, 1);
+                    }
+                    slider.value = Math.round(ratio * 1000);
                 },
 
                 closeOtherDropdowns(exceptDropdown) {
@@ -2410,14 +2928,228 @@
                     });
                 },
 
-                copyPositions() {
-                    const positions = state.museum.skeletons.map(item => {
+                hasAnimation(skeletonName, animationName) {
+                    if (!animationName) return false;
+                    const skeleton = state.skeletons[skeletonName];
+                    if (!skeleton || !skeleton.skeleton || !skeleton.skeleton.data) return false;
+                    const animations = skeleton.skeleton.data.animations || [];
+                    return animations.some(a => a.name === animationName);
+                },
+
+                getCurrentTrackTime(skeletonName) {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.state) return 0;
+                    const track = sk.state.getCurrent(0);
+                    if (!track || !track.animation) return 0;
+                    const dur = track.animation.duration || 0;
+                    if (dur > 0) return track.trackTime % dur;
+                    return track.trackTime;
+                },
+
+                serializeState() {
+                    const skeletons = state.museum.skeletons.map(item => {
                         const x = Math.round(item.worldX);
                         const y = Math.round(item.worldY);
-                        return `${item.skeletonName}:${x},${y}`;
-                    });
+                        const anim = item.animation || '';
+                        const playing = item.isPlaying ? 1 : 0;
+                        const t = this.getCurrentTrackTime(item.skeletonName);
+                        const visible = item.visible ? 1 : 0;
+                        return `${item.skeletonName}:${x},${y}:${anim}:${playing}:${t.toFixed(3)}:${visible}`;
+                    }).join('|');
+                    
+                    const skeletonOrder = state.museum.skeletons.map(item => item.skeletonName).join(',');
+                    
+                    const stateObj = {
+                        skeletons: skeletons,
+                        skeletonOrder: skeletonOrder,
+                        cameraOffsetX: state.museum.cameraOffsetX,
+                        cameraOffsetY: state.museum.cameraOffsetY,
+                        cameraScale: state.museum.cameraScale,
+                        snapToGrid: state.museum.snapToGrid
+                    };
+                    
+                    return JSON.stringify(stateObj);
+                },
 
-                    const text = positions.join('|');
+                parseStateText(text) {
+                    const result = {};
+                    let skeletonOrder = [];
+                    let cameraState = {};
+                    
+                    if (text) {
+                        try {
+                            const trimmed = text.trim();
+                            if (trimmed.startsWith('{')) {
+                                console.log('Parsing museum state (JSON format):', text);
+                                const stateObj = JSON.parse(text);
+                                
+                                if (stateObj.skeletons) {
+                                    stateObj.skeletons.split('|').forEach(part => {
+                                        part = part.trim();
+                                        if (!part) return;
+                                        const fields = part.split(':');
+                                        const name = fields[0];
+                                        if (!name) return;
+                                        const coords = (fields[1] || '').split(',');
+                                        const x = parseInt(coords[0], 10);
+                                        const y = parseInt(coords[1], 10);
+                                        if (isNaN(x) || isNaN(y)) return;
+                                        const entry = { x: x, y: y };
+                                        if (fields.length > 2 && fields[2] !== '') entry.animation = fields[2];
+                                        if (fields.length > 3 && fields[3] !== '') entry.isPlaying = fields[3] === '1';
+                                        if (fields.length > 4 && fields[4] !== '') {
+                                            const tt = parseFloat(fields[4]);
+                                            if (!isNaN(tt)) entry.trackTime = tt;
+                                        }
+                                        if (fields.length > 5 && fields[5] !== '') entry.visible = fields[5] === '1';
+                                        result[name] = entry;
+                                    });
+                                }
+                                
+                                if (stateObj.skeletonOrder) {
+                                    skeletonOrder = stateObj.skeletonOrder.split(',');
+                                }
+                                
+                                if (stateObj.cameraOffsetX !== undefined) cameraState.cameraOffsetX = stateObj.cameraOffsetX;
+                                if (stateObj.cameraOffsetY !== undefined) cameraState.cameraOffsetY = stateObj.cameraOffsetY;
+                                if (stateObj.cameraScale !== undefined) cameraState.cameraScale = stateObj.cameraScale;
+                                if (stateObj.snapToGrid !== undefined) cameraState.snapToGrid = stateObj.snapToGrid;
+                                
+                                console.log('Parsed museum state:', { skeletonStates: result, skeletonOrder, cameraState });
+                            } else {
+                                console.log('Parsing museum state (legacy format):', text);
+                                text.split('|').forEach(part => {
+                                    part = part.trim();
+                                    if (!part) return;
+                                    const fields = part.split(':');
+                                    const name = fields[0];
+                                    if (!name) return;
+                                    const coords = (fields[1] || '').split(',');
+                                    const x = parseInt(coords[0], 10);
+                                    const y = parseInt(coords[1], 10);
+                                    if (isNaN(x) || isNaN(y)) return;
+                                    const entry = { x: x, y: y };
+                                    if (fields.length > 2 && fields[2] !== '') entry.animation = fields[2];
+                                    if (fields.length > 3 && fields[3] !== '') entry.isPlaying = fields[3] === '1';
+                                    if (fields.length > 4 && fields[4] !== '') {
+                                        const tt = parseFloat(fields[4]);
+                                        if (!isNaN(tt)) entry.trackTime = tt;
+                                    }
+                                    result[name] = entry;
+                                });
+                                console.log('Parsed museum state (legacy):', { skeletonStates: result });
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse museum state:', e);
+                        }
+                    }
+                    
+                    return { skeletonStates: result, skeletonOrder, cameraState };
+                },
+
+                applyStateMap(stateData) {
+                    const stateMap = stateData.skeletonStates || {};
+                    
+                    for (const name of Object.keys(stateMap)) {
+                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                        if (!item) continue;
+
+                        const saved = stateMap[name];
+                        item.worldX = saved.x;
+                        item.worldY = saved.y;
+
+                        if (saved.visible !== undefined) {
+                            item.visible = saved.visible;
+                        }
+
+                        const skeleton = state.skeletons[name];
+                        if (!skeleton) continue;
+
+                        if (saved.animation !== undefined && this.hasAnimation(name, saved.animation)) {
+                            item.animation = saved.animation;
+                            this.setAnimation(name, item.animation);
+                        }
+                        this.applyCameraTransform(skeleton, item.worldX, item.worldY);
+                        skeleton.visible = item.visible;
+
+                        if (saved.isPlaying !== undefined) {
+                            item.isPlaying = saved.isPlaying;
+                        }
+                        skeleton.state.timeScale = item.isPlaying ? 1 : 0;
+
+                        if (saved.trackTime !== undefined) {
+                            const track = skeleton.state.getCurrent(0);
+                            if (track) {
+                                const dur = track.animation ? track.animation.duration : 0;
+                                let tt = saved.trackTime;
+                                if (dur > 0 && tt > dur) tt = tt % dur;
+                                if (tt < 0) tt = 0;
+                                track.trackTime = tt;
+                            }
+                        }
+                    }
+
+                    if (stateData.skeletonOrder && stateData.skeletonOrder.length > 0) {
+                        state.museum.skeletons.sort((a, b) => {
+                            const indexA = stateData.skeletonOrder.indexOf(a.skeletonName);
+                            const indexB = stateData.skeletonOrder.indexOf(b.skeletonName);
+                            return indexA - indexB;
+                        });
+                    }
+
+                    if (stateData.cameraState) {
+                        if (stateData.cameraState.cameraOffsetX !== undefined) {
+                            state.museum.cameraOffsetX = stateData.cameraState.cameraOffsetX;
+                        }
+                        if (stateData.cameraState.cameraOffsetY !== undefined) {
+                            state.museum.cameraOffsetY = stateData.cameraState.cameraOffsetY;
+                        }
+                        if (stateData.cameraState.cameraScale !== undefined) {
+                            state.museum.cameraScale = stateData.cameraState.cameraScale;
+                        }
+                        if (stateData.cameraState.snapToGrid !== undefined) {
+                            state.museum.snapToGrid = stateData.cameraState.snapToGrid;
+                        }
+                        this.drawWorkspace();
+                    }
+
+                    this.updateDiamondPosition();
+                    this.updateSelectedInfo();
+                },
+
+                saveToStorage() {
+                    if (this._isInitializationMode && this._isInitializationMode()) return;
+                    const text = this.serializeState();
+                    try { localStorage.setItem(this.STORAGE_KEY, text); } catch (e) {}
+                },
+
+                loadFromStorage() {
+                    if (this._savedState !== null) return this._savedState;
+                    let text = null;
+                    try { text = localStorage.getItem(this.STORAGE_KEY); } catch (e) {}
+                    this._savedState = this.parseStateText(text || '');
+                    return this._savedState;
+                },
+
+                clearStorage() {
+                    this._savedState = {};
+                    try { localStorage.removeItem(this.STORAGE_KEY); } catch (e) {}
+                },
+
+                resetMuseumState() {
+                    this.clearStorage();
+                    state.museum.skeletons = [];
+                    state.museum.selectedSkeletons = [];
+                    this.setupMuseumView();
+                },
+
+                initResetButton() {
+                    const btn = document.getElementById('museumResetBtn');
+                    if (btn) btn.addEventListener('click', () => this.resetMuseumState());
+                },
+
+                copyPositions() {
+                    const text = this.serializeState();
 
                     const fallback = (str) => {
                         const ta = document.createElement('textarea');
@@ -2435,36 +3167,14 @@
                     } else {
                         fallback(text);
                     }
+
+                    this.saveToStorage();
                 },
 
                 parsePositions(text) {
-                    const parts = text.split('|');
-                    const positions = {};
-
-                    parts.forEach(part => {
-                        const [name, coords] = part.split(':');
-                        if (!name || !coords) return;
-
-                        const [x, y] = coords.split(',').map(n => parseInt(n.trim()));
-                        if (isNaN(x) || isNaN(y)) return;
-
-                        positions[name] = { x, y };
-                    });
-
-                    Object.keys(positions).forEach(name => {
-                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
-                        if (item) {
-                            item.worldX = positions[name].x;
-                            item.worldY = positions[name].y;
-                            const skeleton = state.skeletons[name];
-                            if (skeleton) {
-                                this.applyCameraTransform(skeleton, item.worldX, item.worldY);
-                            }
-                        }
-                    });
-
-                    this.updateDiamondPosition();
-                    this.updateSelectedInfo();
+                    const stateMap = this.parseStateText(text);
+                    this.applyStateMap(stateMap);
+                    this.saveToStorage();
                 },
 
                 exitMuseum() {
@@ -3294,6 +4004,11 @@
                     const now = performance.now();
                     const delta = (now - state.player.lastTickTime) / 1000;
                     state.player.lastTickTime = now;
+
+                    if (state.activeMode === 'museum') {
+                        museumManager.updateSelectedPositionSlider();
+                        return;
+                    }
 
                     if (!state.currentSkeleton) return;
 
@@ -4148,7 +4863,9 @@
                         if (newWidth > 0) {
                             leftPanel.style.width = newWidth + 'px';
                             this.handlePanelResize(newWidth);
-                            graphicsManager.drawRedLine();
+                            if (state.activeMode !== 'museum') {
+                                graphicsManager.drawRedLine();
+                            }
                         }
                     });
 
@@ -4255,7 +4972,9 @@
                 onWindowResize() {
                     const leftPanel = document.querySelector('.left-panel');
                     this.handlePanelResize(leftPanel.offsetWidth);
-                    graphicsManager.drawRedLine();
+                    if (state.activeMode !== 'museum') {
+                        graphicsManager.drawRedLine();
+                    }
                 }
             };
 
