@@ -1037,7 +1037,7 @@
         }
 
         .museum-position-input {
-            flex: 1;
+            flex: 0 0 calc(50% - 4px);
             background: var(--n1);
             border: 1px solid var(--n2);
             border-radius: 4px;
@@ -1567,91 +1567,8 @@
                 DEFAULT_SPACING: 300,
                 SYM_SPACING: 500,
                 FIT_PADDING: 2560,
-                STORAGE_KEY: 'spineViewerMuseumState',
-                _savedState: null,
-
-                createMuseumProxy() {
-                    const manager = this;
-                    let initializationMode = true;
-                    
-                    setTimeout(() => {
-                        initializationMode = false;
-                    }, 1000);
-                    
-                    manager._isInitializationMode = () => initializationMode;
-
-                    const createSkeletonProxy = (skeletonObj) => {
-                        return new Proxy(skeletonObj, {
-                            set(target, prop, value) {
-                                const result = Reflect.set(target, prop, value);
-                                if (!initializationMode) manager.saveToStorage();
-                                return result;
-                            }
-                        });
-                    };
-
-                    return new Proxy(state.museum, {
-                        set(target, prop, value) {
-                            if (prop === 'skeletons' && Array.isArray(value)) {
-                                const proxiedValue = value.map((item) => createSkeletonProxy(item));
-                                const result = Reflect.set(target, prop, proxiedValue);
-                                if (!initializationMode) manager.saveToStorage();
-                                return result;
-                            }
-                            
-                            const result = Reflect.set(target, prop, value);
-                            if (!initializationMode) manager.saveToStorage();
-                            return result;
-                        },
-                        get(target, prop) {
-                            const value = Reflect.get(target, prop);
-                            
-                            if (prop === 'skeletons' && Array.isArray(value)) {
-                                return new Proxy(value, {
-                                    set(arrTarget, arrProp, arrValue) {
-                                        const result = Reflect.set(arrTarget, arrProp, arrValue);
-                                        if (!isNaN(parseInt(arrProp))) {
-                                            arrTarget[arrProp] = createSkeletonProxy(arrValue);
-                                        }
-                                        if (!initializationMode) manager.saveToStorage();
-                                        return result;
-                                    },
-                                    get(arrTarget, arrProp) {
-                                        const arrValue = Reflect.get(arrTarget, arrProp);
-                                        if (typeof arrProp !== 'symbol' && !isNaN(parseInt(arrProp))) {
-                                            if (arrValue && typeof arrValue === 'object') {
-                                                return createSkeletonProxy(arrValue);
-                                            }
-                                        }
-                                        if (typeof arrValue === 'function') {
-                                            return arrValue.bind(arrTarget);
-                                        }
-                                        return arrValue;
-                                    }
-                                });
-                            }
-                            
-                            if (value && typeof value === 'object' && !Array.isArray(value)) {
-                                return new Proxy(value, {
-                                    set(objTarget, objProp, objValue) {
-                                        const result = Reflect.set(objTarget, objProp, objValue);
-                                        if (!initializationMode) manager.saveToStorage();
-                                        return result;
-                                    }
-                                });
-                            }
-                            
-                            if (typeof value === 'function') {
-                                return value.bind(target);
-                            }
-                            
-                            return value;
-                        }
-                    });
-                },
 
                 init() {
-                    state.museum = this.createMuseumProxy();
                     this.initTab();
                     this.initCopyButton();
                     this.initPositionInput();
@@ -1878,7 +1795,7 @@
                             g.lineTo(centerX, centerY + size);
                             g.lineTo(centerX - size, centerY);
                             g.closePath();
-                            g.fill({ color: 0x3399FF, alpha: 0.5 });
+                            g.fill({ color: 0xffffff, alpha: 0.5 });
                             g.stroke({ width: 2, color: 0x000000, alpha: 1.0 });
                         }
                     }
@@ -2129,7 +2046,7 @@
 
                     const skeletonNames = Array.from(state.loadedSkeletons).sort((a, b) => this.sortSkeletonsForLayering(a, b));
                     const layout = this.computeLayout();
-                    const savedState = this.loadFromStorage();
+                    const savedState = {};
                     const isFirstBuild = state.museum.skeletons.length === 0;
 
                     if (isFirstBuild) {
@@ -3117,27 +3034,7 @@
                     this.updateSelectedInfo();
                 },
 
-                saveToStorage() {
-                    if (this._isInitializationMode && this._isInitializationMode()) return;
-                    const text = this.serializeState();
-                    try { localStorage.setItem(this.STORAGE_KEY, text); } catch (e) {}
-                },
-
-                loadFromStorage() {
-                    if (this._savedState !== null) return this._savedState;
-                    let text = null;
-                    try { text = localStorage.getItem(this.STORAGE_KEY); } catch (e) {}
-                    this._savedState = this.parseStateText(text || '');
-                    return this._savedState;
-                },
-
-                clearStorage() {
-                    this._savedState = {};
-                    try { localStorage.removeItem(this.STORAGE_KEY); } catch (e) {}
-                },
-
                 resetMuseumState() {
-                    this.clearStorage();
                     state.museum.skeletons = [];
                     state.museum.selectedSkeletons = [];
                     this.setupMuseumView();
@@ -3167,14 +3064,11 @@
                     } else {
                         fallback(text);
                     }
-
-                    this.saveToStorage();
                 },
 
                 parsePositions(text) {
                     const stateMap = this.parseStateText(text);
                     this.applyStateMap(stateMap);
-                    this.saveToStorage();
                 },
 
                 exitMuseum() {
