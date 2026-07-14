@@ -2436,6 +2436,21 @@
                     for (const label of Object.values(state.museum.hoverLabelObjects)) {
                         if (label.visible) state.app.stage.addChild(label);
                     }
+
+                    this.applyRenderGroupIsolation();
+                },
+
+                applyRenderGroupIsolation() {
+                    for (const item of state.museum.skeletons) {
+                        const skeleton = state.skeletons[item.skeletonName];
+                        if (!skeleton) continue;
+                        const wantGroup = !!skeleton.darkTint;
+                        if (wantGroup && !skeleton.isRenderGroup) {
+                            try { skeleton.enableRenderGroup(); } catch (e) {}
+                        } else if (!wantGroup && skeleton.isRenderGroup) {
+                            try { skeleton.disableRenderGroup(); } catch (e) {}
+                        }
+                    }
                 },
 
                 renderSkeletonList() {
@@ -3093,6 +3108,9 @@
                         const skeleton = state.skeletons[item.skeletonName];
                         if (skeleton) {
                             skeleton.state.clearTracks();
+                            if (skeleton.isRenderGroup) {
+                                try { skeleton.disableRenderGroup(); } catch (e) {}
+                            }
                             if (skeleton.parent) {
                                 skeleton.parent.removeChild(skeleton);
                             }
@@ -4267,6 +4285,7 @@
                         museumManager.exitMuseum();
                         if (targetSkeleton && targetAnimation) {
                             playlistManager.playSingleAnimation(targetSkeleton, targetAnimation);
+                            uiControls.scrollActiveAnimationToCenter();
                         } else if (state.availableAnimations.length > 0) {
                             state.activeMode = 'animation';
                             uiControls.updateHighlighting();
@@ -4289,6 +4308,17 @@
 
                         container.appendChild(div);
                     });
+                },
+
+                scrollActiveAnimationToCenter() {
+                    const container = document.getElementById('animationsList');
+                    if (!container) return;
+                    const active = container.querySelector('.animation-item.active');
+                    if (!active) return;
+                    const cRect = container.getBoundingClientRect();
+                    const aRect = active.getBoundingClientRect();
+                    const delta = (aRect.top - cRect.top) - (container.clientHeight - active.offsetHeight) / 2;
+                    container.scrollTop += delta;
                 },
 
                 updateHighlighting() {
@@ -4526,7 +4556,7 @@
 
                 async handleFiles(fileList) {
                     const files = Array.from(fileList);
-                    const skelFiles = files.filter(f => f.name.endsWith('.skel'));
+                    const skelFiles = files.filter(f => f.name.endsWith('.skel')).sort((a, b) => a.name.localeCompare(b.name));
                     const atlasFiles = files.filter(f => f.name.endsWith('.atlas'));
                     const textureFiles = files.filter(f => /\.(webp|png|jpg)$/.test(f.name));
 
