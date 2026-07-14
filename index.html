@@ -2167,6 +2167,14 @@
                         this.applyCameraTransform(skeleton, item.worldX, item.worldY);
 
                         if (isFirstBuild) {
+                            const skins = state.availableSkins[name] || [];
+                            const nonDefaultSkins = skins.filter(s => s !== 'default');
+                            const currentSkin = state.selectedSkins[name];
+                            const alreadyCustom = currentSkin && currentSkin !== 'default' && nonDefaultSkins.includes(currentSkin);
+                            if (nonDefaultSkins.length > 0 && !alreadyCustom) {
+                                const sortedSkins = [...nonDefaultSkins].sort((a, b) => a.localeCompare(b));
+                                skinManager.applySkin(name, sortedSkins[0]);
+                            }
                             skeleton.state.timeScale = item.isPlaying ? 1 : 0;
                             const saved = savedState.skeletonStates ? savedState.skeletonStates[name] : null;
                             if (saved && saved.trackTime !== undefined) {
@@ -2332,6 +2340,9 @@
                     const idleAnim = animations.find(a => a.name.toLowerCase().includes('idle'));
                     if (idleAnim) return idleAnim.name;
 
+                    const loopAnim = animations.find(a => a.name.toLowerCase().includes('loop'));
+                    if (loopAnim) return loopAnim.name;
+
                     return animations[0].name;
                 },
 
@@ -2342,6 +2353,10 @@
                     const track = skeleton.state.setAnimation(0, animationName, true);
                     if (track) {
                         track.timeScale = 1;
+                    }
+
+                    if (track && track.animation && track.animation.duration <= 0) {
+                        skeleton.skeleton.setToSetupPose();
                     }
                 },
 
@@ -4240,8 +4255,19 @@
                     });
 
                     animationsHeader.addEventListener('click', () => {
+                        let targetSkeleton = null;
+                        let targetAnimation = null;
+                        if (state.activeMode === 'museum' && state.museum.selectedSkeletons.length > 0) {
+                            const item = state.museum.skeletons.find(s => s.skeletonName === state.museum.selectedSkeletons[0]);
+                            if (item && item.animation) {
+                                targetSkeleton = item.skeletonName;
+                                targetAnimation = item.animation;
+                            }
+                        }
                         museumManager.exitMuseum();
-                        if (state.availableAnimations.length > 0) {
+                        if (targetSkeleton && targetAnimation) {
+                            playlistManager.playSingleAnimation(targetSkeleton, targetAnimation);
+                        } else if (state.availableAnimations.length > 0) {
                             state.activeMode = 'animation';
                             uiControls.updateHighlighting();
                         }
