@@ -375,6 +375,34 @@
             flex: 1;
         }
 
+        .frame-presets {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 2px;
+        }
+
+        .frame-preset-btn {
+            background: var(--n2);
+            color: var(--n-text);
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            width: auto;
+            margin-top: 0;
+            font-family: monospace;
+        }
+
+        .frame-preset-btn:hover {
+            background: var(--n4);
+            color: var(--fg);
+        }
+
         .skin-section {
             margin-bottom: 15px;
             display: none;
@@ -1220,6 +1248,12 @@
                         <label for="frameCheckbox">Frame</label>
                     </div>
                     <div id="frameFields" class="frame-fields">
+                        <div class="frame-presets">
+                            <button type="button" class="frame-preset-btn" data-w="2560" data-h="2560">2560 × 2560</button>
+                            <button type="button" class="frame-preset-btn" data-w="2560" data-h="1440">2560 × 1440</button>
+                            <button type="button" class="frame-preset-btn" data-w="1440" data-h="2560">1440 × 2560</button>
+                            <button type="button" class="frame-preset-btn" data-w="300" data-h="300">300 × 300</button>
+                        </div>
                         <div class="frame-field">
                             <span class="frame-label" data-axis="w">W</span>
                             <input type="text" id="frameW" class="coord-input" value="400">
@@ -1346,7 +1380,7 @@
                 currentSkeletonName: '',
                 playlist: [],
                 currentIndex: 0,
-                redLineGraphics: null,
+                axesGraphics: null,
                 isPlaying: false,
                 skeletons: {},
                 skeletonResolution: {},
@@ -1589,7 +1623,7 @@
 
                     skinManager.restoreSkin(skeletonName);
                     skinManager.updateDropdown(skeletonName);
-                    graphicsManager.drawRedLine();
+                    graphicsManager.drawAxes();
                 },
 
                 updateScale(newScale, updateSlider = true) {
@@ -1607,7 +1641,7 @@
                         }
                     } else if (state.currentSkeleton) {
                         state.currentSkeleton.scale.set(state.currentScale);
-                        graphicsManager.drawRedLine();
+                        graphicsManager.drawAxes();
                     }
                     
                     if (updateSlider) {
@@ -1628,7 +1662,7 @@
                     this.updateScale(1.0, true);
                     this.updatePosition(state.app.screen.width / 2, state.app.screen.height / 2);
                     uiControls.resetCheckbox();
-                    graphicsManager.drawRedLine();
+                    graphicsManager.drawAxes();
                 }
             };
 
@@ -3340,14 +3374,14 @@
                     graphics.stroke();
                 },
 
-                drawRedLine() {
-                    if (!state.redLineGraphics) {
-                        state.redLineGraphics = new PIXI.Graphics();
+                drawAxes() {
+                    if (!state.axesGraphics) {
+                        state.axesGraphics = new PIXI.Graphics();
                     }
-                    if (state.redLineGraphics.parent !== state.app.stage) {
-                        state.app.stage.addChildAt(state.redLineGraphics, 0);
+                    if (state.axesGraphics.parent !== state.app.stage) {
+                        state.app.stage.addChildAt(state.axesGraphics, 0);
                     }
-                    this.drawAxesAndGrid(state.redLineGraphics, state.currentScale, state.cameraX, state.cameraY);
+                    this.drawAxesAndGrid(state.axesGraphics, state.currentScale, state.cameraX, state.cameraY);
                     frameManager.draw();
                 }
             };
@@ -3377,6 +3411,17 @@
 
                     document.querySelectorAll('.frame-label').forEach(label => {
                         label.addEventListener('mousedown', (e) => this.startScrub(e, label));
+                    });
+
+                    document.querySelectorAll('.frame-preset-btn').forEach(btn => {
+                        btn.addEventListener('click', () => {
+                            const wInput = document.getElementById('frameW');
+                            const hInput = document.getElementById('frameH');
+                            if (!wInput || !hInput) return;
+                            wInput.value = btn.dataset.w;
+                            hInput.value = btn.dataset.h;
+                            this.apply();
+                        });
                     });
                 },
 
@@ -3519,8 +3564,8 @@
                     }
                     if (state.activeMode === 'museum') {
                         museumManager.drawWorkspace();
-                    } else if (state.redLineGraphics) {
-                        graphicsManager.drawRedLine();
+                    } else if (state.axesGraphics) {
+                        graphicsManager.drawAxes();
                     }
                 },
 
@@ -4018,7 +4063,7 @@
                                     state.app.screen.width * relX,
                                     state.app.screen.height * relY
                                 );
-                                graphicsManager.drawRedLine();
+                                graphicsManager.drawAxes();
                             }
                         }
                     }
@@ -4749,15 +4794,15 @@
                     playerManager.updatePauseBeforeButton();
                     playerManager.updatePauseAfterButton();
 
-                    if (state.redLineGraphics) {
-                        state.app.stage.removeChild(state.redLineGraphics);
-                        state.redLineGraphics.destroy();
-                        state.redLineGraphics = null;
+                    if (state.axesGraphics) {
+                        state.app.stage.removeChild(state.axesGraphics);
+                        state.axesGraphics.destroy();
+                        state.axesGraphics = null;
                     }
 
                     skeletonManager.updateScale(1.0, true);
                     skeletonManager.updatePosition(state.cameraX, state.cameraY);
-                    graphicsManager.drawRedLine();
+                    graphicsManager.drawAxes();
                     hideError();
                     state.hasLoadError = false;
                     state.hasPlaylistError = false;
@@ -5025,7 +5070,7 @@
                             leftPanel.style.width = newWidth + 'px';
                             this.handlePanelResize(newWidth);
                             if (state.activeMode !== 'museum') {
-                                graphicsManager.drawRedLine();
+                                graphicsManager.drawAxes();
                             }
                         }
                     });
@@ -5058,7 +5103,7 @@
                                 state.app.screen.width * relativeX,
                                 state.app.screen.height * relativeY
                             );
-                            graphicsManager.drawRedLine();
+                            graphicsManager.drawAxes();
                         }
                     }
                 },
@@ -5088,7 +5133,7 @@
                             state.skeletonStartX + deltaX,
                             state.skeletonStartY + deltaY
                         );
-                        graphicsManager.drawRedLine();
+                        graphicsManager.drawAxes();
                     });
                     document.addEventListener('mouseup', () => {
                         if (state.isDragging) {
@@ -5134,7 +5179,7 @@
                     const leftPanel = document.querySelector('.left-panel');
                     this.handlePanelResize(leftPanel.offsetWidth);
                     if (state.activeMode !== 'museum') {
-                        graphicsManager.drawRedLine();
+                        graphicsManager.drawAxes();
                     }
                 }
             };
@@ -5244,7 +5289,7 @@
                     }
                 });
 
-                graphicsManager.drawRedLine();
+                graphicsManager.drawAxes();
                 uiControls.updateHighlighting();
 
                 await playlistManager.onTextChange(getScenarioPlainText());
