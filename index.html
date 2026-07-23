@@ -1238,6 +1238,14 @@
                     <input type="checkbox" id="zeroAlphaCheckbox">
                     <label for="zeroAlphaCheckbox">Check placeholders zero alpha</label>
                 </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="sdPairsCheckbox" checked>
+                    <label for="sdPairsCheckbox">Check sd- pairs</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="unusedCheckbox">
+                    <label for="unusedCheckbox">Check unused</label>
+                </div>
                 <div id="skinSection" class="skin-section">
                     <label class="slider-label">Skin</label>
                     <select id="skinSelect" class="skin-select"></select>
@@ -1364,11 +1372,67 @@
                 block.classList.remove('visible');
             }
 
-            function showZeroAlphaIfAny() {
-                if (!state.checkZeroAlpha) { hideError(); return; }
-                if (state.hasLoadError || state.hasPlaylistError) return;
-                if (state.zeroAlphaWarnings && state.zeroAlphaWarnings.length > 0) {
-                    showError(state.zeroAlphaWarnings.join('\n'));
+            function collectSdPairsErrors() {
+                const errors = [];
+                const bySkeleton = {};
+                state.availableAnimations.forEach(item => {
+                    if (!bySkeleton[item.skeletonName]) bySkeleton[item.skeletonName] = new Set();
+                    bySkeleton[item.skeletonName].add(item.animationName);
+                });
+                Object.keys(bySkeleton).forEach(skeletonName => {
+                    const anims = bySkeleton[skeletonName];
+                    anims.forEach(anim => {
+                        if (anim.startsWith('hd-')) {
+                            const sdName = 'sd-' + anim.slice(3);
+                            if (!anims.has(sdName)) {
+                                errors.push('[' + skeletonName + '] Missing SD pair: "' + sdName + '" (for "' + anim + '")');
+                            }
+                        }
+                    });
+                });
+                return errors;
+            }
+
+            function collectUnusedErrors() {
+                const errors = [];
+                const usedPairs = new Set();
+                const playlistItems = playlistManager.parse(getScenarioPlainText());
+                playlistItems.forEach(item => {
+                    usedPairs.add(item.skeletonName + '|' + item.animationName);
+                });
+                state.availableAnimations.forEach(item => {
+                    const key = item.skeletonName + '|' + item.animationName;
+                    if (!usedPairs.has(key)) {
+                        errors.push('[' + item.skeletonName + '] Unused animation: "' + item.animationName + '"');
+                    }
+                });
+                return errors;
+            }
+
+            function collectAllErrors() {
+                const errors = [];
+                if (state.loadErrors && state.loadErrors.length > 0) {
+                    errors.push(...state.loadErrors);
+                }
+                if (state.playlistErrors && state.playlistErrors.length > 0) {
+                    errors.push(...state.playlistErrors);
+                }
+                if (state.checkZeroAlpha && state.zeroAlphaWarnings.length > 0) {
+                    errors.push(...state.zeroAlphaWarnings);
+                }
+                if (state.checkSdPairs) {
+                    errors.push(...collectSdPairsErrors());
+                }
+                if (state.checkUnused) {
+                    errors.push(...collectUnusedErrors());
+                }
+                return errors;
+            }
+
+            function showChecksIfAny() {
+                const errors = collectAllErrors();
+                if (errors.length > 0) {
+                    showError(errors.join('\n'));
                 } else {
                     hideError();
                 }
@@ -1409,9 +1473,13 @@
                 blobUrls: [],
                 pixiTextures: [],
                 hasLoadError: false,
+                loadErrors: [],
                 hasPlaylistError: false,
+                playlistErrors: [],
                 zeroAlphaWarnings: [],
                 checkZeroAlpha: false,
+                checkSdPairs: true,
+                checkUnused: false,
                 availableSkins: {},
                 selectedSkins: {},
                 player: {
@@ -3881,13 +3949,9 @@
 
                     state.playlist = this.parse(text);
                     const errors = this.validatePlaylist(state.playlist);
-                    if (errors.length > 0) {
-                        showError(errors.join('\n'));
-                        state.hasPlaylistError = true;
-                    } else {
-                        state.hasPlaylistError = false;
-                        showZeroAlphaIfAny();
-                    }
+                    state.playlistErrors = errors;
+                    state.hasPlaylistError = errors.length > 0;
+                    showChecksIfAny();
 
                     if (state.playlist.length > 0) {
                         state.player.playing = true;
@@ -4410,7 +4474,29 @@
 
                     checkbox.addEventListener('change', (e) => {
                         state.checkZeroAlpha = e.target.checked;
-                        showZeroAlphaIfAny();
+                        showChecksIfAny();
+                    });
+                },
+
+                initSdPairsCheckbox() {
+                    const checkbox = document.getElementById('sdPairsCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkSdPairs;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkSdPairs = e.target.checked;
+                        showChecksIfAny();
+                    });
+                },
+
+                initUnusedCheckbox() {
+                    const checkbox = document.getElementById('unusedCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkUnused;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkUnused = e.target.checked;
+                        showChecksIfAny();
                     });
                 },
 
@@ -4805,7 +4891,9 @@
                     graphicsManager.drawAxes();
                     hideError();
                     state.hasLoadError = false;
+                    state.loadErrors = [];
                     state.hasPlaylistError = false;
+                    state.playlistErrors = [];
                     state.zeroAlphaWarnings = [];
                     document.getElementById('skinSection').classList.remove('visible');
                 },
@@ -4886,7 +4974,7 @@
                                     placeholderManager.buildFor(skeletonName);
                                 }
                                 if (errors.length > 0) {
-                                    showError('[' + skeletonName + '] ' + errors.join('\n'));
+                                    state.loadErrors.push('[' + skeletonName + '] ' + errors.join('\n'));
                                     state.hasLoadError = true;
                                 }
                             }
@@ -4926,7 +5014,7 @@
                         await playlistManager.onTextChange(scenarioText);
                     } catch (error) {
                         console.error('Upload error:', error);
-                        showError('Upload error: ' + error.message);
+                        state.loadErrors.push('Upload error: ' + error.message);
                         state.hasLoadError = true;
                     } finally {
                         this.hideLoading();
@@ -5246,6 +5334,8 @@
                 uiControls.initCheckbox();
                 uiControls.initPlaceholdersCheckbox();
                 uiControls.initZeroAlphaCheckbox();
+                uiControls.initSdPairsCheckbox();
+                uiControls.initUnusedCheckbox();
                 uiControls.initSnapCheckbox();
                 uiControls.initResetButton();
                 uiControls.initTextarea();
