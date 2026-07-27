@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HAR → ZIP (локально)</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #171a21;
+    --panel-2: #1f2330;
+    --text: #e6e8ee;
+    --muted: #9aa3b2;
+    --accent: #4f8cff;
+    --accent-2: #2bd4a0;
+    --border: #2a2f3a;
+    --danger: #ff5c5c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 800px at 20% -10%, #1a1f2b 0%, var(--bg) 55%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px 64px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .drop {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+    background: var(--panel-2);
+  }
+  .drop:hover { border-color: var(--accent); }
+  .drop.drag { border-color: var(--accent); background: #1b2233; }
+  .drop .big { font-size: 40px; }
+  .drop p { margin: 10px 0 2px; }
+  .drop small { color: var(--muted); }
+  #fileInput { display: none; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+  input[type="number"] {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; width: 110px; font-size: 14px;
+  }
+  button {
+    background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+    padding: 11px 18px; font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); }
+  .progress {
+    height: 10px; background: var(--panel-2); border-radius: 999px; overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .progress > div {
+    height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width .15s;
+  }
+  .stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  pre.log {
+    background: #0c0e13; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; max-height: 280px; overflow: auto; font-size: 12.5px; line-height: 1.5;
+    margin: 0; white-space: pre-wrap; word-break: break-all;
+  }
+  .log .ok { color: var(--accent-2); }
+  .log .skip { color: var(--muted); }
+  .log .err { color: var(--danger); }
+  .muted { color: var(--muted); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>HAR → ZIP</h1>
+  <div class="sub">Всё происходит локально в браузере — файл никуда не загружается. Файлы извлекаются и упаковываются в ZIP, имена файлов и папок ограничены длиной.</div>
+
+  <div class="card">
+    <div id="drop" class="drop">
+      <div class="big">📦</div>
+      <p><b>Перетащите .har сюда</b> или нажмите для выбора</p>
+      <small>Поддерживается один HAR-файл за раз</small>
+    </div>
+    <input type="file" id="fileInput" accept=".har,application/json,application/octet-stream">
+
+    <div class="row">
+      <label class="field">
+        Макс. длина имени
+        <input type="number" id="maxLen" value="50" min="5" max="200">
+      </label>
+      <div style="flex:1"></div>
+      <button id="processBtn" disabled>Извлечь в ZIP</button>
+      <button id="downloadBtn" class="ghost hidden">⬇ Скачать ZIP</button>
+    </div>
+  </div>
+
+  <div id="statusCard" class="card hidden">
+    <div class="progress"><div id="bar"></div></div>
+    <div class="stats">
+      <div class="stat"><b id="s-total">0</b><span>всего записей</span></div>
+      <div class="stat"><b id="s-saved">0</b><span>сохранено</span></div>
+      <div class="stat"><b id="s-skipped">0</b><span>пропущено</span></div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <span class="muted" id="phase" style="font-size:13px;"></span>
+    </div>
+    <pre class="log" id="log"></pre>
+  </div>
+</div>
+
+<script>
+const MAX_DEFAULT = 50;
+
+const dropEl   = document.getElementById('drop');
+const fileEl   = document.getElementById('fileInput');
+const maxLenEl = document.getElementById('maxLen');
+const procBtn  = document.getElementById('processBtn');
+const dlBtn    = document.getElementById('downloadBtn');
+const statusCard = document.getElementById('statusCard');
+const barEl    = document.getElementById('bar');
+const phaseEl  = document.getElementById('phase');
+const logEl    = document.getElementById('log');
+const sTotal   = document.getElementById('s-total');
+const sSaved   = document.getElementById('s-saved');
+const sSkipped = document.getElementById('s-skipped');
+
+let chosenFile = null;
+let lastZipBlob = null;
+let lastZipName = 'extracted.zip';
+
+function logLine(msg, cls) {
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = msg + '\n';
+  logEl.appendChild(span);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function setPhase(t){ phaseEl.textContent = t; }
+function setBar(p){ barEl.style.width = Math.max(0, Math.min(100, p)) + '%'; }
+
+// ----- выбор файла -----
+dropEl.addEventListener('click', () => fileEl.click());
+['dragenter','dragover'].forEach(ev => dropEl.addEventListener(ev, e => {
+  e.preventDefault(); dropEl.classList.add('drag');
+}));
+['dragleave','drop'].forEach(ev => dropEl.addEventListener(ev, e => {
+  e.preventDefault(); dropEl.classList.remove('drag');
+}));
+dropEl.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) setFile(f);
+});
+fileEl.addEventListener('change', e => {
+  const f = e.target.files && e.target.files[0];
+  if (f) setFile(f);
+});
+
+function setFile(f) {
+  chosenFile = f;
+  procBtn.disabled = false;
+  dlBtn.classList.add('hidden');
+  lastZipBlob = null;
+  dropEl.querySelector('p').innerHTML = `<b>${escapeHtml(f.name)}</b> (${formatBytes(f.size)})`;
+}
+
+function escapeHtml(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function formatBytes(b){
+  if (b < 1024) return b + ' B';
+  if (b < 1024*1024) return (b/1024).toFixed(1) + ' KB';
+  return (b/1024/1024).toFixed(1) + ' MB';
+}
+
+// ----- утилиты имён -----
+function sanitizeName(name) {
+  // убираем символы, недопустимые в именах файлов/папок
+  let n = name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').trim();
+  // схлопываем точки/пробелы в конце
+  n = n.replace(/[\s.]+$/g, '');
+  return n || 'file';
+}
+
+// обрезаем имя так, чтобы оно было <= maxLen, сохраняя расширение
+function truncateName(name, maxLen) {
+  if (!name) return name;
+  if (name.length <= maxLen) return name;
+  const dot = name.lastIndexOf('.');
+  if (dot > 0 && dot < name.length - 1) {
+    const ext = name.slice(dot);     // включая точку
+    const base = name.slice(0, dot);
+    const room = maxLen - ext.length;
+    if (room > 0) return base.slice(0, room) + ext;
+  }
+  return name.slice(0, maxLen);
+}
+
+// вернуть уникальное имя в рамках одного каталога, не длиннее maxLen
+function uniqueTruncatedName(desired, used, maxLen) {
+  let name = sanitizeName(desired);
+  name = truncateName(name, maxLen);
+  if (!used.has(name)) { used.add(name); return name; }
+
+  const dot = name.lastIndexOf('.');
+  let base, ext;
+  if (dot > 0 && dot < name.length - 1) { base = name.slice(0, dot); ext = name.slice(dot); }
+  else { base = name; ext = ''; }
+
+  let i = 2;
+  while (true) {
+    const candidate = truncateName(base + '_' + i + ext, maxLen);
+    if (!used.has(candidate)) { used.add(candidate); return candidate; }
+    i++;
+    if (i > 999999) { // страховка
+      used.add(candidate); return candidate;
+    }
+  }
+}
+
+// расширение по mime-типу
+function extByMime(mime) {
+  const m = (mime || '').toLowerCase();
+  if (m.includes('javascript')) return '.js';
+  if (m.includes('json'))       return '.json';
+  if (m.includes('css'))        return '.css';
+  if (m.includes('html'))       return '.html';
+  if (m.includes('image/png'))  return '.png';
+  if (m.includes('image/jpeg') || m.includes('image/jpg')) return '.jpg';
+  if (m.includes('image/gif'))  return '.gif';
+  if (m.includes('image/webp')) return '.webp';
+  if (m.includes('image/svg'))  return '.svg';
+  if (m.includes('image/x-icon') || m.includes('image/vnd.microsoft.icon')) return '.ico';
+  if (m.includes('font') || m.includes('woff2')) return '.woff2';
+  if (m.includes('woff'))       return '.woff';
+  if (m.includes('ttf'))        return '.ttf';
+  if (m.includes('opentype'))   return '.otf';
+  if (m.includes('text/plain')) return '.txt';
+  if (m.includes('xml'))        return '.xml';
+  if (m.includes('pdf'))        return '.pdf';
+  if (m.includes('csv'))        return '.csv';
+  if (m.includes('zip'))        return '.zip';
+  if (m.includes('octet-stream')) return '.bin';
+  return '';
+}
+
+function base64ToBytes(b64) {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+// ----- основная обработка -----
+procBtn.addEventListener('click', async () => {
+  if (!chosenFile) return;
+  procBtn.disabled = true;
+  dlBtn.classList.add('hidden');
+  lastZipBlob = null;
+  logEl.innerHTML = '';
+  statusCard.classList.remove('hidden');
+  setBar(0); setPhase('Читаю файл…');
+
+  let har;
+  try {
+    const text = await chosenFile.text();
+    har = JSON.parse(text);
+  } catch (e) {
+    logLine('✗ Не удалось прочитать/распарсить HAR: ' + e.message, 'err');
+    procBtn.disabled = false;
+    return;
+  }
+
+  const entries = (har && har.log && har.log.entries) || [];
+  const maxLen = Math.max(5, parseInt(maxLenEl.value, 10) || MAX_DEFAULT);
+
+  sTotal.textContent = entries.length;
+  sSaved.textContent = 0;
+  sSkipped.textContent = 0;
+
+  logLine(`Файл: ${chosenFile.name}`);
+  logLine(`Записей найдено: ${entries.length}`);
+  logLine(`Макс. длина имени: ${maxLen} симв.`);
+
+  const zip = new JSZip();
+  const usedByDir = new Map(); // путь папки -> Set занятых имён
+
+  let saved = 0, skipped = 0;
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const req = entry.request || {};
+    const resp = entry.response || {};
+    const content = resp.content || {};
+
+    if (i % 25 === 0 || i === entries.length - 1) {
+      setBar(((i + 1) / entries.length) * 100);
+      setPhase(`Обработка ${i + 1} / ${entries.length}…`);
+      // даём браузеру перерисоваться
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    // контент
+    if (!content || ((!content.text) && (!content.body))) {
+      skipped++; continue;
+    }
+    let payload, isText;
+    if (content.text !== undefined && content.text !== null) {
+      if ((content.encoding || '').toLowerCase() === 'base64') {
+        try { payload = base64ToBytes(content.text); } catch (e) { skipped++; continue; }
+        isText = false;
+      } else {
+        payload = content.text; isText = true;
+      }
+    } else if (content.body !== undefined && content.body !== null) {
+      payload = content.body; isText = true;
+    } else {
+      skipped++; continue;
+    }
+
+    // URL → имя файла + папка хоста
+    let url;
+    try { url = new URL(req.url); }
+    catch (e) { skipped++; continue; }
+
+    let rawName = '';
+    try { rawName = decodeURIComponent(url.pathname.split('/').pop() || ''); } catch (e) {
+      rawName = url.pathname.split('/').pop() || '';
+    }
+    if (!rawName) rawName = `index_${i}`;
+
+    // расширение по mime, если его нет
+    let filename = rawName;
+    if (!filename.includes('.')) {
+      const ext = extByMime(content.mimeType);
+      if (ext) filename += ext;
+    }
+
+    // папка хоста
+    const host = sanitizeName(url.hostname.replace(/[^a-zA-Z0-9.\-]/g, '_'));
+    const hostDir = truncateName(host || 'host', maxLen);
+    if (!usedByDir.has(hostDir)) usedByDir.set(hostDir, new Set());
+    const used = usedByDir.get(hostDir);
+
+    const finalName = uniqueTruncatedName(filename, used, maxLen);
+    const zipPath = `${hostDir}/${finalName}`;
+
+    try {
+      zip.file(zipPath, payload);
+      logLine(`✓ ${zipPath} (${isText ? formatBytes(payload.length) : formatBytes(payload.length)})`, 'ok');
+      saved++;
+      sSaved.textContent = saved;
+    } catch (e) {
+      logLine(`✗ Ошибка добавления ${zipPath}: ${e.message}`, 'err');
+      skipped++;
+    }
+  }
+
+  sSkipped.textContent = skipped;
+  setBar(100);
+  setPhase('Упаковка ZIP…');
+
+  logLine(`\nСохранено: ${saved}, пропущено: ${skipped}`);
+
+  let blob;
+  try {
+    blob = await zip.generateAsync(
+      { type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } },
+      (meta) => setBar(meta.percent)
+    );
+  } catch (e) {
+    logLine('✗ Ошибка упаковки ZIP: ' + e.message, 'err');
+    procBtn.disabled = false;
+    return;
+  }
+
+  lastZipBlob = blob;
+  const base = chosenFile.name.replace(/\.har$/i, '') || 'extracted';
+  lastZipName = `${base}.zip`;
+  setPhase(`Готово. ZIP: ${formatBytes(blob.size)}`);
+
+  dlBtn.classList.remove('hidden');
+  dlBtn.textContent = `⬇ Скачать ${lastZipName}`;
+  procBtn.disabled = false;
+  logLine(`ZIP готов: ${lastZipName} (${formatBytes(blob.size)})`, 'ok');
+});
+
+dlBtn.addEventListener('click', () => {
+  if (!lastZipBlob) return;
+  const url = URL.createObjectURL(lastZipBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = lastZipName;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+});
+</script>
+</body>
+</html>
