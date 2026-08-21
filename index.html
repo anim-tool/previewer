@@ -3668,7 +3668,7 @@
             }
 
             const placeholderManager = {
-                PREFIX: 'placeholder-',
+                PREFIX: 'placeholder',
                 FONT_SIZE: 60,
                 entries: {},
 
@@ -3681,7 +3681,7 @@
                     for (let i = 0; i < slots.length; i++) {
                         const slot = slots[i];
                         const name = slot.data && slot.data.name;
-                        if (!name || name.indexOf(this.PREFIX) !== 0) continue;
+                        if (!name || name.indexOf(this.PREFIX) < 0) continue;
                         const text = new PIXI.Text({
                             text: name,
                             style: {
@@ -3760,7 +3760,7 @@
                     const placeholderSlots = {};
                     for (let i = 0; i < slotsData.length; i++) {
                         const name = slotsData[i].name;
-                        if (name && name.indexOf(this.PREFIX) === 0) {
+                        if (name && name.indexOf(this.PREFIX) >= 0) {
                             placeholderSlots[i] = name;
                         }
                     }
