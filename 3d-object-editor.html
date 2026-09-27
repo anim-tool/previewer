@@ -1,0 +1,3654 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Редактор 3D объектов (монета / алмаз)</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23b8860b'/%3E%3Ccircle cx='16' cy='16' r='12.8' fill='%23f2c53d'/%3E%3Cpath d='M20 6 26 13 16 30 6 13 12 6z' fill='%238ecbff' opacity='0.9'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:64;--fg-r:255;--fg-g:255;--fg-b:255;--font-size:16;--contrast:1;
+  --fg:rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc:rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width:168px;
+  --menu-padding:32px;
+}
+*{box-sizing:border-box;margin:0;padding:0;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--fg) calc(var(--contrast)*8%),var(--bgc)) transparent;}
+::-webkit-scrollbar{width:10px;height:10px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*10%),var(--bgc));}
+::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*18%),var(--bgc));}
+html,body{height:100%;width:100%;overflow:hidden;}
+body{
+  background:var(--bgc);
+  color:color-mix(in srgb,var(--fg) calc(var(--contrast)*100%),var(--bgc));
+  font-family:system-ui,sans-serif;
+  font-size:calc(var(--font-size)*1px);
+  line-height:1.45;
+}
+.app{display:flex;height:100vh;width:100vw;overflow:hidden;}
+.menu{flex:0 0 auto;width:50%;min-width:0;overflow:auto;padding:var(--menu-padding);}
+.resizer{flex:0 0 20px;cursor:col-resize;position:relative;touch-action:none;}
+.resizer::before{content:"";position:absolute;top:0;bottom:0;left:50%;transform:translateX(-50%);width:2px;background:color-mix(in srgb,var(--fg) calc(var(--contrast)*25%),var(--bgc));}
+.viewer{flex:1 1 0;position:relative;min-width:0;overflow:hidden;}
+.viewer canvas{display:block;}
+.cells{display:block;font-size:0;line-height:1.6;user-select:none;-webkit-user-select:none;}
+.cells hr{border:none;border-top:1px solid var(--bgc);margin:2px 0;padding:0;clear:both;}
+.hide-dividers .cells hr{display:none;}
+.cell.cell-head{cursor:default;font-weight:600;background:none;}
+.cell.cell-head>.label{color:color-mix(in srgb,#e6c35c 72%,var(--fg));}
+.cell-note{position:relative;display:inline-block;width:var(--slider-width);max-width:100%;padding:0 8px;margin:1px 3px 1px 0;vertical-align:bottom;background:none;font-size:calc(0.78*var(--font-size)*1px);color:color-mix(in srgb,var(--fg) calc(var(--contrast)*50%),var(--bgc));line-height:1.5;min-height:calc(var(--font-size)*1.5*1px);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;user-select:text;-webkit-user-select:text;}
+.cell,.adv-slider{position:relative;display:inline-flex;align-items:center;justify-content:flex-start;gap:8px;width:var(--slider-width);padding:0 8px;margin:1px 3px 1px 0;vertical-align:bottom;background:color-mix(in srgb,var(--fg) calc(var(--contrast)*6%),var(--bgc));color:inherit;font-size:calc(var(--font-size)*1px);font-weight:400;line-height:1.5;min-height:calc(var(--font-size)*1.5*1px);white-space:nowrap;overflow:hidden;}
+.cell>.label,.adv-label{position:relative;z-index:1;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cell>.value,.adv-value{position:relative;z-index:1;flex:0 0 auto;font-variant-numeric:tabular-nums;}
+.cell-btn{cursor:pointer;background:color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));}
+.cell-check:hover,.cell-radio:hover,.cell-color:hover,.cell-input:hover,.cell-select:hover{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*12%),var(--bgc));}
+.cell-btn:hover{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*20%),var(--bgc));}
+.cell-btn:active{color:color-mix(in srgb,var(--fg) calc(var(--contrast)*50%),var(--bgc));}
+.cell-primary{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*90%),var(--bgc));color:rgb(var(--bg) var(--bg) var(--bg));}
+.cell-primary:hover{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*100%),var(--bgc));}
+.cell-danger{color:color-mix(in srgb,#e05555 80%,var(--fg));}
+.cell[aria-disabled="true"],.adv-slider[aria-disabled="true"]{color:color-mix(in srgb,var(--fg) calc(var(--contrast)*30%),var(--bgc));cursor:default;}
+.cell[aria-disabled="true"]{pointer-events:none;}
+.cell[aria-disabled="true"]:hover,.adv-slider[aria-disabled="true"]:hover{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*6%),var(--bgc));}
+.cell[aria-disabled="true"].cell-btn{background:color-mix(in srgb,var(--fg) calc(var(--contrast)*6%),var(--bgc));}
+.cell-check,.cell-radio{cursor:pointer;}
+.cell-check .mark,.cell-radio .mark{position:relative;flex:0 0 auto;width:14px;height:14px;border:1px solid currentColor;}
+.cell-radio .mark{border-radius:50%;}
+.cell-check[aria-checked="true"] .mark::after{content:"";position:absolute;top:1px;left:4px;width:4px;height:7px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg);}
+.cell-radio[aria-checked="true"] .mark::after{content:"";position:absolute;top:3px;left:3px;width:6px;height:6px;background:currentColor;border-radius:50%;}
+.cell input,.cell select{flex:1 1 auto;min-width:0;width:100%;background:transparent;color:inherit;border:none;padding:0;font:inherit;line-height:inherit;outline:none;user-select:text;-webkit-user-select:text;}
+.cell input[type=text]{padding:0;border:none;background:transparent;font-size:inherit;height:auto;}
+.cell select{cursor:pointer;}
+.cell select option{background:rgb(var(--bg) var(--bg) var(--bg));color:rgb(var(--fg-r) var(--fg-g) var(--fg-b));}
+.cell-select,.cell-input{width:calc(var(--slider-width)*2 + 3px);}
+.cell-select>.label,.cell-input>.label{flex:0 0 auto;width:var(--slider-width);}
+.cell-color input[type=color]{flex:0 0 auto;width:32px;height:calc(var(--font-size)*1.1*1px);padding:0;border:1px solid currentColor;background:none;cursor:pointer;}
+.cell-color input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
+.cell-color input[type=color]::-webkit-color-swatch{border:none;}
+.cell-color input[type=color]::-moz-color-swatch{border:none;}
+.cell input[type=color][disabled]{opacity:.4;cursor:default;}
+.cell-progress::before{content:"";position:absolute;top:0;bottom:0;left:0;width:calc(var(--pct)*1%);background:color-mix(in srgb,var(--fg) calc(var(--contrast)*22%),var(--bgc));pointer-events:none;}
+.adv-slider{--pct:0;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;}
+.adv-slider::before{content:"";position:absolute;top:0;bottom:0;left:0;width:calc(var(--pct)*1%);background:color-mix(in srgb,var(--fg) calc(var(--contrast)*22%),var(--bgc));pointer-events:none;}
+.adv-slider:focus-visible{outline:1px solid currentColor;outline-offset:-1px;}
+label{font-size:calc(0.875*var(--font-size)*1px);}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:16px;background:transparent;outline:none;cursor:pointer;color:inherit;}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:currentColor;opacity:.75;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;margin-top:-7px;width:16px;height:16px;background:currentColor;border:none;cursor:pointer;}
+input[type=range]::-moz-range-track{height:2px;background:currentColor;}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;background:currentColor;border:none;cursor:pointer;}
+input[type=range]:disabled{opacity:.35;cursor:default;}
+input[type=text]{background:transparent;color:inherit;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));padding:7px 9px;font-family:inherit;font-size:calc(0.9*var(--font-size)*1px);outline:none;width:100%;}
+select{background:var(--bgc);color:inherit;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));padding:7px 9px;font-family:inherit;font-size:calc(0.9*var(--font-size)*1px);cursor:pointer;outline:none;width:100%;}
+select option{background:rgb(var(--bg) var(--bg) var(--bg));color:rgb(var(--fg-r) var(--fg-g) var(--fg-b));}
+input[type=color]{-webkit-appearance:none;appearance:none;width:36px;height:22px;padding:0;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*25%),var(--bgc));background:none;cursor:pointer;}
+input[type=color]::-webkit-color-swatch-wrapper{padding:0;}
+input[type=color]::-webkit-color-swatch{border:none;}
+input[type=color]::-moz-color-swatch{border:none;}
+input[type=checkbox]{-webkit-appearance:none;appearance:none;width:16px;height:16px;color:inherit;border:1px solid currentColor;background:transparent;cursor:pointer;position:relative;flex-shrink:0;}
+input[type=checkbox]:checked::after{content:"";position:absolute;top:1px;left:4px;width:5px;height:9px;border:solid currentColor;border-width:0 2px 2px 0;transform:rotate(45deg);}
+button{background:transparent;color:inherit;border:1px solid currentColor;padding:8px 14px;font-family:inherit;font-size:calc(0.9*var(--font-size)*1px);cursor:pointer;}
+button:hover:not(:disabled){background:color-mix(in srgb,var(--fg) calc(var(--contrast)*10%),transparent);}
+button:disabled{opacity:.4;cursor:default;}
+button.primary{background:currentColor;}
+button.primary span{color:rgb(var(--bg) var(--bg) var(--bg));display:block;}
+button.full{width:100%;}
+button.danger{border-color:color-mix(in srgb,#e05555 80%,var(--fg));color:color-mix(in srgb,#e05555 70%,var(--fg));}
+.checkRow{display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;}
+.checkRow span{font-size:calc(0.875*var(--font-size)*1px);}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+hr{border:none;border-top:1px solid var(--bgc);margin:2px 0;padding:0;}
+#spotCanvas{float:left;width:calc(var(--slider-width)*2 + 3px);height:calc(var(--font-size)*4.5px + 2px);display:block;background:#000;cursor:crosshair;touch-action:none;outline:none;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));margin:1px 3px 1px 0;}
+#gradMapCanvas{width:var(--slider-width);height:calc(var(--font-size)*1.5px);display:inline-block;vertical-align:bottom;cursor:crosshair;touch-action:none;outline:none;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));margin:1px 3px 1px 0;}
+#profileCanvas{width:calc(var(--slider-width)*2 + 3px);height:auto;display:block;cursor:crosshair;touch-action:none;outline:none;border:1px solid color-mix(in srgb,var(--fg) calc(var(--contrast)*14%),var(--bgc));margin:4px 3px 8px 0;}
+.gradOverlay{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;}
+.theme-control{
+  position:fixed;top:0;right:0;z-index:40;display:flex;align-items:center;gap:12px;padding:8px 12px;
+  opacity:.12;background:rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.06);color:rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  font-size:12px;transition:opacity .15s;
+}
+.theme-control:hover{opacity:1;}
+.theme-control label{font-size:12px;}
+.theme-control>div{display:flex;align-items:center;gap:4px;}
+.theme-control input[type=range]{width:64px;}
+.theme-control input[type=checkbox]{accent-color:currentColor;margin-right:4px;vertical-align:middle;}
+.theme-control select{width:auto;padding:3px 6px;font-size:12px;}
+.viewerOverlay{
+  position:absolute;left:12px;bottom:12px;z-index:2;display:flex;flex-direction:column;gap:6px;align-items:flex-start;
+  background:color-mix(in srgb,var(--bgc) 60%,transparent);padding:6px 10px;
+}
+</style>
+<script>
+(function(){
+  try{
+    var root=document.documentElement;
+    var s=function(k){try{return localStorage.getItem(k);}catch(e){return null;}};
+    var th=s('objEditor.theme');
+    var theme=th!==null?parseInt(th,10):25;
+    if(isFinite(theme)){
+      var b=Math.round((theme/100)*255);
+      root.style.setProperty('--bg',b);
+      var d=b<=127;
+      root.style.setProperty('--fg-r',d?255:0);
+      root.style.setProperty('--fg-g',d?255:0);
+      root.style.setProperty('--fg-b',d?255:0);
+    }
+    var c=s('objEditor.contrast');
+    if(c!==null) root.style.setProperty('--contrast',parseInt(c,10)/100);
+    var f=s('objEditor.fontsize');
+    if(f!==null) root.style.setProperty('--font-size',f);
+    var w=s('objEditor.sliderwidth');
+    if(w!==null) root.style.setProperty('--slider-width',w+'px');
+    var mp=s('objEditor.menupadding');
+    if(mp!==null) root.style.setProperty('--menu-padding',mp+'px');
+    if(s('objEditor.dividers')==='0') root.classList.add('hide-dividers');
+    var sp=s('objEditor.split');
+    var pct=sp!==null?parseFloat(sp):42;
+    if(isFinite(pct)){
+      var st=document.createElement('style');
+      st.textContent='.menu{width:calc((100vw - 20px) * '+(pct/100)+')}';
+      document.head.appendChild(st);
+    }
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div class="theme-control">
+  <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
+  <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+  <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="15"></div>
+  <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+  <div><label for="menupadding">Отступы</label><input type="range" id="menupadding" min="0" max="64" value="32"></div>
+  <div><label for="dividers"><input type="checkbox" id="dividers" checked> <span>Разделители</span></label></div>
+</div>
+
+<div class="app">
+  <aside class="menu" id="menu">
+    <div class="cells" id="flow">
+
+      <div class="cell cell-select"><span class="label">Language</span><select id="langSelect"><option value="ru">Russian</option><option value="en">English</option></select></div>
+      <hr>
+      <div class="cell cell-head"><span class="label">Объект</span></div>
+      <div class="cell cell-select"><span class="label">Тип объекта</span><select id="objectType"><option value="coin">Монета</option><option value="diamond">Алмаз</option></select></div>
+      <div class="cell-note" id="objInfo">—</div>
+
+      <div id="coinPanel">
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Геометрия монеты</span></div>
+        <div class="adv-slider" id="geoRadius" data-min="0.3" data-max="3" data-step="0.01"><span class="adv-label">Радиус</span><span class="adv-value" id="geoRadiusVal">1.00</span></div>
+        <div class="adv-slider" id="geoThickness" data-min="0.01" data-max="1.2" data-step="0.005"><span class="adv-label">Толщина</span><span class="adv-value" id="geoThicknessVal">0.16</span></div>
+        <div class="adv-slider" id="geoBevel" data-min="0" data-max="0.3" data-step="0.002"><span class="adv-label">Скругление ребра</span><span class="adv-value" id="geoBevelVal">0.03</span></div>
+        <div class="adv-slider" id="geoRadial" data-min="48" data-max="2048" data-step="1"><span class="adv-label">Сегментов по кругу</span><span class="adv-value" id="geoRadialVal">360</span></div>
+        <div class="adv-slider" id="geoRings" data-min="8" data-max="1024" data-step="1"><span class="adv-label">Колец на плоскости</span><span class="adv-value" id="geoRingsVal">256</span></div>
+        <div class="adv-slider" id="geoFillet" data-min="2" data-max="64" data-step="1"><span class="adv-label">Сегментов фаски</span><span class="adv-value" id="geoFilletVal">10</span></div>
+        <div class="adv-slider" id="geoRim" data-min="1" data-max="64" data-step="1"><span class="adv-label">Сегментов гурта</span><span class="adv-value" id="geoRimVal">4</span></div>
+        <div class="cell cell-check" role="checkbox" id="geoSymmetric" aria-checked="true"><span class="mark"></span><span class="label">Симметричная монета</span></div>
+        <div class="cell-note" id="polyInfo">—</div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Ребро / засечки</span></div>
+        <div class="cell cell-check" role="checkbox" id="reedEnabled" aria-checked="false"><span class="mark"></span><span class="label">Засечки на ребре (гурт)</span></div>
+        <div class="adv-slider" id="reedTeeth" data-min="8" data-max="600" data-step="1"><span class="adv-label">Количество засечек</span><span class="adv-value" id="reedTeethVal">120</span></div>
+        <div class="adv-slider" id="reedDepth" data-min="0" data-max="0.15" data-step="0.001"><span class="adv-label">Глубина</span><span class="adv-value" id="reedDepthVal">0.030</span></div>
+        <div class="cell cell-select"><span class="label">Форма</span><select id="reedShape"><option value="sine">Синус</option><option value="tri">Треугольник</option><option value="rect">Прямоугольник</option></select></div>
+        <div class="adv-slider" id="reedSamples" data-min="2" data-max="10" data-step="1"><span class="adv-label">Сэмплов на засечку</span><span class="adv-value" id="reedSamplesVal">4</span></div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Канавки</span></div>
+        <div class="cell cell-check" role="checkbox" id="grooveEnabled" aria-checked="false"><span class="mark"></span><span class="label">Концентрические канавки</span></div>
+        <div class="adv-slider" id="grooveCount" data-min="1" data-max="40" data-step="1"><span class="adv-label">Количество</span><span class="adv-value" id="grooveCountVal">3</span></div>
+        <div class="adv-slider" id="grooveInner" data-min="0" data-max="0.98" data-step="0.01"><span class="adv-label">Внутренний радиус</span><span class="adv-value" id="grooveInnerVal">0.35</span></div>
+        <div class="adv-slider" id="grooveOuter" data-min="0.02" data-max="1" data-step="0.01"><span class="adv-label">Внешний радиус</span><span class="adv-value" id="grooveOuterVal">0.92</span></div>
+        <div class="adv-slider" id="grooveWidth" data-min="0.004" data-max="0.3" data-step="0.002"><span class="adv-label">Ширина</span><span class="adv-value" id="grooveWidthVal">0.040</span></div>
+        <div class="adv-slider" id="grooveDepth" data-min="0" data-max="0.15" data-step="0.001"><span class="adv-label">Глубина</span><span class="adv-value" id="grooveDepthVal">0.020</span></div>
+        <div class="cell cell-select"><span class="label">Профиль</span><select id="grooveShape"><option value="round">Круглый</option><option value="v">V-образный</option><option value="flat">Плоский</option></select></div>
+        <div class="cell cell-select"><span class="label">Сторона</span><select id="grooveSide"><option value="both">Обе</option><option value="top">Верх</option><option value="bottom">Низ</option></select></div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Профиль высоты (от центра к краю)</span></div>
+        <div class="cell cell-check" role="checkbox" id="profileEnabled" aria-checked="false"><span class="mark"></span><span class="label">Радиальный перепад высоты</span></div>
+        <canvas id="profileCanvas" width="300" height="120" tabindex="0"></canvas>
+        <div class="cell cell-btn" id="profileAdd"><span class="label">+ Точка высоты</span></div>
+        <div class="cell cell-btn cell-danger" id="profileDel"><span class="label">Удалить точку</span></div>
+        <div class="adv-slider" id="profileR" data-min="0" data-max="1" data-step="0.005"><span class="adv-label">Радиус точки</span><span class="adv-value" id="profileRVal">0.00</span></div>
+        <div class="adv-slider" id="profileH" data-min="-0.2" data-max="0.2" data-step="0.001"><span class="adv-label">Высота точки</span><span class="adv-value" id="profileHVal">0.000</span></div>
+        <div class="adv-slider" id="profileSmooth" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Сглаживание точки</span><span class="adv-value" id="profileSmoothVal">0.60</span></div>
+        <div class="adv-slider" id="profileEase" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Сглаживание перепада</span><span class="adv-value" id="profileEaseVal">1.00</span></div>
+        <div class="cell cell-select"><span class="label">Сторона</span><select id="profileSide"><option value="both">Обе</option><option value="top">Верх</option><option value="bottom">Низ</option></select></div>
+        <div class="cell-note" id="profileSel">—</div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Рельеф (карта высот)</span></div>
+        <div class="cell cell-head"><span class="label">Верхняя сторона</span></div>
+        <div class="cell cell-check" role="checkbox" id="reliefEnabled" aria-checked="false"><span class="mark"></span><span class="label">Рельеф по ч/б изображению</span></div>
+        <div class="cell cell-btn" id="reliefFileBtn"><span class="label">Загрузить изображение</span></div>
+        <input type="file" id="reliefFile" accept="image/*" style="display:none">
+        <div class="cell cell-btn" id="reliefSample"><span class="label">Пример (звезда)</span></div>
+        <div class="adv-slider" id="reliefHeight" data-min="0" data-max="0.2" data-step="0.001"><span class="adv-label">Высота рельефа</span><span class="adv-value" id="reliefHeightVal">0.030</span></div>
+        <div class="adv-slider" id="reliefScale" data-min="0.3" data-max="4" data-step="0.01"><span class="adv-label">Масштаб (размер рисунка)</span><span class="adv-value" id="reliefScaleVal">1.00</span></div>
+        <div class="adv-slider" id="reliefOffX" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение X</span><span class="adv-value" id="reliefOffXVal">0.00</span></div>
+        <div class="adv-slider" id="reliefOffZ" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение Y</span><span class="adv-value" id="reliefOffZVal">0.00</span></div>
+        <div class="cell cell-check" role="checkbox" id="reliefInvert" aria-checked="false"><span class="mark"></span><span class="label">Инвертировать</span></div>
+
+        <div id="relief2Block" style="display:none">
+          <hr>
+          <div class="cell cell-head"><span class="label">Нижняя сторона (несимметричная)</span></div>
+          <div class="cell cell-check" role="checkbox" id="relief2Enabled" aria-checked="false"><span class="mark"></span><span class="label">Отдельный рельеф низа</span></div>
+          <div class="cell cell-btn" id="relief2FileBtn"><span class="label">Загрузить изображение</span></div>
+          <input type="file" id="relief2File" accept="image/*" style="display:none">
+          <div class="cell cell-btn" id="relief2Sample"><span class="label">Пример (звезда)</span></div>
+          <div class="adv-slider" id="relief2Height" data-min="0" data-max="0.2" data-step="0.001"><span class="adv-label">Высота рельефа</span><span class="adv-value" id="relief2HeightVal">0.030</span></div>
+          <div class="adv-slider" id="relief2Scale" data-min="0.3" data-max="4" data-step="0.01"><span class="adv-label">Масштаб</span><span class="adv-value" id="relief2ScaleVal">1.00</span></div>
+          <div class="adv-slider" id="relief2OffX" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение X</span><span class="adv-value" id="relief2OffXVal">0.00</span></div>
+          <div class="adv-slider" id="relief2OffZ" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение Y</span><span class="adv-value" id="relief2OffZVal">0.00</span></div>
+          <div class="cell cell-check" role="checkbox" id="relief2Invert" aria-checked="false"><span class="mark"></span><span class="label">Инвертировать</span></div>
+        </div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Нормали (bump-карта)</span></div>
+        <div class="cell cell-check" role="checkbox" id="nrmEnabled" aria-checked="false"><span class="mark"></span><span class="label">Карта нормалей (тонкая гравировка)</span></div>
+        <div class="cell cell-select"><span class="label">Рисунок</span><select id="nrmPattern"><option value="radial">Радиальный градиент</option><option value="lines">Радиальные линии</option><option value="rings">Концентрические кольца</option><option value="spiral">Спираль</option></select></div>
+        <div class="adv-slider" id="nrmStrength" data-min="0" data-max="2" data-step="0.01"><span class="adv-label">Сила</span><span class="adv-value" id="nrmStrengthVal">0.25</span></div>
+        <div class="adv-slider" id="nrmFreq" data-min="1" data-max="160" data-step="1"><span class="adv-label">Частота</span><span class="adv-value" id="nrmFreqVal">32</span></div>
+        <div class="adv-slider" id="nrmScale" data-min="0.2" data-max="4" data-step="0.01"><span class="adv-label">Масштаб</span><span class="adv-value" id="nrmScaleVal">1.00</span></div>
+        <div class="adv-slider" id="nrmOffX" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение X</span><span class="adv-value" id="nrmOffXVal">0.00</span></div>
+        <div class="adv-slider" id="nrmOffZ" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение Y</span><span class="adv-value" id="nrmOffZVal">0.00</span></div>
+        <hr>
+        <div class="cell cell-check" role="checkbox" id="nrmRingEnabled" aria-checked="false"><span class="mark"></span><span class="label">Кольцевая область (без центра)</span></div>
+        <div class="adv-slider" id="nrmRingInner" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Внутренний радиус</span><span class="adv-value" id="nrmRingInnerVal">0.30</span></div>
+        <div class="adv-slider" id="nrmRingOuter" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Внешний радиус</span><span class="adv-value" id="nrmRingOuterVal">0.90</span></div>
+        <div class="adv-slider" id="nrmRingSoft" data-min="0.002" data-max="0.3" data-step="0.002"><span class="adv-label">Мягкость границ</span><span class="adv-value" id="nrmRingSoftVal">0.030</span></div>
+        <hr>
+        <div class="cell cell-check" role="checkbox" id="nrmMaskEnabled" aria-checked="false"><span class="mark"></span><span class="label">Маска по ч/б изображению</span></div>
+        <div class="cell cell-btn" id="nrmMaskFileBtn"><span class="label">Загрузить маску</span></div>
+        <input type="file" id="nrmMaskFile" accept="image/*" style="display:none">
+        <div class="cell cell-btn cell-danger" id="nrmMaskClear"><span class="label">Сбросить маску</span></div>
+        <div class="adv-slider" id="nrmMaskScale" data-min="0.2" data-max="4" data-step="0.01"><span class="adv-label">Масштаб маски</span><span class="adv-value" id="nrmMaskScaleVal">1.00</span></div>
+        <div class="adv-slider" id="nrmMaskOffX" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение X</span><span class="adv-value" id="nrmMaskOffXVal">0.00</span></div>
+        <div class="adv-slider" id="nrmMaskOffZ" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение Y</span><span class="adv-value" id="nrmMaskOffZVal">0.00</span></div>
+        <div class="cell cell-check" role="checkbox" id="nrmMaskInvert" aria-checked="false"><span class="mark"></span><span class="label">Инвертировать маску</span></div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Материал монеты</span></div>
+        <div class="cell cell-select"><span class="label">Пресет</span><select id="matPreset"></select></div>
+        <div class="cell cell-color"><span class="label">Цвет</span><input type="color" id="matColor" value="#d4af37"></div>
+        <div class="adv-slider" id="matMetal" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Металличность</span><span class="adv-value" id="matMetalVal">1.00</span></div>
+        <div class="adv-slider" id="matRough" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Шероховатость</span><span class="adv-value" id="matRoughVal">0.25</span></div>
+        <div class="adv-slider" id="matEnv" data-min="0" data-max="4" data-step="0.01"><span class="adv-label">Сила отражений</span><span class="adv-value" id="matEnvVal">1.40</span></div>
+        <div class="adv-slider" id="matClear" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Лак (clearcoat)</span><span class="adv-value" id="matClearVal">0.00</span></div>
+        <div class="adv-slider" id="matClearRough" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Шероховатость лака</span><span class="adv-value" id="matClearRoughVal">0.10</span></div>
+
+      </div>
+
+      <div id="diamondPanel" style="display:none">
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Огранка алмаза</span></div>
+        <div class="adv-slider" id="dmFacets" data-min="3" data-max="24" data-step="1"><span class="adv-label">Количество граней</span><span class="adv-value" id="dmFacetsVal">8</span></div>
+        <div class="adv-slider" id="dmChamfer" data-min="0" data-max="45" data-step="1"><span class="adv-label">Срез рёбер</span><span class="adv-value" id="dmChamferVal">18%</span></div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Геометрия алмаза</span></div>
+        <div class="adv-slider" id="dmTable" data-min="0.1" data-max="1.1" data-step="0.01"><span class="adv-label">Радиус площадки</span><span class="adv-value" id="dmTableVal">0.55</span></div>
+        <div class="adv-slider" id="dmGirdle" data-min="0.5" data-max="1.8" data-step="0.01"><span class="adv-label">Радиус рундиста</span><span class="adv-value" id="dmGirdleVal">1.20</span></div>
+        <div class="adv-slider" id="dmCrownH" data-min="0.1" data-max="1.5" data-step="0.01"><span class="adv-label">Высота короны</span><span class="adv-value" id="dmCrownHVal">0.55</span></div>
+        <div class="adv-slider" id="dmPavH" data-min="0.5" data-max="2.5" data-step="0.01"><span class="adv-label">Высота павильона</span><span class="adv-value" id="dmPavHVal">1.60</span></div>
+        <div class="adv-slider" id="dmGirdlePos" data-min="0.2" data-max="0.9" data-step="0.01"><span class="adv-label">Уровень рундиста</span><span class="adv-value" id="dmGirdlePosVal">0.55</span></div>
+        <div class="adv-slider" id="dmGirdleH" data-min="0" data-max="0.3" data-step="0.01"><span class="adv-label">Высота рундиста</span><span class="adv-value" id="dmGirdleHVal">0.08</span></div>
+        <div class="adv-slider" id="dmCuletPos" data-min="0.1" data-max="0.9" data-step="0.01"><span class="adv-label">Глубина колетты</span><span class="adv-value" id="dmCuletPosVal">0.45</span></div>
+        <div class="adv-slider" id="dmPavMid" data-min="0.1" data-max="0.9" data-step="0.01"><span class="adv-label">Кольцо павильона</span><span class="adv-value" id="dmPavMidVal">0.50</span></div>
+        <div class="adv-slider" id="dmCrownBulge" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Выступ короны</span><span class="adv-value" id="dmCrownBulgeVal">0.65</span></div>
+        <div class="adv-slider" id="dmCrownPos" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Пропорция короны</span><span class="adv-value" id="dmCrownPosVal">0.45</span></div>
+        <div class="adv-slider" id="dmScale" data-min="0.5" data-max="3" data-step="0.01"><span class="adv-label">Масштаб</span><span class="adv-value" id="dmScaleVal">1.30</span></div>
+        <div class="adv-slider" id="dmOffsetY" data-min="-1" data-max="1" data-step="0.01"><span class="adv-label">Смещение Y</span><span class="adv-value" id="dmOffsetYVal">0.10</span></div>
+        <div class="cell-note" id="dmInfo">—</div>
+
+        <hr>
+        <div class="cell cell-head"><span class="label">Материал алмаза</span></div>
+        <div class="adv-slider" id="dmIor" data-min="1" data-max="6" data-step="0.01"><span class="adv-label">Преломление (IOR)</span><span class="adv-value" id="dmIorVal">2.42</span></div>
+        <div class="adv-slider" id="dmThickness" data-min="0.1" data-max="6" data-step="0.05"><span class="adv-label">Толщина стекла</span><span class="adv-value" id="dmThicknessVal">1.80</span></div>
+        <div class="adv-slider" id="dmDispersion" data-min="0" data-max="20" data-step="0.1"><span class="adv-label">Дисперсия</span><span class="adv-value" id="dmDispersionVal">5.0</span></div>
+        <div class="adv-slider" id="dmEnvInt" data-min="0" data-max="5" data-step="0.01"><span class="adv-label">Сила отражений</span><span class="adv-value" id="dmEnvIntVal">2.50</span></div>
+        <div class="cell cell-color"><span class="label">Цвет</span><input type="color" id="dmColor" value="#ffffff"></div>
+        <div class="adv-slider" id="dmRough" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Шероховатость</span><span class="adv-value" id="dmRoughVal">0.00</span></div>
+
+      </div>
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Свет, камера, рендер</span></div>
+      <div class="adv-slider" id="lightCount" data-min="0" data-max="6" data-step="1"><span class="adv-label">Доп. источники</span><span class="adv-value" id="lightCountVal">2</span></div>
+      <div class="adv-slider" id="lightInt" data-min="0" data-max="300" data-step="1"><span class="adv-label">Яркость источников</span><span class="adv-value" id="lightIntVal">30</span></div>
+      <div class="cell cell-select"><span class="label">Ось вращения</span><select id="spinAxis"><option value="y">Y</option><option value="x">X</option><option value="z">Z</option></select></div>
+      <div class="adv-slider" id="matExposure" data-min="0.01" data-max="3" data-step="0.01"><span class="adv-label">Экспозиция рендера</span><span class="adv-value" id="matExposureVal">0.50</span></div>
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Gradient Map (тон)</span></div>
+      <div class="cell cell-select"><span class="label">Пресет</span><select id="gradPreset"></select></div>
+      <div class="cell cell-check" role="checkbox" id="gradMapEnabled" aria-checked="true"><span class="mark"></span><span class="label">Преобразовать рендер по градиенту</span></div>
+      <canvas id="gradMapCanvas" width="168" height="24" tabindex="0"></canvas>
+      <div class="cell cell-btn" id="gradMapAdd"><span class="label">+ Точка</span></div>
+      <div class="cell cell-btn cell-danger" id="gradMapDel"><span class="label">Удалить</span></div>
+      <div class="cell cell-color"><span class="label">Цвет точки</span><input type="color" id="gradMapColor" value="#f2c53d"></div>
+      <div class="adv-slider" id="gradMapPos" data-min="0" data-max="100" data-step="1"><span class="adv-label">Позиция</span><span class="adv-value" id="gradMapPosVal">0.50</span></div>
+      <div class="adv-slider" id="gradMapMix" data-min="0" data-max="1" data-step="0.01"><span class="adv-label">Смешивание с оригиналом</span><span class="adv-value" id="gradMapMixVal">1.00</span></div>
+      <div class="cell-note" id="gradMapSel">—</div>
+      <div class="cell cell-input"><span class="label">Сохранить как</span><input type="text" id="gradSaveName" value="Мой градиент"></div>
+      <div class="cell cell-btn" id="gradSaveBtn"><span class="label">Сохранить градиент</span></div>
+      <div class="cell cell-select"><span class="label">Сохранённые</span><select id="gradSaved"></select></div>
+      <div class="cell cell-btn" id="gradLoadBtn"><span class="label">Загрузить</span></div>
+      <div class="cell cell-btn cell-danger" id="gradSavedDel"><span class="label">Удалить</span></div>
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Экспорт PNG-секвенции</span></div>
+      <div class="cell cell-select"><span class="label">Оборот</span><select id="exRotate"><option value="360">360° (полный)</option><option value="180">180° (симметричные)</option></select></div>
+      <div class="adv-slider" id="exFrames" data-min="2" data-max="360" data-step="1"><span class="adv-label">Кадров</span><span class="adv-value" id="exFramesVal">60</span></div>
+      <div class="cell cell-input"><span class="label">Префикс</span><input type="text" id="exPrefix" value="object"></div>
+      <div class="cell cell-check" role="checkbox" id="exTransparent" aria-checked="true"><span class="mark"></span><span class="label">Прозрачный фон (alpha)</span></div>
+      <div class="cell cell-check" role="checkbox" id="exZip" aria-checked="true"><span class="mark"></span><span class="label">Скачать ZIP-архивом (один файл)</span></div>
+      <div class="cell-note" id="exInfo">—</div>
+      <div class="cell cell-btn" id="exSingle"><span class="label">Кадр PNG</span></div>
+      <div class="cell cell-btn cell-primary" id="exSeq"><span class="label">Секвенция PNG</span></div>
+      <div class="cell cell-btn" id="exSave"><span class="label">Сохранить JSON</span></div>
+      <div class="cell cell-btn" id="exLoad"><span class="label">Загрузить JSON</span></div>
+      <input type="file" id="exFile" accept="application/json,.json" style="display:none">
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Энвайронмент (Environment)</span></div>
+      <div class="cell cell-select"><span class="label">Источник</span><select id="envMode"><option value="procedural">Процедурное (градиент + пятна)</option><option value="image">Загруженная панорама</option></select></div>
+      <div class="cell cell-btn" id="envFileBtn"><span class="label">Загрузить панораму (equirect / HDR)</span></div>
+      <input type="file" id="envFile" accept="image/*" style="display:none">
+      <div class="cell cell-btn cell-danger" id="envReset"><span class="label">Сбросить панораму</span></div>
+      <div class="cell cell-check" role="checkbox" id="showEnvBg" aria-checked="true"><span class="mark"></span><span class="label">Показывать окружение фоном</span></div>
+      <div class="cell cell-color"><span class="label">Цвет фона</span><input type="color" id="bgColor" value="#17171b"></div>
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Редактор окружения</span></div>
+      <div class="cell cell-color"><span class="label">Низ градиента</span><input type="color" id="grad0" value="#1a1a1f"></div>
+      <div class="cell cell-color"><span class="label">Середина</span><input type="color" id="grad1" value="#55575f"></div>
+      <div class="cell cell-color"><span class="label">Верх</span><input type="color" id="grad2" value="#f0f2f6"></div>
+      <canvas id="spotCanvas" width="300" height="70" tabindex="0"></canvas>
+      <div class="cell cell-btn" id="spotAdd"><span class="label">+ Пятно</span></div>
+      <div class="cell cell-btn cell-danger" id="spotDel"><span class="label">Удалить</span></div>
+      <div class="cell cell-color"><span class="label">Цвет пятна</span><input type="color" id="spotColor" value="#ffffff"></div>
+      <div class="adv-slider" id="spotStrength" data-min="1" data-max="200" data-step="1"><span class="adv-label">Яркость пятна</span><span class="adv-value" id="spotStrengthVal">30</span></div>
+      <div class="cell-note" id="spotSel">—</div>
+
+      <hr>
+      <div class="cell cell-head"><span class="label">Сброс</span></div>
+      <div class="cell cell-btn cell-danger" id="resetAll"><span class="label">Сбросить все настройки</span></div>
+
+    </div>
+  </aside>
+
+  <div class="resizer" id="resizer"></div>
+
+  <div class="viewer" id="viewer">
+    <div class="viewerOverlay">
+      <div class="cells">
+        <div class="cell cell-check" role="checkbox" id="autoSpinToggle" aria-checked="true"><span class="mark"></span><span class="label">Вращение</span></div>
+        <div class="adv-slider" id="spinPos" data-min="0" data-max="360" data-step="1"><span class="adv-label">Положение</span><span class="adv-value" id="spinPosVal">0°</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const viewer = document.getElementById('viewer');
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smoothstep = (e0, e1, x) => {
+  if (e0 === e1) return x < e0 ? 0 : 1;
+  let t = (x - e0) / (e1 - e0);
+  t = clamp(t, 0, 1);
+  return t * t * (3 - 2 * t);
+};
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 200);
+camera.position.set(1.3, 2.6, 7.4);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.5;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+viewer.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.target.set(0, 0, 0);
+
+const bgCover = new THREE.Mesh(
+  new THREE.PlaneGeometry(1, 1),
+  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, depthTest: true, depthWrite: false, toneMapped: false, fog: false })
+);
+bgCover.frustumCulled = false;
+bgCover.position.set(0, 0, -180);
+bgCover.scale.set(1500, 1500, 1);
+bgCover.visible = false;
+camera.add(bgCover);
+scene.add(camera);
+
+let objectType = 'coin';
+
+const LANG_KEY = 'objEditor.lang';
+let lang = 'ru';
+try { const s = localStorage.getItem(LANG_KEY); if (s === 'en' || s === 'ru') lang = s; } catch (e) {}
+
+const I18N = {
+  en: {
+    'Редактор 3D объектов (монета / алмаз)': '3D object editor (coin / diamond)',
+    'Тема': 'Theme',
+    'Контраст': 'Contrast',
+    'Размер': 'Size',
+    'Ширина': 'Width',
+    'Отступы': 'Padding',
+    'Разделители': 'Dividers',
+    'Объект': 'Object',
+    'Тип объекта': 'Object type',
+    'Монета': 'Coin',
+    'Алмаз': 'Diamond',
+    'Геометрия монеты': 'Coin geometry',
+    'Радиус': 'Radius',
+    'Толщина': 'Thickness',
+    'Скругление ребра': 'Edge rounding',
+    'Сегментов по кругу': 'Radial segments',
+    'Колец на плоскости': 'Face rings',
+    'Сегментов фаски': 'Bevel segments',
+    'Сегментов гурта': 'Rim segments',
+    'Симметричная монета': 'Symmetric coin',
+    'Ребро / засечки': 'Edge / reeding',
+    'Засечки на ребре (гурт)': 'Edge reeding (reeded edge)',
+    'Количество засечек': 'Teeth count',
+    'Глубина': 'Depth',
+    'Форма': 'Shape',
+    'Синус': 'Sine',
+    'Треугольник': 'Triangle',
+    'Прямоугольник': 'Rectangle',
+    'Сэмплов на засечку': 'Samples per tooth',
+    'Канавки': 'Grooves',
+    'Концентрические канавки': 'Concentric grooves',
+    'Количество': 'Count',
+    'Внутренний радиус': 'Inner radius',
+    'Внешний радиус': 'Outer radius',
+    'Ширина': 'Width',
+    'Профиль': 'Profile',
+    'Круглый': 'Round',
+    'V-образный': 'V-shaped',
+    'Плоский': 'Flat',
+    'Сторона': 'Side',
+    'Обе': 'Both',
+    'Верх': 'Top',
+    'Низ': 'Bottom',
+    'Профиль высоты (от центра к краю)': 'Height profile (center to edge)',
+    'Радиальный перепад высоты': 'Radial height variation',
+    '+ Точка высоты': '+ Height point',
+    'Удалить точку': 'Delete point',
+    'Радиус точки': 'Point radius',
+    'Высота точки': 'Point height',
+    'Сглаживание точки': 'Point smoothing',
+    'Сглаживание перепада': 'Transition smoothing',
+    'Рельеф (карта высот)': 'Relief (height map)',
+    'Верхняя сторона': 'Top side',
+    'Рельеф по ч/б изображению': 'Relief from B/W image',
+    'Загрузить изображение': 'Load image',
+    'Пример (звезда)': 'Sample (star)',
+    'Высота рельефа': 'Relief height',
+    'Масштаб (размер рисунка)': 'Scale (pattern size)',
+    'Смещение X': 'Offset X',
+    'Смещение Y': 'Offset Y',
+    'Инвертировать': 'Invert',
+    'Нижняя сторона (несимметричная)': 'Bottom side (asymmetric)',
+    'Отдельный рельеф низа': 'Separate bottom relief',
+    'Масштаб': 'Scale',
+    'Нормали (bump-карта)': 'Normals (bump map)',
+    'Карта нормалей (тонкая гравировка)': 'Normal map (fine engraving)',
+    'Рисунок': 'Pattern',
+    'Радиальный градиент': 'Radial gradient',
+    'Радиальные линии': 'Radial lines',
+    'Концентрические кольца': 'Concentric rings',
+    'Спираль': 'Spiral',
+    'Сила': 'Strength',
+    'Частота': 'Frequency',
+    'Кольцевая область (без центра)': 'Ring area (no center)',
+    'Мягкость границ': 'Edge softness',
+    'Маска по ч/б изображению': 'B/W image mask',
+    'Загрузить маску': 'Load mask',
+    'Сбросить маску': 'Reset mask',
+    'Масштаб маски': 'Mask scale',
+    'Инвертировать маску': 'Invert mask',
+    'Материал монеты': 'Coin material',
+    'Пресет': 'Preset',
+    'Цвет': 'Color',
+    'Металличность': 'Metalness',
+    'Шероховатость': 'Roughness',
+    'Сила отражений': 'Reflection strength',
+    'Лак (clearcoat)': 'Clearcoat',
+    'Шероховатость лака': 'Clearcoat roughness',
+    'Огранка алмаза': 'Diamond cut',
+    'Количество граней': 'Facets',
+    'Срез рёбер': 'Edge chamfer',
+    'Геометрия алмаза': 'Diamond geometry',
+    'Радиус площадки': 'Table radius',
+    'Радиус рундиста': 'Girdle radius',
+    'Высота короны': 'Crown height',
+    'Высота павильона': 'Pavilion height',
+    'Уровень рундиста': 'Girdle position',
+    'Высота рундиста': 'Girdle height',
+    'Глубина колетты': 'Culet depth',
+    'Кольцо павильона': 'Pavilion girdle',
+    'Выступ короны': 'Crown bulge',
+    'Пропорция короны': 'Crown position',
+    'Материал алмаза': 'Diamond material',
+    'Преломление (IOR)': 'Refraction (IOR)',
+    'Толщина стекла': 'Glass thickness',
+    'Дисперсия': 'Dispersion',
+    'Свет, камера, рендер': 'Light, camera, render',
+    'Доп. источники': 'Extra lights',
+    'Яркость источников': 'Light intensity',
+    'Ось вращения': 'Spin axis',
+    'Экспозиция рендера': 'Render exposure',
+    'Gradient Map (тон)': 'Gradient Map (tone)',
+    'Преобразовать рендер по градиенту': 'Map render through gradient',
+    '+ Точка': '+ Point',
+    'Удалить': 'Delete',
+    'Цвет точки': 'Point color',
+    'Позиция': 'Position',
+    'Смешивание с оригиналом': 'Blend with original',
+    'Сохранить как': 'Save as',
+    'Сохранить градиент': 'Save gradient',
+    'Сохранённые': 'Saved',
+    'Загрузить': 'Load',
+    'Экспорт PNG-секвенции': 'Export PNG sequence',
+    'Оборот': 'Rotation',
+    '360° (полный)': '360° (full)',
+    '180° (симметричные)': '180° (symmetric)',
+    'Кадров': 'Frames',
+    'Префикс': 'Prefix',
+    'Прозрачный фон (alpha)': 'Transparent background (alpha)',
+    'Скачать ZIP-архивом (один файл)': 'Download as ZIP (single file)',
+    'Кадр PNG': 'PNG frame',
+    'Секвенция PNG': 'PNG sequence',
+    'Сохранить JSON': 'Save JSON',
+    'Загрузить JSON': 'Load JSON',
+    'Энвайронмент (Environment)': 'Environment',
+    'Источник': 'Source',
+    'Процедурное (градиент + пятна)': 'Procedural (gradient + spots)',
+    'Загруженная панорама': 'Loaded panorama',
+    'Загрузить панораму (equirect / HDR)': 'Load panorama (equirect / HDR)',
+    'Сбросить панораму': 'Reset panorama',
+    'Показывать окружение фоном': 'Show environment as background',
+    'Цвет фона': 'Background color',
+    'Редактор окружения': 'Environment editor',
+    'Низ градиента': 'Gradient bottom',
+    'Середина': 'Middle',
+    '+ Пятно': '+ Spot',
+    'Цвет пятна': 'Spot color',
+    'Яркость пятна': 'Spot brightness',
+    'Сброс': 'Reset',
+    'Сбросить все настройки': 'Reset all settings',
+    'Вращение': 'Spin',
+    'Положение': 'Position',
+    'Золото': 'Gold',
+    'Червоное золото': 'Bright gold',
+    'Серебро': 'Silver',
+    'Бронза': 'Bronze',
+    'Медь': 'Copper',
+    'Никель': 'Nickel',
+    'Сталь': 'Steel',
+    'Полированный': 'Polished',
+    'Матовая': 'Matte',
+    'Монета (золото)': 'Coin (gold)',
+    'Алмаз (лёд)': 'Diamond (ice)',
+    'сегм.': 'seg',
+    'колец': 'rings',
+    'тр.': 'tris',
+    'граней': 'facets',
+    'Точек: {n}': 'Points: {n}',
+    'Точек: {n} · выбрана #{i} (r={r}, h={h})': 'Points: {n} · selected #{i} (r={r}, h={h})',
+    '#{i} · размер {size}': '#{i} · size {size}',
+    'Монета · {info}': 'Coin · {info}',
+    'Алмаз · {facets} граней · {tris} тр.': 'Diamond · {facets} facets · {tris} tris',
+    'Кадр: {w}×{h} px × {n} ({aa}× SSAA)': 'Frame: {w}×{h} px × {n} ({aa}× SSAA)',
+    'Рендер {i}/{n} · {w}×{h} px': 'Rendering {i}/{n} · {w}×{h} px',
+    'Скачано {i}/{n}': 'Downloaded {i}/{n}',
+    'Упаковка ZIP ({n} кадр.)…': 'Packing ZIP ({n} frames)…',
+    'Готово: {n} кадр(ов)': 'Done: {n} frame(s)',
+    'Не удалось прочитать JSON: ': 'Failed to read JSON: ',
+    'Сбросить все настройки редактора?': 'Reset all editor settings?',
+    'Градиент': 'Gradient',
+    'Центр': 'Center',
+    'Край': 'Edge',
+  },
+};
+
+function t(s) { return lang === 'en' && I18N.en[s] != null ? I18N.en[s] : s; }
+function tf(tpl, vars) {
+  return t(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null) ? String(vars[k]) : m);
+}
+function numLocale() { return lang === 'en' ? 'en-US' : 'ru-RU'; }
+
+function tagI18n() {
+  document.querySelectorAll('.label, .adv-label, option, .theme-control label, .theme-control label span').forEach((el) => {
+    if (el.hasAttribute('data-i18n')) return;
+    if (el.children.length) return;
+    const txt = el.textContent.trim();
+    if (txt) el.setAttribute('data-i18n', txt);
+  });
+}
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.documentElement.lang = lang;
+  document.title = t('Редактор 3D объектов (монета / алмаз)');
+  const mp = document.getElementById('matPreset');
+  if (mp) Array.from(mp.options).forEach((o) => { const p = MATERIAL_PRESETS[o.value]; if (p) o.textContent = t(p.label); });
+  const gp = document.getElementById('gradPreset');
+  if (gp) Array.from(gp.options).forEach((o) => { const p = GRADIENT_PRESETS[o.value]; if (p) o.textContent = t(p.label); });
+  const ls = document.getElementById('langSelect');
+  if (ls) ls.value = lang;
+  updateObjInfo();
+  prSyncControls();
+  syncSpotControls();
+  gmSyncControls();
+  refreshSavedGradients();
+  scheduleRefreshLabels();
+}
+
+
+const objectSpin = new THREE.Group();
+scene.add(objectSpin);
+
+const coin = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshPhysicalMaterial());
+coin.rotation.x = Math.PI / 2;
+objectSpin.add(coin);
+
+const diamondMaterial = new THREE.MeshPhysicalMaterial({
+  color: 0xffffff,
+  metalness: 0.0,
+  roughness: 0.0,
+  transmission: 1.0,
+  thickness: 1.8,
+  ior: 2.42,
+  envMapIntensity: 2.5,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.0,
+  flatShading: true,
+  side: THREE.DoubleSide,
+});
+const diamond = new THREE.Mesh(new THREE.BufferGeometry(), diamondMaterial);
+diamond.visible = false;
+objectSpin.add(diamond);
+
+function activeMesh() { return objectType === 'diamond' ? diamond : coin; }
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.12);
+scene.add(ambient);
+
+const MAX_LIGHTS = 6;
+const keyLights = [];
+for (let i = 0; i < MAX_LIGHTS; i++) {
+  const a = (i / MAX_LIGHTS) * Math.PI * 2;
+  const l = new THREE.PointLight(i % 2 === 0 ? 0xffffff : 0xbfd4ff, 30, 0, 2);
+  l.position.set(Math.cos(a) * 4, 2 + (i % 3), Math.sin(a) * 4);
+  l.visible = i < 2;
+  scene.add(l);
+  keyLights.push(l);
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return [1, 1, 1];
+  const n = parseInt(m[1], 16);
+  return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+}
+
+function defaultSpots() {
+  const mk = (u, v, size, strength, color) => ({ u, v, size, strength, color });
+  return [
+    mk(0.12, 0.82, 0.10, 90, '#fffdf5'),
+    mk(0.45, 0.72, 0.16, 45, '#cfe0ff'),
+    mk(0.72, 0.58, 0.22, 20, '#fff0d6'),
+    mk(0.30, 0.38, 0.14, 35, '#ffffff'),
+    mk(0.88, 0.30, 0.12, 60, '#e6f0ff'),
+    mk(0.60, 0.95, 0.08, 160, '#ffffff'),
+    mk(0.02, 0.55, 0.20, 25, '#ffffff'),
+  ];
+}
+
+const envConfig = {
+  background: '#17171b',
+  gradient: [
+    { pos: 0.0, color: '#1a1a1f' },
+    { pos: 0.5, color: '#55575f' },
+    { pos: 1.0, color: '#f0f2f6' },
+  ],
+  spots: defaultSpots(),
+};
+
+let showEnvBg = true;
+let envSource = null;
+let envMap = null;
+let envImageTex = null;
+let envImageDataURL = null;
+let envMode = 'procedural';
+
+function makeStudioEnvMap(W, H) {
+  const data = new Float32Array(W * H * 4);
+  const grad = envConfig.gradient.slice().sort((a, b) => a.pos - b.pos).map((s) => ({ pos: s.pos, rgb: hexToRgb(s.color) }));
+  function gradAt(t) {
+    if (!grad.length) return [0, 0, 0];
+    if (t <= grad[0].pos) return grad[0].rgb;
+    for (let i = 0; i < grad.length - 1; i++) {
+      const a = grad[i], b = grad[i + 1];
+      if (t <= b.pos) {
+        const f = (t - a.pos) / ((b.pos - a.pos) || 1);
+        return [a.rgb[0] + (b.rgb[0] - a.rgb[0]) * f, a.rgb[1] + (b.rgb[1] - a.rgb[1]) * f, a.rgb[2] + (b.rgb[2] - a.rgb[2]) * f];
+      }
+    }
+    return grad[grad.length - 1].rgb;
+  }
+  const spots = envConfig.spots.map((s) => {
+    const phi = s.u * Math.PI * 2;
+    const theta = (1 - s.v) * Math.PI;
+    const sinT = Math.sin(theta);
+    const size = Math.max(0.01, s.size);
+    return {
+      dx: Math.cos(phi) * sinT, dy: Math.cos(theta), dz: Math.sin(phi) * sinT,
+      power: 1 / (size * size), strength: s.strength, rgb: hexToRgb(s.color),
+    };
+  });
+  for (let y = 0; y < H; y++) {
+    const v = y / (H - 1);
+    const theta = (1 - v) * Math.PI;
+    const sinT = Math.sin(theta), dy = Math.cos(theta);
+    const base = gradAt((dy + 1) * 0.5);
+    for (let x = 0; x < W; x++) {
+      const phi = (x / W) * Math.PI * 2;
+      const dx = Math.cos(phi) * sinT, dz = Math.sin(phi) * sinT;
+      let r = base[0], g = base[1], b = base[2];
+      for (const s of spots) {
+        const c = Math.max(0, dx * s.dx + dy * s.dy + dz * s.dz);
+        if (c <= 0) continue;
+        const a = Math.pow(c, s.power) * s.strength;
+        if (a > 0.001) { r += a * s.rgb[0]; g += a * s.rgb[1]; b += a * s.rgb[2]; }
+      }
+      const i = (y * W + x) * 4;
+      data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 1;
+    }
+  }
+  const tex = new THREE.DataTexture(data, W, H, THREE.RGBAFormat, THREE.FloatType);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+
+function applySceneBackground(forceTransparent) {
+  if (forceTransparent) { scene.background = null; bgCover.visible = false; return; }
+  if (showEnvBg && envSource) {
+    scene.background = envSource;
+  } else if (exporting || !envSource) {
+    scene.background = new THREE.Color(envConfig.background);
+  } else {
+    scene.background = envSource;
+  }
+  bgCover.visible = !showEnvBg && !exporting && !!envSource;
+  if (bgCover.visible) bgCover.material.color.set(envConfig.background);
+}
+
+function rebuildEnv(quality) {
+  quality = quality || 1;
+  let src;
+  const previousSource = envSource;
+  if (envMode === 'image' && envImageTex) {
+    src = envImageTex;
+  } else {
+    const W = Math.max(64, Math.round(1024 * quality));
+    src = makeStudioEnvMap(W, Math.round(W / 2));
+  }
+  const newMap = pmrem.fromEquirectangular(src).texture;
+  if (envMap) envMap.dispose();
+  if (previousSource && previousSource !== envImageTex) previousSource.dispose();
+  envSource = src;
+  envMap = newMap;
+  scene.environment = envMap;
+  applySceneBackground();
+}
+
+function makeReliefSlot() {
+  return { enabled: false, height: 0.03, invert: false, scale: 1.0, offsetX: 0, offsetZ: 0, grid: null, gridSize: 0, dataURL: null };
+}
+const relief = makeReliefSlot();
+const relief2 = makeReliefSlot();
+
+function canvasToReliefGrid(slot, source, size) {
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, size, size);
+  g.drawImage(source, 0, 0, size, size);
+  const d = g.getImageData(0, 0, size, size).data;
+  const grid = new Float32Array(size * size);
+  for (let i = 0; i < size * size; i++) {
+    const r = d[i * 4] / 255, gg = d[i * 4 + 1] / 255, b = d[i * 4 + 2] / 255;
+    grid[i] = 0.299 * r + 0.587 * gg + 0.114 * b;
+  }
+  slot.grid = grid;
+  slot.gridSize = size;
+}
+
+function makeDefaultReliefCanvas() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, 256, 256);
+  g.fillStyle = '#fff';
+  g.beginPath();
+  const cx = 128, cy = 128, R = 112, r = 46;
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rad = i % 2 ? r : R;
+    const x = cx + Math.cos(a) * rad, y = cy + Math.sin(a) * rad;
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  }
+  g.closePath();
+  g.fill();
+  g.globalCompositeOperation = 'destination-out';
+  g.beginPath();
+  g.arc(cx, cy, 22, 0, Math.PI * 2);
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+  return c;
+}
+
+function sampleGrid(slot, u, v) {
+  const gr = slot.grid;
+  if (!gr) return 0;
+  if (u < 0 || u > 1 || v < 0 || v > 1) return 0;
+  const s = slot.gridSize;
+  const x = u * (s - 1), y = v * (s - 1);
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const x1 = Math.min(s - 1, x0 + 1), y1 = Math.min(s - 1, y0 + 1);
+  const fx = x - x0, fy = y - y0;
+  const a = gr[y0 * s + x0], b = gr[y0 * s + x1];
+  const c = gr[y1 * s + x0], d = gr[y1 * s + x1];
+  return (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+}
+
+function setReliefImageFor(slot, source) {
+  canvasToReliefGrid(slot, source, 1024);
+  try {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 512;
+    c.getContext('2d').drawImage(source, 0, 0, 512, 512);
+    slot.dataURL = c.toDataURL('image/png');
+  } catch (e) { slot.dataURL = null; }
+}
+
+function setReliefImage(source) { setReliefImageFor(relief, source); }
+
+const normalMapCfg = {
+  enabled: false,
+  pattern: 'radial',
+  strength: 0.25,
+  frequency: 32,
+  scale: 1.0,
+  offsetX: 0,
+  offsetZ: 0,
+  maskEnabled: false,
+  maskInvert: false,
+  maskScale: 1.0,
+  maskOffsetX: 0,
+  maskOffsetZ: 0,
+  maskGrid: null,
+  maskGridSize: 0,
+  maskDataURL: null,
+  ringEnabled: false,
+  ringInner: 0.30,
+  ringOuter: 0.90,
+  ringSoft: 0.03,
+};
+
+const NORMAL_MAP_SIZE = 512;
+let normalTexture = null;
+
+function buildGrid(source, size) {
+  const c = document.createElement('canvas');
+  c.width = size; c.height = size;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = '#000';
+  g.fillRect(0, 0, size, size);
+  g.drawImage(source, 0, 0, size, size);
+  const d = g.getImageData(0, 0, size, size).data;
+  const grid = new Float32Array(size * size);
+  for (let i = 0; i < size * size; i++) {
+    const r = d[i * 4] / 255, gg = d[i * 4 + 1] / 255, b = d[i * 4 + 2] / 255;
+    grid[i] = 0.299 * r + 0.587 * gg + 0.114 * b;
+  }
+  return grid;
+}
+
+function setNormalMaskFromSource(source) {
+  const size = 256;
+  normalMapCfg.maskGrid = buildGrid(source, size);
+  normalMapCfg.maskGridSize = size;
+  try {
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 128;
+    c.getContext('2d').drawImage(source, 0, 0, 128, 128);
+    normalMapCfg.maskDataURL = c.toDataURL('image/png');
+  } catch (e) { normalMapCfg.maskDataURL = null; }
+}
+
+function sampleNormalMask(u, v) {
+  if (!normalMapCfg.maskEnabled || !normalMapCfg.maskGrid) return 1;
+  const s = normalMapCfg.maskGridSize;
+  const sc = normalMapCfg.maskScale || 1;
+  const mu = (u - 0.5) / sc + 0.5 + normalMapCfg.maskOffsetX;
+  const mv = (v - 0.5) / sc + 0.5 + normalMapCfg.maskOffsetZ;
+  if (mu < 0 || mu > 1 || mv < 0 || mv > 1) return normalMapCfg.maskInvert ? 1 : 0;
+  const g = normalMapCfg.maskGrid;
+  const x = mu * (s - 1), y = mv * (s - 1);
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const x1 = Math.min(s - 1, x0 + 1), y1 = Math.min(s - 1, y0 + 1);
+  const fx = x - x0, fy = y - y0;
+  const a = g[y0 * s + x0], b = g[y0 * s + x1];
+  const c = g[y1 * s + x0], d = g[y1 * s + x1];
+  let val = (a * (1 - fx) + b * fx) * (1 - fy) + (c * (1 - fx) + d * fx) * fy;
+  if (normalMapCfg.maskInvert) val = 1 - val;
+  return clamp(val, 0, 1);
+}
+
+function sampleRingGate(rn) {
+  if (!normalMapCfg.ringEnabled) return 1;
+  const soft = Math.max(1e-4, normalMapCfg.ringSoft);
+  const inner = clamp(normalMapCfg.ringInner, 0, 1);
+  const outer = clamp(normalMapCfg.ringOuter, 0, 1);
+  const lo = Math.min(inner, outer);
+  const hi = Math.max(inner, outer);
+  const rise = lo <= 0 ? 1 : smoothstep(lo - soft, lo + soft, rn);
+  const fall = hi >= 1 ? 1 : 1 - smoothstep(hi - soft, hi + soft, rn);
+  return rise * fall;
+}
+
+function normalPatternHeight(rn, theta) {
+  const f = Math.max(1, normalMapCfg.frequency);
+  switch (normalMapCfg.pattern) {
+    case 'lines': return 0.5 + 0.5 * Math.cos(theta * f);
+    case 'rings': return 0.5 + 0.5 * Math.cos(rn * Math.PI * 2 * f);
+    case 'spiral': return 0.5 + 0.5 * Math.cos(theta * f + rn * Math.PI * 2 * f * 0.5);
+    default: return rn;
+  }
+}
+
+function buildNormalTexture() {
+  const N = NORMAL_MAP_SIZE;
+  const h = new Float32Array(N * N);
+  for (let y = 0; y < N; y++) {
+    const v = y / (N - 1);
+    for (let x = 0; x < N; x++) {
+      const u = x / (N - 1);
+      const su = (u - 0.5) / normalMapCfg.scale + 0.5 + normalMapCfg.offsetX;
+      const sv = (v - 0.5) / normalMapCfg.scale + 0.5 + normalMapCfg.offsetZ;
+      const cx = (su - 0.5) * 2, cz = (sv - 0.5) * 2;
+      const rn = Math.hypot(cx, cz);
+      const theta = Math.atan2(cz, cx);
+      h[y * N + x] = normalPatternHeight(rn, theta);
+    }
+  }
+  const gx = new Float32Array(N * N), gy = new Float32Array(N * N);
+  let gmax = 1e-6;
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      const xl = Math.max(0, x - 1), xr = Math.min(N - 1, x + 1);
+      const yl = Math.max(0, y - 1), yr = Math.min(N - 1, y + 1);
+      const dx = (h[y * N + xr] - h[y * N + xl]) * (N - 1) / (xr - xl);
+      const dy = (h[yr * N + x] - h[yl * N + x]) * (N - 1) / (yr - yl);
+      gx[i] = dx; gy[i] = dy;
+      const m = Math.hypot(dx, dy);
+      if (m > gmax) gmax = m;
+    }
+  }
+  const data = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const i = y * N + x;
+      const u = x / (N - 1), v = y / (N - 1);
+      const su = (u - 0.5) / normalMapCfg.scale + 0.5 + normalMapCfg.offsetX;
+      const sv = (v - 0.5) / normalMapCfg.scale + 0.5 + normalMapCfg.offsetZ;
+      const rn = Math.hypot((su - 0.5) * 2, (sv - 0.5) * 2);
+      const gating = smoothstep(1.0, 0.965, rn) * sampleRingGate(rn) * sampleNormalMask(u, v);
+      let nx = -gx[i] / gmax * gating;
+      let ny = -gy[i] / gmax * gating;
+      const inv = 1 / Math.hypot(nx, ny, 1);
+      nx *= inv; ny *= inv;
+      const o = i * 4;
+      data[o] = (nx * 0.5 + 0.5) * 255;
+      data[o + 1] = (ny * 0.5 + 0.5) * 255;
+      data[o + 2] = (inv * 0.5 + 0.5) * 255;
+      data[o + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+let normalPending = false;
+function scheduleNormalMap() {
+  if (normalPending) return;
+  normalPending = true;
+  requestAnimationFrame(() => { normalPending = false; updateNormalMap(); });
+}
+
+function updateNormalMap() {
+  const had = !!material.normalMap;
+  if (normalMapCfg.enabled) {
+    const tex = buildNormalTexture();
+    if (normalTexture) normalTexture.dispose();
+    normalTexture = tex;
+    material.normalMap = tex;
+    material.normalScale.set(normalMapCfg.strength, normalMapCfg.strength);
+    if (!had) material.needsUpdate = true;
+  } else if (had) {
+    if (normalTexture) { normalTexture.dispose(); normalTexture = null; }
+    material.normalMap = null;
+    material.needsUpdate = true;
+  }
+}
+
+function applyNormalScale() {
+  material.normalScale.set(normalMapCfg.strength, normalMapCfg.strength);
+}
+
+const geo = {
+  radius: 1.0, thickness: 0.16, bevel: 0.03,
+  radialSegments: 360, ringSegments: 256, filletSegments: 10, rimSegments: 4,
+  symmetric: true,
+};
+const reeding = { enabled: false, teeth: 120, depth: 0.03, shape: 'sine', samplesPerTooth: 4 };
+const groove = { enabled: false, count: 3, inner: 0.35, outer: 0.92, width: 0.04, depth: 0.02, shape: 'round', side: 'both' };
+const profile = {
+  enabled: false,
+  side: 'both',
+  points: [
+    { r: 0.00, h: 0.020, smooth: 0.60, ease: 1.0 },
+    { r: 0.52, h: 0.020, smooth: 0.60, ease: 1.0 },
+    { r: 0.70, h: -0.012, smooth: 0.60, ease: 1.0 },
+    { r: 0.86, h: -0.012, smooth: 0.60, ease: 1.0 },
+    { r: 0.93, h: 0.012, smooth: 0.60, ease: 1.0 },
+    { r: 0.965, h: 0.000, smooth: 0.60, ease: 1.0 },
+  ],
+};
+
+function profileSampleRaw(rn) {
+  const pts = profile.points;
+  const n = pts.length;
+  if (n === 0) return 0;
+  if (n === 1) return pts[0].h;
+  if (rn <= pts[0].r) return pts[0].h;
+  if (rn >= pts[n - 1].r) return pts[n - 1].h;
+  let i = 0;
+  while (i < n - 2 && rn > pts[i + 1].r) i++;
+  const a = pts[i], b = pts[i + 1];
+  const dr = b.r - a.r;
+  const u = dr <= 1e-9 ? 0 : clamp((rn - a.r) / dr, 0, 1);
+  const tangentAt = (k) => {
+    const p = pts[k];
+    let slope;
+    if (k === 0) slope = (pts[1].h - pts[0].h) / ((pts[1].r - pts[0].r) || 1e-9);
+    else if (k === n - 1) slope = (pts[n - 1].h - pts[n - 2].h) / ((pts[n - 1].r - pts[n - 2].r) || 1e-9);
+    else slope = (pts[k + 1].h - pts[k - 1].h) / ((pts[k + 1].r - pts[k - 1].r) || 1e-9);
+    return slope * (1 - clamp(p.smooth, 0, 1));
+  };
+  const m0 = tangentAt(i) * dr;
+  const m1 = tangentAt(i + 1) * dr;
+  const u2 = u * u, u3 = u2 * u;
+  const herm = a.h * (2 * u3 - 3 * u2 + 1) + m0 * (u3 - 2 * u2 + u) + b.h * (-2 * u3 + 3 * u2) + m1 * (u3 - u2);
+  const lin = a.h + (b.h - a.h) * u;
+  const e = clamp(a.ease, 0, 1);
+  return lin + (herm - lin) * e;
+}
+
+function profileHeightAt(r) { return profileSampleRaw(r / geo.radius); }
+function profileApplies(side) { return profile.enabled && (profile.side === 'both' || profile.side === side); }
+
+function grooveOffsetAt(r) {
+  if (!groove.enabled) return 0;
+  let off = 0;
+  const rr = r / geo.radius;
+  const count = Math.max(1, Math.round(groove.count));
+  const step = (groove.outer - groove.inner) / Math.max(1, count - 1);
+  const hw = Math.max(1e-4, groove.width / 2);
+  for (let k = 0; k < count; k++) {
+    const rr0 = groove.inner + step * k;
+    const d = Math.abs(rr - rr0);
+    if (d > hw) continue;
+    const t = d / hw;
+    let shape;
+    if (groove.shape === 'round') shape = 0.5 + 0.5 * Math.cos(Math.PI * t);
+    else if (groove.shape === 'v') shape = 1 - t;
+    else shape = 1;
+    off -= groove.depth * shape;
+  }
+  return off;
+}
+
+function reliefOffsetAt(x, z, side) {
+  const slot = side === 'bottom' && !geo.symmetric ? relief2 : relief;
+  if (!slot.enabled || !slot.grid) return 0;
+  const u = (x / (2 * geo.radius)) / slot.scale + 0.5 + slot.offsetX;
+  const v = (z / (2 * geo.radius)) / slot.scale + 0.5 + slot.offsetZ;
+  let val = sampleGrid(slot, u, v);
+  if (slot.invert) val = 1 - val;
+  return slot.height * val;
+}
+
+function grooveApplies(side) { return groove.enabled && (groove.side === 'both' || groove.side === side); }
+function reliefApplies(side) {
+  const slot = side === 'bottom' && !geo.symmetric ? relief2 : relief;
+  return slot.enabled;
+}
+
+let lastPolyData = null;
+
+function polyInfoText() {
+  if (!lastPolyData) return '';
+  return `${lastPolyData.NA} ${t('сегм.')} × ${lastPolyData.rings} ${t('колец')} · ${lastPolyData.tris.toLocaleString(numLocale())} ${t('тр.')}`;
+}
+
+function updatePolyInfo() {
+  const el = document.getElementById('polyInfo');
+  if (el) setNoteText(el, polyInfoText());
+}
+
+function buildCoinGeometry() {
+  const R = geo.radius;
+  const T = geo.thickness;
+  const halfT = T / 2;
+  const bevel = Math.min(geo.bevel, T * 0.45);
+  const Rcap = Math.max(0.0001, R - bevel);
+
+  let NA = reeding.enabled
+    ? Math.max(geo.radialSegments, reeding.teeth * reeding.samplesPerTooth)
+    : geo.radialSegments;
+  NA = Math.max(3, Math.min(4096, Math.round(NA)));
+  let NR = Math.max(1, Math.round(geo.ringSegments));
+  let NF = Math.max(2, Math.round(geo.filletSegments));
+  let NRIM = Math.max(1, Math.round(geo.rimSegments));
+
+  const ringsEstimate = NR + 2 * NF + NRIM + 3;
+  const ringsBudget = Math.max(6, Math.floor(900000 / NA));
+  if (ringsEstimate > ringsBudget) {
+    const s = ringsBudget / ringsEstimate;
+    NR = Math.max(1, Math.floor(NR * s));
+    NF = Math.max(2, Math.floor(NF * s));
+    NRIM = Math.max(1, Math.floor(NRIM * s));
+  }
+
+  const pos = [];
+  const idx = [];
+  const rings = [];
+  const cos = new Float32Array(NA), sin = new Float32Array(NA);
+  for (let i = 0; i < NA; i++) {
+    const a = (i / NA) * Math.PI * 2;
+    cos[i] = Math.cos(a); sin[i] = Math.sin(a);
+  }
+
+  function offsetAt(r, x, z, side) {
+    const fade = 1 - smoothstep(Rcap * 0.86, Rcap, r);
+    let o = 0;
+    if (grooveApplies(side)) o += grooveOffsetAt(r);
+    if (reliefApplies(side)) o += reliefOffsetAt(x, z, side);
+    o *= fade;
+    if (profileApplies(side)) o += profileHeightAt(r) * (1 - smoothstep(Rcap * 0.97, Rcap, r));
+    return o;
+  }
+
+  function pushRing(fn) {
+    const base = pos.length / 3;
+    for (let i = 0; i < NA; i++) {
+      const p = fn(i);
+      pos.push(p[0], p[1], p[2]);
+    }
+    rings.push(base);
+    return base;
+  }
+
+  function reedCut(i, fadeV) {
+    const teeth = Math.max(1, Math.round(reeding.teeth));
+    let local = (i / NA) * teeth;
+    local -= Math.floor(local);
+    let s;
+    if (reeding.shape === 'sine') s = 0.5 - 0.5 * Math.cos(local * Math.PI * 2);
+    else if (reeding.shape === 'tri') s = 1 - Math.abs(local * 2 - 1);
+    else {
+      const e = 0.14;
+      s = smoothstep(0.16, 0.16 + e, local) * (1 - smoothstep(0.84 - e, 0.84, local));
+    }
+    return s * fadeV;
+  }
+
+  const topCenter = pos.length / 3;
+  pos.push(0, halfT + offsetAt(0, 0, 0, 'top'), 0);
+
+  for (let j = 1; j <= NR; j++) {
+    const r = Rcap * j / NR;
+    pushRing((i) => {
+      const x = r * cos[i], z = r * sin[i];
+      return [x, halfT + offsetAt(r, x, z, 'top'), z];
+    });
+  }
+
+  for (let t = 1; t <= NF; t++) {
+    const a = (t / NF) * (Math.PI / 2);
+    const rr = Rcap + bevel * Math.sin(a);
+    const y = halfT - bevel * (1 - Math.cos(a));
+    pushRing((i) => [rr * cos[i], y, rr * sin[i]]);
+  }
+
+  const yTop = halfT - bevel;
+  const yBot = -halfT + bevel;
+  for (let t = 1; t <= NRIM; t++) {
+    const f = t / NRIM;
+    const y = yTop + (yBot - yTop) * f;
+    const fadeV = smoothstep(0, 0.18, f) * smoothstep(0, 0.18, 1 - f);
+    pushRing((i) => {
+      let rr = R;
+      if (reeding.enabled) rr = R - reeding.depth * reedCut(i, fadeV);
+      return [rr * cos[i], y, rr * sin[i]];
+    });
+  }
+
+  for (let t = 1; t <= NF; t++) {
+    const a = (t / NF) * (Math.PI / 2);
+    const rr = Rcap + bevel * Math.cos(a);
+    const y = yBot - bevel * Math.sin(a);
+    pushRing((i) => [rr * cos[i], y, rr * sin[i]]);
+  }
+
+  for (let j = NR - 1; j >= 1; j--) {
+    const r = Rcap * j / NR;
+    pushRing((i) => {
+      const x = r * cos[i], z = r * sin[i];
+      return [x, -halfT - offsetAt(r, x, z, 'bottom'), z];
+    });
+  }
+
+  const botCenter = pos.length / 3;
+  pos.push(0, -halfT - offsetAt(0, 0, 0, 'bottom'), 0);
+
+  const first = rings[0];
+  for (let i = 0; i < NA; i++) {
+    const j = (i + 1) % NA;
+    idx.push(topCenter, first + j, first + i);
+  }
+
+  for (let k = 0; k < rings.length - 1; k++) {
+    const A = rings[k], B = rings[k + 1];
+    for (let i = 0; i < NA; i++) {
+      const j = (i + 1) % NA;
+      idx.push(A + i, B + j, B + i);
+      idx.push(A + i, A + j, B + j);
+    }
+  }
+
+  const last = rings[rings.length - 1];
+  for (let i = 0; i < NA; i++) {
+    const j = (i + 1) % NA;
+    idx.push(last + i, last + j, botCenter);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const vcount = pos.length / 3;
+  const uvArr = new Float32Array(vcount * 2);
+  for (let i = 0; i < vcount; i++) {
+    uvArr[i * 2] = pos[i * 3] / (2 * R) + 0.5;
+    uvArr[i * 2 + 1] = pos[i * 3 + 2] / (2 * R) + 0.5;
+  }
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uvArr, 2));
+  geometry.setIndex(idx);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+
+  lastPolyData = { NA, rings: rings.length, tris: idx.length / 3 };
+  return geometry;
+}
+
+let geoDirty = false;
+function scheduleGeometry() {
+  if (geoDirty) return;
+  geoDirty = true;
+  requestAnimationFrame(() => {
+    geoDirty = false;
+    rebuildGeometryNow();
+  });
+}
+
+function rebuildGeometryNow() {
+  const old = coin.geometry;
+  coin.geometry = buildCoinGeometry();
+  if (old) old.dispose();
+  coin.scale.setScalar(1);
+  updatePolyInfo();
+  updateObjInfo();
+  controls.update();
+}
+
+const diamondCfg = {
+  facets: 8,
+  chamfer: 0.18,
+  table: 0.55,
+  girdleR: 1.2,
+  crownH: 0.55,
+  pavilionH: 1.6,
+  girdlePos: 0.55,
+  girdleH: 0.08,
+  culetPos: 0.45,
+  pavMid: 0.5,
+  crownBulge: 0.65,
+  crownPos: 0.45,
+  scale: 1.3,
+  offsetY: 0.1,
+};
+
+function createDiamondGeometry(SEG, chamfer, g) {
+  const R_TABLE = g.table;
+  const R_GIRDLE = g.girdleR;
+  const H_CROWN = g.crownH;
+  const H_PAVILION = g.pavilionH;
+  const Y_GIRDLE = H_PAVILION * g.girdlePos;
+  const Y_TABLE = Y_GIRDLE + H_CROWN;
+  const Y_CULET = -H_PAVILION * g.culetPos;
+
+  const positions = [];
+  const indices = [];
+
+  function pushVert(x, y, z) {
+    positions.push(x, y, z);
+    return positions.length / 3 - 1;
+  }
+
+  function addFace(v) {
+    const f = [];
+    for (let k = 0; k < v.length; k++) {
+      if (v[k] !== v[(k + 1) % v.length]) f.push(v[k]);
+    }
+    for (let k = 1; k < f.length - 1; k++) {
+      indices.push(f[0], f[k], f[k + 1]);
+    }
+  }
+
+  function ring(radius, y, bevel) {
+    const prev = [], next = [];
+    for (let i = 0; i < SEG; i++) {
+      const a = (i / SEG) * Math.PI * 2;
+      const vx = Math.cos(a) * radius, vz = Math.sin(a) * radius;
+      if (bevel <= 0) {
+        const v = pushVert(vx, y, vz);
+        prev[i] = v;
+        next[i] = v;
+      } else {
+        const aPrev = ((i - 1 + SEG) / SEG) * Math.PI * 2;
+        const aNext = ((i + 1) / SEG) * Math.PI * 2;
+        prev[i] = pushVert(
+          vx + (Math.cos(aPrev) * radius - vx) * bevel, y,
+          vz + (Math.sin(aPrev) * radius - vz) * bevel
+        );
+        next[i] = pushVert(
+          vx + (Math.cos(aNext) * radius - vx) * bevel, y,
+          vz + (Math.sin(aNext) * radius - vz) * bevel
+        );
+      }
+    }
+    return { prev, next };
+  }
+
+  function bridge(upper, lower) {
+    for (let i = 0; i < SEG; i++) {
+      const j = (i + 1) % SEG;
+      addFace([upper.next[i], upper.prev[j], lower.prev[j], lower.next[i]]);
+      addFace([upper.prev[i], upper.next[i], lower.next[i], lower.prev[i]]);
+    }
+  }
+
+  function fan(center, r) {
+    for (let i = 0; i < SEG; i++) {
+      const j = (i + 1) % SEG;
+      addFace([center, r.next[i], r.prev[j]]);
+      addFace([center, r.prev[i], r.next[i]]);
+    }
+  }
+
+  const tableCenter = pushVert(0, Y_TABLE, 0);
+  const culet = pushVert(0, Y_CULET, 0);
+
+  const tableRing = ring(R_TABLE, Y_TABLE, 0);
+  const crownMid = ring(R_TABLE + (R_GIRDLE - R_TABLE) * g.crownBulge, Y_GIRDLE + H_CROWN * g.crownPos, chamfer);
+  const girdleTop = ring(R_GIRDLE, Y_GIRDLE + g.girdleH * 0.5, 0);
+  const girdleBot = ring(R_GIRDLE, Y_GIRDLE - g.girdleH * 0.5, 0);
+
+  const PAV_MID = g.pavMid;
+  const pavMid = ring(
+    R_GIRDLE * (1 - PAV_MID),
+    Y_GIRDLE + (Y_CULET - Y_GIRDLE) * PAV_MID,
+    chamfer
+  );
+
+  fan(tableCenter, tableRing);
+  bridge(tableRing, crownMid);
+  bridge(crownMid, girdleTop);
+  bridge(girdleTop, girdleBot);
+  bridge(girdleBot, pavMid);
+  fan(culet, pavMid);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.center();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function rebuildDiamondGeometry() {
+  const old = diamond.geometry;
+  diamond.geometry = createDiamondGeometry(
+    Math.max(3, Math.round(diamondCfg.facets)),
+    clamp(diamondCfg.chamfer, 0, 0.45),
+    diamondCfg
+  );
+  if (old) old.dispose();
+  diamond.scale.setScalar(diamondCfg.scale);
+  diamond.position.y = diamondCfg.offsetY;
+  updateObjInfo();
+  controls.update();
+}
+
+function updateObjInfo() {
+  updatePolyInfo();
+  const el = document.getElementById('objInfo');
+  if (!el) return;
+  if (objectType === 'diamond') {
+    const pa = diamond.geometry.attributes.position;
+    const tris = diamond.geometry.index ? diamond.geometry.index.count / 3 : (pa ? pa.count / 3 : 0);
+    el.textContent = tf('Алмаз · {facets} граней · {tris} тр.', { facets: Math.round(diamondCfg.facets), tris: tris.toLocaleString(numLocale()) });
+  } else {
+    el.textContent = tf('Монета · {info}', { info: polyInfoText() });
+  }
+  syncNoteTitle(el);
+}
+
+const material = coin.material;
+material.color = new THREE.Color('#d4af37');
+material.metalness = 1.0;
+material.roughness = 0.25;
+material.envMapIntensity = 1.4;
+material.clearcoat = 0.0;
+material.clearcoatRoughness = 0.1;
+material.side = THREE.FrontSide;
+
+const MATERIAL_PRESETS = {
+  gold: { label: 'Золото', color: '#d4af37', metalness: 1.0, roughness: 0.25, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.4 },
+  brightGold: { label: 'Червоное золото', color: '#e8b923', metalness: 1.0, roughness: 0.16, clearcoat: 0.2, clearcoatRoughness: 0.05, envMapIntensity: 1.6 },
+  silver: { label: 'Серебро', color: '#e8e8ea', metalness: 1.0, roughness: 0.16, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.5 },
+  bronze: { label: 'Бронза', color: '#b87333', metalness: 1.0, roughness: 0.34, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.3 },
+  copper: { label: 'Медь', color: '#c1694f', metalness: 1.0, roughness: 0.3, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.3 },
+  nickel: { label: 'Никель', color: '#c7ccd1', metalness: 1.0, roughness: 0.3, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.4 },
+  steel: { label: 'Сталь', color: '#9aa0a6', metalness: 1.0, roughness: 0.4, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.3 },
+  polished: { label: 'Полированный', color: '#d9dbe0', metalness: 1.0, roughness: 0.05, clearcoat: 1.0, clearcoatRoughness: 0.02, envMapIntensity: 1.7 },
+  matte: { label: 'Матовая', color: '#c8a94a', metalness: 1.0, roughness: 0.65, clearcoat: 0.0, clearcoatRoughness: 0.1, envMapIntensity: 1.1 },
+};
+
+const syncers = [];
+const sliderCtl = {};
+
+function setDisabled(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.setAttribute('aria-disabled', on ? 'true' : 'false');
+  if (el.tagName === 'INPUT') el.disabled = on;
+  if (sliderCtl[id]) sliderCtl[id].setDisabled(on);
+}
+
+function range(id, get, set, fmt, after) {
+  const el = document.getElementById(id);
+  const out = document.getElementById(id + 'Val');
+  const min = parseFloat(el.dataset.min);
+  const max = parseFloat(el.dataset.max);
+  const step = parseFloat(el.dataset.step || '1');
+  let current = min;
+  let disabled = false;
+
+  function clampVal(raw) {
+    const snapped = Math.round((raw - min) / step) * step + min;
+    return parseFloat(Math.max(min, Math.min(max, snapped)).toFixed(10));
+  }
+  function render() {
+    if (out) out.textContent = fmt ? fmt(current) : String(current);
+    el.style.setProperty('--pct', max === min ? 0 : ((current - min) / (max - min)) * 100);
+    el.setAttribute('aria-valuenow', current);
+  }
+  function setDisplay(v) { current = clampVal(v); render(); }
+  function commit(raw) {
+    if (disabled) return;
+    current = clampVal(raw);
+    render();
+    set(current);
+    if (after) after();
+  }
+  function valueFromX(clientX) {
+    const r = el.getBoundingClientRect();
+    const ratio = r.width === 0 ? 0 : (clientX - r.left) / r.width;
+    return min + ratio * (max - min);
+  }
+
+  el.tabIndex = 0;
+  el.setAttribute('role', 'slider');
+
+  el.addEventListener('pointerdown', (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    el.focus();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.dataset.dragging = '1';
+    commit(valueFromX(e.clientX));
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (disabled || el.dataset.dragging !== '1') return;
+    commit(valueFromX(e.clientX));
+  });
+  const endDrag = () => { delete el.dataset.dragging; };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  el.addEventListener('wheel', (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    commit(current + (e.deltaY < 0 ? -1 : 1) * step);
+  }, { passive: false });
+  el.addEventListener('keydown', (e) => {
+    if (disabled) return;
+    let next = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = current + step;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = current - step;
+    else if (e.key === 'Home') next = min;
+    else if (e.key === 'End') next = max;
+    if (next !== null) { e.preventDefault(); commit(next); }
+  });
+
+  function sync() { setDisplay(get()); }
+  sync();
+  syncers.push(sync);
+
+  const labelSpan = el.querySelector('.adv-label');
+  if (labelSpan) registerFit(el, labelSpan, labelSpan.textContent.trim(), out ? [out] : []);
+
+  sliderCtl[id] = {
+    setDisplay,
+    setDisabled(on) { disabled = on; el.setAttribute('aria-disabled', on ? 'true' : 'false'); }
+  };
+  return el;
+}
+
+function check(id, get, set, after) {
+  const el = document.getElementById(id);
+  el.tabIndex = 0;
+  function sync() { el.setAttribute('aria-checked', get() ? 'true' : 'false'); }
+  el.addEventListener('click', () => {
+    if (el.getAttribute('aria-disabled') === 'true') return;
+    set(el.getAttribute('aria-checked') !== 'true');
+    sync();
+    if (after) after();
+  });
+  el.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.click(); }
+  });
+  sync();
+  syncers.push(sync);
+  return el;
+}
+
+function select(id, get, set, after) {
+  const el = document.getElementById(id);
+  function sync() { el.value = get(); }
+  el.addEventListener('change', () => { set(el.value); if (after) after(); });
+  sync();
+  syncers.push(sync);
+  return el;
+}
+
+function color(id, get, set, after) {
+  const el = document.getElementById(id);
+  function sync() { el.value = get(); }
+  el.addEventListener('input', () => { set(el.value); if (after) after(); });
+  sync();
+  syncers.push(sync);
+  return el;
+}
+
+const f2 = (v) => Number(v).toFixed(2);
+const f3 = (v) => Number(v).toFixed(3);
+const f0 = (v) => String(Math.round(v));
+
+const VOWELS = 'аеёиоуыэюяaeiouy';
+const LETTER_RE = /[а-яёa-z]/i;
+const ABBREV_MAX_WORDS = 3;
+const FIT_ENTRIES = [];
+const measureCanvas = document.createElement('canvas');
+const measureCtx = measureCanvas.getContext('2d');
+
+function textWidth(text, font) {
+  measureCtx.font = font;
+  return measureCtx.measureText(text).width;
+}
+
+function computedFont(span) {
+  const style = getComputedStyle(span);
+  return style.fontStyle + ' ' + style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+}
+
+function wordStem(word) {
+  const chars = Array.from(word);
+  if (chars.length === 0) return [];
+  const stem = [chars[0].toUpperCase()];
+  for (let i = 1; i < chars.length; i++) {
+    const ch = chars[i];
+    if (LETTER_RE.test(ch) && VOWELS.indexOf(ch.toLowerCase()) === -1) stem.push(ch.toLowerCase());
+  }
+  return stem;
+}
+
+function buildVariants(full) {
+  const stems = full.trim().split(/\s+/).slice(0, ABBREV_MAX_WORDS).map(wordStem);
+  const maxDepth = stems.reduce((m, s) => Math.max(m, s.length), 0);
+  const variants = [];
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    variants.push(stems.map((s) => s.slice(0, depth).join('')).join(''));
+  }
+  return variants;
+}
+
+function registerFit(container, labelSpan, fullText, reserved) {
+  FIT_ENTRIES.push({ container, labelSpan, fullText, reserved: reserved || [], variants: buildVariants(fullText) });
+}
+
+function contentSpace(entry) {
+  const style = getComputedStyle(entry.container);
+  const padL = parseFloat(style.paddingLeft) || 0;
+  const padR = parseFloat(style.paddingRight) || 0;
+  const gap = parseFloat(style.columnGap || style.gap) || 0;
+  let reservedWidth = 0;
+  entry.reserved.forEach((elm) => { reservedWidth += elm.offsetWidth; });
+  return entry.container.clientWidth - padL - padR - gap * entry.reserved.length - reservedWidth;
+}
+
+function fitEntry(entry) {
+  const space = contentSpace(entry);
+  if (space <= 0) return;
+  const full = t(entry.fullText);
+  const variants = buildVariants(full);
+  const font = computedFont(entry.labelSpan);
+  if (textWidth(full, font) <= space) {
+    entry.labelSpan.textContent = full;
+    if (entry.container.title === full) entry.container.removeAttribute('title');
+    return;
+  }
+  let chosen = variants[0] || full;
+  for (const variant of variants) {
+    if (textWidth(variant, font) <= space) chosen = variant;
+    else break;
+  }
+  entry.labelSpan.textContent = chosen;
+  if (chosen === full) entry.container.removeAttribute('title');
+  else entry.container.title = full;
+}
+
+function syncNoteTitle(el) {
+  if (!el) return;
+  if (el.scrollWidth > el.clientWidth + 1 && el.textContent) el.title = el.textContent;
+  else el.removeAttribute('title');
+}
+
+function setNoteText(el, text) {
+  if (!el) return;
+  el.textContent = text;
+  syncNoteTitle(el);
+}
+
+let refreshScheduled = false;
+function scheduleRefreshLabels() {
+  if (refreshScheduled) return;
+  refreshScheduled = true;
+  requestAnimationFrame(() => {
+    refreshScheduled = false;
+    FIT_ENTRIES.forEach(fitEntry);
+    document.querySelectorAll('.cell-note').forEach(syncNoteTitle);
+  });
+}
+
+document.querySelectorAll('.cell').forEach((cell) => {
+  const label = cell.querySelector('.label, .cell-body');
+  if (!label) return;
+  const reserved = [];
+  const mark = cell.querySelector('.mark');
+  const value = cell.querySelector('.value');
+  if (mark) reserved.push(mark);
+  if (value) reserved.push(value);
+  registerFit(cell, label, label.textContent.trim(), reserved);
+});
+scheduleRefreshLabels();
+
+range('geoRadius', () => geo.radius, (v) => { geo.radius = v; }, f2, scheduleGeometry);
+range('geoThickness', () => geo.thickness, (v) => { geo.thickness = v; }, f3, scheduleGeometry);
+range('geoBevel', () => geo.bevel, (v) => { geo.bevel = v; }, f3, scheduleGeometry);
+range('geoRadial', () => geo.radialSegments, (v) => { geo.radialSegments = v; }, f0, scheduleGeometry);
+range('geoRings', () => geo.ringSegments, (v) => { geo.ringSegments = v; }, f0, scheduleGeometry);
+range('geoFillet', () => geo.filletSegments, (v) => { geo.filletSegments = v; }, f0, scheduleGeometry);
+range('geoRim', () => geo.rimSegments, (v) => { geo.rimSegments = v; }, f0, scheduleGeometry);
+
+const relief2Block = document.getElementById('relief2Block');
+function syncSymmetryUI() {
+  relief2Block.style.display = geo.symmetric ? 'none' : 'block';
+  scheduleRefreshLabels();
+}
+check('geoSymmetric', () => geo.symmetric, (v) => {
+  geo.symmetric = v;
+  syncSymmetryUI();
+  if (objectType === 'coin') exRotate.value = v ? '180' : '360';
+}, scheduleGeometry);
+syncSymmetryUI();
+
+check('reedEnabled', () => reeding.enabled, (v) => { reeding.enabled = v; }, scheduleGeometry);
+range('reedTeeth', () => reeding.teeth, (v) => { reeding.teeth = v; }, f0, scheduleGeometry);
+range('reedDepth', () => reeding.depth, (v) => { reeding.depth = v; }, f3, scheduleGeometry);
+select('reedShape', () => reeding.shape, (v) => { reeding.shape = v; }, scheduleGeometry);
+range('reedSamples', () => reeding.samplesPerTooth, (v) => { reeding.samplesPerTooth = v; }, f0, scheduleGeometry);
+
+check('grooveEnabled', () => groove.enabled, (v) => { groove.enabled = v; }, scheduleGeometry);
+range('grooveCount', () => groove.count, (v) => { groove.count = v; }, f0, scheduleGeometry);
+range('grooveInner', () => groove.inner, (v) => { groove.inner = v; }, f2, scheduleGeometry);
+range('grooveOuter', () => groove.outer, (v) => { groove.outer = v; }, f2, scheduleGeometry);
+range('grooveWidth', () => groove.width, (v) => { groove.width = v; }, f3, scheduleGeometry);
+range('grooveDepth', () => groove.depth, (v) => { groove.depth = v; }, f3, scheduleGeometry);
+select('grooveShape', () => groove.shape, (v) => { groove.shape = v; }, scheduleGeometry);
+select('grooveSide', () => groove.side, (v) => { groove.side = v; }, scheduleGeometry);
+
+check('reliefEnabled', () => relief.enabled, (v) => { relief.enabled = v; }, scheduleGeometry);
+range('reliefHeight', () => relief.height, (v) => { relief.height = v; }, f3, scheduleGeometry);
+range('reliefScale', () => relief.scale, (v) => { relief.scale = v; }, f2, scheduleGeometry);
+range('reliefOffX', () => relief.offsetX, (v) => { relief.offsetX = v; }, f2, scheduleGeometry);
+range('reliefOffZ', () => relief.offsetZ, (v) => { relief.offsetZ = v; }, f2, scheduleGeometry);
+check('reliefInvert', () => relief.invert, (v) => { relief.invert = v; }, scheduleGeometry);
+
+check('relief2Enabled', () => relief2.enabled, (v) => { relief2.enabled = v; }, scheduleGeometry);
+range('relief2Height', () => relief2.height, (v) => { relief2.height = v; }, f3, scheduleGeometry);
+range('relief2Scale', () => relief2.scale, (v) => { relief2.scale = v; }, f2, scheduleGeometry);
+range('relief2OffX', () => relief2.offsetX, (v) => { relief2.offsetX = v; }, f2, scheduleGeometry);
+range('relief2OffZ', () => relief2.offsetZ, (v) => { relief2.offsetZ = v; }, f2, scheduleGeometry);
+check('relief2Invert', () => relief2.invert, (v) => { relief2.invert = v; }, scheduleGeometry);
+
+function wireReliefFile(btnId, inputId, sampleId, slot) {
+  const btn = document.getElementById(btnId);
+  const input = document.getElementById(inputId);
+  const sampleBtn = document.getElementById(sampleId);
+  btn.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => {
+    const f = input.files && input.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      setReliefImageFor(slot, img);
+      scheduleGeometry();
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+    input.value = '';
+  });
+  if (sampleBtn) {
+    sampleBtn.addEventListener('click', () => {
+      setReliefImageFor(slot, makeDefaultReliefCanvas());
+      scheduleGeometry();
+    });
+  }
+}
+
+wireReliefFile('reliefFileBtn', 'reliefFile', 'reliefSample', relief);
+wireReliefFile('relief2FileBtn', 'relief2File', 'relief2Sample', relief2);
+
+const profileCanvas = document.getElementById('profileCanvas');
+const profileCtx = profileCanvas.getContext('2d');
+const PR_W = profileCanvas.width, PR_H = profileCanvas.height;
+const profileSelEl = document.getElementById('profileSel');
+const PROFILE_YRANGE = 0.2;
+const PR_PAD = 10;
+
+let prSelected = profile.points[0];
+let prDragging = false;
+
+function prX(r) { return PR_PAD + r * (PR_W - 2 * PR_PAD); }
+function prY(h) { return PR_PAD + (1 - (clamp(h, -PROFILE_YRANGE, PROFILE_YRANGE) / PROFILE_YRANGE) * 0.5 - 0.5) * (PR_H - 2 * PR_PAD); }
+function prRFromX(x) { return clamp((x - PR_PAD) / (PR_W - 2 * PR_PAD), 0, 1); }
+function prHFromY(y) { return clamp((0.5 - (y - PR_PAD) / (PR_H - 2 * PR_PAD)) * 2 * PROFILE_YRANGE, -PROFILE_YRANGE, PROFILE_YRANGE); }
+
+function prDraw() {
+  profileCtx.clearRect(0, 0, PR_W, PR_H);
+  const x0 = PR_PAD, x1 = PR_W - PR_PAD, y1 = PR_H - PR_PAD;
+
+  profileCtx.strokeStyle = 'rgba(255,255,255,0.10)';
+  profileCtx.lineWidth = 1;
+  for (const h of [PROFILE_YRANGE, PROFILE_YRANGE / 2, -PROFILE_YRANGE / 2, -PROFILE_YRANGE]) {
+    const y = prY(h);
+    profileCtx.beginPath(); profileCtx.moveTo(x0, y); profileCtx.lineTo(x1, y); profileCtx.stroke();
+  }
+  profileCtx.strokeStyle = 'rgba(255,255,255,0.22)';
+  profileCtx.beginPath(); profileCtx.moveTo(x0, prY(0)); profileCtx.lineTo(x1, prY(0)); profileCtx.stroke();
+
+  profileCtx.fillStyle = 'rgba(255,255,255,0.45)';
+  profileCtx.font = '11px system-ui,sans-serif';
+  profileCtx.textAlign = 'left';
+  profileCtx.fillText(t('Центр'), x0, y1 + 9);
+  profileCtx.textAlign = 'right';
+  profileCtx.fillText(t('Край'), x1, y1 + 9);
+
+  const N = Math.max(60, Math.round(PR_W));
+  profileCtx.beginPath();
+  for (let k = 0; k <= N; k++) {
+    const rn = k / N;
+    const x = prX(rn), y = prY(profileSampleRaw(rn));
+    if (k) profileCtx.lineTo(x, y); else profileCtx.moveTo(x, y);
+  }
+  profileCtx.strokeStyle = '#6fb7ff';
+  profileCtx.lineWidth = 1.6;
+  profileCtx.stroke();
+
+  profileCtx.fillStyle = 'rgba(111,183,255,0.14)';
+  profileCtx.lineTo(prX(1), prY(0));
+  profileCtx.lineTo(prX(0), prY(0));
+  profileCtx.closePath();
+  profileCtx.fill();
+
+  for (const p of profile.points) {
+    const x = prX(p.r), y = prY(p.h);
+    profileCtx.beginPath();
+    profileCtx.arc(x, y, p === prSelected ? 5.5 : 4, 0, Math.PI * 2);
+    profileCtx.fillStyle = p === prSelected ? '#6fb7ff' : 'rgba(255,255,255,0.85)';
+    profileCtx.fill();
+    profileCtx.lineWidth = 1.4;
+    profileCtx.strokeStyle = 'rgba(0,0,0,0.6)';
+    profileCtx.stroke();
+  }
+}
+
+function prHit(px, py) {
+  let best = null, bd = Infinity;
+  for (const p of profile.points) {
+    const d = Math.hypot(px - prX(p.r), py - prY(p.h));
+    if (d <= 12 && d < bd) { bd = d; best = p; }
+  }
+  return best;
+}
+
+function prSyncControls() {
+  const has = !!prSelected && profile.points.indexOf(prSelected) >= 0;
+  setDisabled('profileDel', !has || profile.points.length <= 2);
+  setDisabled('profileR', !has);
+  setDisabled('profileH', !has);
+  setDisabled('profileSmooth', !has);
+  setDisabled('profileEase', !has);
+  if (has) {
+    const i = profile.points.indexOf(prSelected);
+    setNoteText(profileSelEl, tf('Точек: {n} · выбрана #{i} (r={r}, h={h})', { n: profile.points.length, i: i + 1, r: prSelected.r.toFixed(2), h: prSelected.h.toFixed(3) }));
+  } else {
+    setNoteText(profileSelEl, tf('Точек: {n}', { n: profile.points.length }));
+  }
+  syncers.forEach((s) => s());
+  prDraw();
+}
+
+function prSelect(p) {
+  prSelected = p && profile.points.indexOf(p) >= 0 ? p : null;
+  prSyncControls();
+}
+
+function prLocalPos(e) {
+  const r = profileCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (PR_W / r.width), y: (e.clientY - r.top) * (PR_H / r.height) };
+}
+
+function prDragTo(e) {
+  if (!prSelected) return;
+  const { x, y } = prLocalPos(e);
+  const pts = profile.points;
+  const i = pts.indexOf(prSelected);
+  const lo = i > 0 ? pts[i - 1].r + 0.002 : 0;
+  const hi = i < pts.length - 1 ? pts[i + 1].r - 0.002 : 1;
+  const rn = prRFromX(x);
+  prSelected.r = lo > hi ? (lo + hi) / 2 : clamp(rn, lo, hi);
+  prSelected.h = prHFromY(y);
+  if (sliderCtl.profileR) sliderCtl.profileR.setDisplay(prSelected.r);
+  if (sliderCtl.profileH) sliderCtl.profileH.setDisplay(prSelected.h);
+  prSyncControls();
+  scheduleGeometry();
+}
+
+profileCanvas.addEventListener('pointerdown', (e) => {
+  profileCanvas.focus();
+  const { x, y } = prLocalPos(e);
+  const hit = prHit(x, y);
+  if (hit) {
+    prSelect(hit);
+    prDragging = true;
+    try { profileCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+  } else {
+    prSelect(null);
+  }
+});
+profileCanvas.addEventListener('pointermove', (e) => {
+  if (!prDragging || !prSelected) return;
+  prDragTo(e);
+});
+function prEndDrag(e) {
+  if (!prDragging) return;
+  prDragging = false;
+  try { profileCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+}
+profileCanvas.addEventListener('pointerup', prEndDrag);
+profileCanvas.addEventListener('pointercancel', prEndDrag);
+
+profileCanvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x, y } = prLocalPos(e);
+  const hit = prHit(x, y);
+  if (hit && profile.points.length > 2) {
+    profile.points.splice(profile.points.indexOf(hit), 1);
+    prSelect(null);
+    scheduleGeometry();
+  }
+});
+
+profileCanvas.addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && prSelected && profile.points.length > 2) {
+    e.preventDefault();
+    profile.points.splice(profile.points.indexOf(prSelected), 1);
+    prSelect(null);
+    scheduleGeometry();
+  }
+});
+
+document.getElementById('profileAdd').addEventListener('click', () => {
+  const pts = profile.points;
+  let p;
+  if (pts.length < 2) {
+    p = { r: pts.length ? 1 : 0.5, h: 0, smooth: 0.6, ease: 1.0 };
+    pts.push(p);
+    pts.sort((a, b) => a.r - b.r);
+  } else {
+    let gi = 0, gap = -1;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const g = pts[i + 1].r - pts[i].r;
+      if (g > gap) { gap = g; gi = i; }
+    }
+    const a = pts[gi], b = pts[gi + 1];
+    p = { r: (a.r + b.r) / 2, h: (a.h + b.h) / 2, smooth: 0.6, ease: 1.0 };
+    pts.splice(gi + 1, 0, p);
+  }
+  prSelect(p);
+  scheduleGeometry();
+});
+
+document.getElementById('profileDel').addEventListener('click', () => {
+  if (!prSelected || profile.points.length <= 2) return;
+  profile.points.splice(profile.points.indexOf(prSelected), 1);
+  prSelect(null);
+  scheduleGeometry();
+});
+
+check('profileEnabled', () => profile.enabled, (v) => { profile.enabled = v; }, scheduleGeometry);
+select('profileSide', () => profile.side, (v) => { profile.side = v; }, scheduleGeometry);
+
+range('profileR', () => prSelected ? prSelected.r : 0, (v) => {
+  if (!prSelected) return;
+  const pts = profile.points, i = pts.indexOf(prSelected);
+  const lo = i > 0 ? pts[i - 1].r + 0.002 : 0;
+  const hi = i < pts.length - 1 ? pts[i + 1].r - 0.002 : 1;
+  const rr = lo > hi ? (lo + hi) / 2 : clamp(v, lo, hi);
+  prSelected.r = rr;
+  if (sliderCtl.profileR) sliderCtl.profileR.setDisplay(rr);
+}, f2, () => { prSyncControls(); scheduleGeometry(); });
+
+range('profileH', () => prSelected ? prSelected.h : 0, (v) => { if (prSelected) prSelected.h = v; }, f3, () => { prSyncControls(); scheduleGeometry(); });
+range('profileSmooth', () => prSelected ? prSelected.smooth : 0, (v) => { if (prSelected) prSelected.smooth = v; }, f2, () => { prSyncControls(); scheduleGeometry(); });
+range('profileEase', () => prSelected ? prSelected.ease : 1, (v) => { if (prSelected) prSelected.ease = v; }, f2, () => { prSyncControls(); scheduleGeometry(); });
+
+check('nrmEnabled', () => normalMapCfg.enabled, (v) => { normalMapCfg.enabled = v; }, scheduleNormalMap);
+select('nrmPattern', () => normalMapCfg.pattern, (v) => { normalMapCfg.pattern = v; }, scheduleNormalMap);
+range('nrmStrength', () => normalMapCfg.strength, (v) => { normalMapCfg.strength = v; }, f2, applyNormalScale);
+range('nrmFreq', () => normalMapCfg.frequency, (v) => { normalMapCfg.frequency = v; }, f0, scheduleNormalMap);
+range('nrmScale', () => normalMapCfg.scale, (v) => { normalMapCfg.scale = v; }, f2, scheduleNormalMap);
+range('nrmOffX', () => normalMapCfg.offsetX, (v) => { normalMapCfg.offsetX = v; }, f2, scheduleNormalMap);
+range('nrmOffZ', () => normalMapCfg.offsetZ, (v) => { normalMapCfg.offsetZ = v; }, f2, scheduleNormalMap);
+
+check('nrmRingEnabled', () => normalMapCfg.ringEnabled, (v) => { normalMapCfg.ringEnabled = v; }, scheduleNormalMap);
+range('nrmRingInner', () => normalMapCfg.ringInner, (v) => { normalMapCfg.ringInner = v; }, f2, scheduleNormalMap);
+range('nrmRingOuter', () => normalMapCfg.ringOuter, (v) => { normalMapCfg.ringOuter = v; }, f2, scheduleNormalMap);
+range('nrmRingSoft', () => normalMapCfg.ringSoft, (v) => { normalMapCfg.ringSoft = v; }, f3, scheduleNormalMap);
+
+check('nrmMaskEnabled', () => normalMapCfg.maskEnabled, (v) => { normalMapCfg.maskEnabled = v; }, scheduleNormalMap);
+range('nrmMaskScale', () => normalMapCfg.maskScale, (v) => { normalMapCfg.maskScale = v; }, f2, scheduleNormalMap);
+range('nrmMaskOffX', () => normalMapCfg.maskOffsetX, (v) => { normalMapCfg.maskOffsetX = v; }, f2, scheduleNormalMap);
+range('nrmMaskOffZ', () => normalMapCfg.maskOffsetZ, (v) => { normalMapCfg.maskOffsetZ = v; }, f2, scheduleNormalMap);
+check('nrmMaskInvert', () => normalMapCfg.maskInvert, (v) => { normalMapCfg.maskInvert = v; }, scheduleNormalMap);
+
+const nrmMaskFileBtn = document.getElementById('nrmMaskFileBtn');
+const nrmMaskFile = document.getElementById('nrmMaskFile');
+nrmMaskFileBtn.addEventListener('click', () => nrmMaskFile.click());
+nrmMaskFile.addEventListener('change', () => {
+  const f = nrmMaskFile.files && nrmMaskFile.files[0];
+  if (!f) return;
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    setNormalMaskFromSource(img);
+    normalMapCfg.maskEnabled = true;
+    normalMapCfg.enabled = true;
+    syncers.forEach((s) => s());
+    scheduleNormalMap();
+    URL.revokeObjectURL(url);
+  };
+  img.src = url;
+  nrmMaskFile.value = '';
+});
+document.getElementById('nrmMaskClear').addEventListener('click', () => {
+  normalMapCfg.maskGrid = null;
+  normalMapCfg.maskDataURL = null;
+  normalMapCfg.maskEnabled = false;
+  syncers.forEach((s) => s());
+  scheduleNormalMap();
+});
+
+const matPresetSelect = document.getElementById('matPreset');
+Object.keys(MATERIAL_PRESETS).forEach((k) => {
+  const o = document.createElement('option');
+  o.value = k;
+  o.textContent = MATERIAL_PRESETS[k].label;
+  matPresetSelect.appendChild(o);
+});
+matPresetSelect.value = 'gold';
+
+function applyMaterialPreset(key) {
+  const p = MATERIAL_PRESETS[key];
+  if (!p) return;
+  material.color.set(p.color);
+  material.metalness = p.metalness;
+  material.roughness = p.roughness;
+  material.clearcoat = p.clearcoat;
+  material.clearcoatRoughness = p.clearcoatRoughness;
+  material.envMapIntensity = p.envMapIntensity;
+  syncers.forEach((s) => s());
+}
+matPresetSelect.addEventListener('change', () => applyMaterialPreset(matPresetSelect.value));
+
+color('matColor', () => '#' + material.color.getHexString(), (v) => { material.color.set(v); });
+range('matMetal', () => material.metalness, (v) => { material.metalness = v; }, f2);
+range('matRough', () => material.roughness, (v) => { material.roughness = v; }, f2);
+range('matEnv', () => material.envMapIntensity, (v) => { material.envMapIntensity = v; }, f2);
+range('matClear', () => material.clearcoat, (v) => { material.clearcoat = v; }, f2);
+range('matClearRough', () => material.clearcoatRoughness, (v) => { material.clearcoatRoughness = v; }, f2);
+
+range('dmFacets', () => diamondCfg.facets, (v) => { diamondCfg.facets = v; rebuildDiamondGeometry(); }, f0);
+range('dmChamfer', () => diamondCfg.chamfer * 100, (v) => { diamondCfg.chamfer = v / 100; rebuildDiamondGeometry(); }, (v) => Math.round(v) + '%');
+
+const dmGeoDefs = [
+  { key: 'table', id: 'dmTable' },
+  { key: 'girdleR', id: 'dmGirdle' },
+  { key: 'crownH', id: 'dmCrownH' },
+  { key: 'pavilionH', id: 'dmPavH' },
+  { key: 'girdlePos', id: 'dmGirdlePos' },
+  { key: 'girdleH', id: 'dmGirdleH' },
+  { key: 'culetPos', id: 'dmCuletPos' },
+  { key: 'pavMid', id: 'dmPavMid' },
+  { key: 'crownBulge', id: 'dmCrownBulge' },
+  { key: 'crownPos', id: 'dmCrownPos' },
+  { key: 'scale', id: 'dmScale' },
+  { key: 'offsetY', id: 'dmOffsetY' },
+];
+dmGeoDefs.forEach((def) => {
+  range(def.id, () => diamondCfg[def.key], (v) => { diamondCfg[def.key] = v; rebuildDiamondGeometry(); }, f2);
+});
+
+range('dmIor', () => diamondMaterial.ior, (v) => { diamondMaterial.ior = v; }, f2);
+range('dmThickness', () => diamondMaterial.thickness, (v) => { diamondMaterial.thickness = v; }, f2);
+range('dmDispersion', () => (diamondMaterial.dispersion != null ? diamondMaterial.dispersion : 5), (v) => {
+  if (diamondMaterial.dispersion != null) diamondMaterial.dispersion = v;
+}, (v) => Number(v).toFixed(1));
+range('dmEnvInt', () => diamondMaterial.envMapIntensity, (v) => { diamondMaterial.envMapIntensity = v; }, f2);
+range('dmRough', () => diamondMaterial.roughness, (v) => { diamondMaterial.roughness = v; }, f2);
+color('dmColor', () => '#' + diamondMaterial.color.getHexString(), (v) => { diamondMaterial.color.set(v); });
+
+const objectTypeSelect = document.getElementById('objectType');
+const coinPanel = document.getElementById('coinPanel');
+const diamondPanel = document.getElementById('diamondPanel');
+
+function frameObject() {
+  if (objectType === 'diamond') {
+    camera.position.set(0, 1.8, 8.5);
+    controls.target.set(0, 0.2, 0);
+  } else {
+    camera.position.set(1.3, 2.6, 7.4);
+    controls.target.set(0, 0, 0);
+  }
+  controls.update();
+}
+
+const CAMDIST_PREFIX = 'objEditor.camdist.';
+
+function cameraDistance() { return camera.position.distanceTo(controls.target); }
+
+function saveCameraDistance() {
+  if (exporting) return;
+  const d = cameraDistance();
+  if (!isFinite(d) || d <= 0) return;
+  try { localStorage.setItem(CAMDIST_PREFIX + objectType, String(d)); } catch (e) {}
+}
+
+function restoreCameraDistance() {
+  let v = NaN;
+  try { v = parseFloat(localStorage.getItem(CAMDIST_PREFIX + objectType)); } catch (e) {}
+  if (!isFinite(v) || v <= 0) return;
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  if (dir.lengthSq() < 1e-9) return;
+  dir.normalize();
+  camera.position.copy(controls.target).addScaledVector(dir, v);
+  controls.update();
+}
+
+const EXPOSURE_DEFAULTS = { coin: 0.5, diamond: 0.06 };
+
+function applyTypeExportDefaults() {
+  if (objectType === 'diamond') {
+    exRotate.value = '360';
+    exRotate.disabled = true;
+    exportFrames = clamp(Math.round(diamondCfg.facets), 2, 360);
+  } else {
+    exRotate.disabled = false;
+    exRotate.value = geo.symmetric ? '180' : '360';
+  }
+  if (sliderCtl.exFrames) sliderCtl.exFrames.setDisplay(exportFrames);
+  renderer.toneMappingExposure = EXPOSURE_DEFAULTS[objectType];
+  if (sliderCtl.matExposure) sliderCtl.matExposure.setDisplay(renderer.toneMappingExposure);
+}
+
+function setObjectType(type, refit, userChange) {
+  objectType = type === 'diamond' ? 'diamond' : 'coin';
+  coin.visible = objectType === 'coin';
+  diamond.visible = objectType === 'diamond';
+  coinPanel.style.display = objectType === 'coin' ? 'block' : 'none';
+  diamondPanel.style.display = objectType === 'diamond' ? 'block' : 'none';
+  if (refit !== false) { frameObject(); restoreCameraDistance(); }
+  if (userChange) {
+    applyGradientPreset(objectType === 'diamond' ? 'diamond' : 'coin');
+    applyTypeExportDefaults();
+  }
+  updateObjInfo();
+  scheduleRefreshLabels();
+}
+
+objectTypeSelect.addEventListener('change', () => {
+  saveCameraDistance();
+  setObjectType(objectTypeSelect.value, true, true);
+  scheduleSave();
+});
+
+let spinState = { auto: true, axis: 'y' };
+const autoSpinToggle = document.getElementById('autoSpinToggle');
+
+function currentAngleDeg() {
+  const a = objectSpin.rotation[spinState.axis] % (Math.PI * 2);
+  return ((a * 180 / Math.PI) % 360 + 360) % 360;
+}
+function setAngleDeg(deg) {
+  objectSpin.rotation[spinState.axis] = deg * Math.PI / 180;
+}
+function setAutoSpin(on) {
+  spinState.auto = on;
+  autoSpinToggle.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+function syncSpinUI() {
+  autoSpinToggle.setAttribute('aria-checked', spinState.auto ? 'true' : 'false');
+  if (sliderCtl.spinPos) sliderCtl.spinPos.setDisplay(currentAngleDeg());
+}
+
+autoSpinToggle.addEventListener('click', () => {
+  setAutoSpin(autoSpinToggle.getAttribute('aria-checked') !== 'true');
+});
+range('spinPos', () => currentAngleDeg(), (v) => {
+  setAngleDeg(v);
+  spinState.auto = false;
+}, (v) => Math.round(v) + '°');
+syncers.push(syncSpinUI);
+
+range('lightCount', () => keyLights.filter((l) => l.visible).length, (v) => {
+  keyLights.forEach((l, i) => { l.visible = i < v; });
+}, f0);
+range('lightInt', () => keyLights[0] ? keyLights[0].intensity : 0, (v) => {
+  keyLights.forEach((l) => { l.intensity = v; });
+}, f0);
+range('matExposure', () => renderer.toneMappingExposure, (v) => { renderer.toneMappingExposure = v; }, f2);
+select('spinAxis', () => spinState.axis, (v) => { spinState.axis = v; syncSpinUI(); });
+
+const spotCanvas = document.getElementById('spotCanvas');
+const spotCtx = spotCanvas.getContext('2d');
+const ED_W = spotCanvas.width, ED_H = spotCanvas.height;
+const spotSelEl = document.getElementById('spotSel');
+
+let selectedSpot = null;
+let draggingSpot = false;
+
+color('spotColor', () => selectedSpot ? selectedSpot.color : '#ffffff', (v) => {
+  if (!selectedSpot) return;
+  selectedSpot.color = v;
+  drawEditor();
+  envDrag();
+  envCommit();
+});
+range('spotStrength', () => selectedSpot ? selectedSpot.strength : 0, (v) => {
+  if (!selectedSpot) return;
+  selectedSpot.strength = v;
+  drawEditor();
+  envDrag();
+  envCommit();
+}, f0);
+
+color('grad0', () => envConfig.gradient[0].color, (v) => { envConfig.gradient[0].color = v; }, () => { drawEditor(); envDrag(); envCommit(); });
+color('grad1', () => envConfig.gradient[1].color, (v) => { envConfig.gradient[1].color = v; }, () => { drawEditor(); envDrag(); envCommit(); });
+color('grad2', () => envConfig.gradient[2].color, (v) => { envConfig.gradient[2].color = v; }, () => { drawEditor(); envDrag(); envCommit(); });
+color('bgColor', () => envConfig.background, (v) => { envConfig.background = v; applySceneBackground(); });
+check('showEnvBg', () => showEnvBg, (v) => { showEnvBg = v; applySceneBackground(); });
+select('envMode', () => envMode, (v) => { envMode = v; rebuildEnv(1); });
+
+const envFileBtn = document.getElementById('envFileBtn');
+const envFileInput = document.getElementById('envFile');
+const envResetBtn = document.getElementById('envReset');
+
+function loadEnvImageFromURL(url) {
+  const img = new Image();
+  img.onload = () => {
+    envImageTex = new THREE.Texture(img);
+    envImageTex.mapping = THREE.EquirectangularReflectionMapping;
+    envImageTex.colorSpace = THREE.SRGBColorSpace;
+    envImageTex.needsUpdate = true;
+    envMode = 'image';
+    syncers.forEach((s) => s());
+    rebuildEnv(1);
+  };
+  img.src = url;
+}
+
+envFileBtn.addEventListener('click', () => envFileInput.click());
+envFileInput.addEventListener('change', () => {
+  const f = envFileInput.files && envFileInput.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    envImageDataURL = r.result;
+    loadEnvImageFromURL(envImageDataURL);
+  };
+  r.readAsDataURL(f);
+  envFileInput.value = '';
+});
+
+envResetBtn.addEventListener('click', () => {
+  if (envImageTex) { envImageTex.dispose(); envImageTex = null; }
+  envImageDataURL = null;
+  envMode = 'procedural';
+  syncers.forEach((s) => s());
+  rebuildEnv(1);
+});
+
+function uvToPx(u, v) { return { x: u * ED_W, y: (1 - v) * ED_H }; }
+function spotRadiusPx(size) { return Math.max(4, (size / Math.PI) * ED_H); }
+
+function localPos(e) {
+  const r = spotCanvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left) * (ED_W / r.width),
+    y: (e.clientY - r.top) * (ED_H / r.height),
+  };
+}
+
+function hitTest(px, py) {
+  let best = null, bestD = Infinity;
+  for (const s of envConfig.spots) {
+    const p = uvToPx(s.u, s.v);
+    let dx = Math.abs(px - p.x);
+    if (dx > ED_W / 2) dx = ED_W - dx;
+    const dy = py - p.y;
+    const d = Math.hypot(dx, dy);
+    const r = Math.max(11, spotRadiusPx(s.size));
+    if (d <= r && d < bestD) { bestD = d; best = s; }
+  }
+  return best;
+}
+
+function drawEditor() {
+  const stops = envConfig.gradient.slice().sort((a, b) => a.pos - b.pos);
+  const g = spotCtx.createLinearGradient(0, 0, 0, ED_H);
+  stops.forEach((s) => g.addColorStop(clamp(1 - s.pos, 0, 1), s.color));
+  spotCtx.fillStyle = g;
+  spotCtx.fillRect(0, 0, ED_W, ED_H);
+
+  for (const s of envConfig.spots) {
+    const p = uvToPx(s.u, s.v);
+    const r = spotRadiusPx(s.size);
+    const alpha = clamp(s.strength / 80, 0.12, 1);
+    const rgb = hexToRgb(s.color);
+    const rad = spotCtx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+    rad.addColorStop(0, `rgba(${(rgb[0] * 255) | 0},${(rgb[1] * 255) | 0},${(rgb[2] * 255) | 0},${alpha})`);
+    rad.addColorStop(1, `rgba(${(rgb[0] * 255) | 0},${(rgb[1] * 255) | 0},${(rgb[2] * 255) | 0},0)`);
+    spotCtx.fillStyle = rad;
+    spotCtx.beginPath();
+    spotCtx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    spotCtx.fill();
+
+    spotCtx.strokeStyle = s === selectedSpot ? '#6fb7ff' : 'rgba(255,255,255,0.35)';
+    spotCtx.lineWidth = s === selectedSpot ? 2 : 1;
+    spotCtx.beginPath();
+    spotCtx.arc(p.x, p.y, Math.max(r, 4), 0, Math.PI * 2);
+    spotCtx.stroke();
+  }
+
+  drawCameraIndicator();
+}
+
+function cameraDirUV() {
+  const dir = new THREE.Vector3().subVectors(camera.position, controls.target);
+  if (dir.lengthSq() < 1e-9) return { u: 0, v: 0.5 };
+  dir.normalize();
+  const theta = Math.acos(clamp(dir.y, -1, 1));
+  const v = 1 - theta / Math.PI;
+  let u = Math.atan2(dir.z, dir.x) / (Math.PI * 2);
+  u = ((u % 1) + 1) % 1;
+  return { u, v };
+}
+
+function drawCameraIndicator() {
+  const { u, v } = cameraDirUV();
+  const x = u * ED_W;
+  const y = (1 - v) * ED_H;
+  spotCtx.save();
+  spotCtx.strokeStyle = 'rgba(111,183,255,0.9)';
+  spotCtx.fillStyle = 'rgba(111,183,255,0.9)';
+  spotCtx.lineWidth = 1;
+  spotCtx.setLineDash([4, 3]);
+  spotCtx.beginPath();
+  spotCtx.moveTo(x, 0);
+  spotCtx.lineTo(x, ED_H);
+  spotCtx.moveTo(0, y);
+  spotCtx.lineTo(ED_W, y);
+  spotCtx.stroke();
+  spotCtx.setLineDash([]);
+  spotCtx.beginPath();
+  spotCtx.arc(x, y, 3, 0, Math.PI * 2);
+  spotCtx.fill();
+  spotCtx.restore();
+}
+
+function syncSpotControls() {
+  const has = !!selectedSpot;
+  setDisabled('spotDel', !has);
+  setDisabled('spotColor', !has);
+  setDisabled('spotStrength', !has);
+  if (has) {
+    setNoteText(spotSelEl, tf('#{i} · размер {size}', { i: envConfig.spots.indexOf(selectedSpot), size: selectedSpot.size.toFixed(3) }));
+    const sc = document.getElementById('spotColor');
+    if (sc) sc.value = selectedSpot.color;
+    if (sliderCtl.spotStrength) sliderCtl.spotStrength.setDisplay(selectedSpot.strength);
+  } else {
+    setNoteText(spotSelEl, '—');
+  }
+}
+
+function selectSpot(s) {
+  selectedSpot = s;
+  syncSpotControls();
+  drawEditor();
+}
+
+spotCanvas.addEventListener('pointerdown', (e) => {
+  spotCanvas.focus();
+  const { x, y } = localPos(e);
+  const hit = hitTest(x, y);
+  if (hit) {
+    selectSpot(hit);
+    draggingSpot = true;
+    try { spotCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  } else {
+    selectSpot(null);
+  }
+});
+
+spotCanvas.addEventListener('pointermove', (e) => {
+  if (!draggingSpot || !selectedSpot) return;
+  const { x, y } = localPos(e);
+  let u = x / ED_W;
+  u = ((u % 1) + 1) % 1;
+  selectedSpot.u = u;
+  selectedSpot.v = clamp(1 - y / ED_H, 0, 1);
+  drawEditor();
+  envDrag();
+});
+
+function endSpotDrag(e) {
+  if (!draggingSpot) return;
+  draggingSpot = false;
+  try { spotCanvas.releasePointerCapture(e.pointerId); } catch (err) {}
+  envCommit();
+}
+spotCanvas.addEventListener('pointerup', endSpotDrag);
+spotCanvas.addEventListener('pointercancel', endSpotDrag);
+
+spotCanvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const { x, y } = localPos(e);
+  const s = hitTest(x, y) || selectedSpot;
+  if (!s) return;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  s.size = clamp(s.size * factor, 0.02, 0.6);
+  selectSpot(s);
+  envDrag();
+  envCommit();
+}, { passive: false });
+
+spotCanvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x, y } = localPos(e);
+  const hit = hitTest(x, y);
+  if (hit) {
+    envConfig.spots.splice(envConfig.spots.indexOf(hit), 1);
+    selectSpot(null);
+    rebuildEnv(1);
+  }
+});
+
+spotCanvas.addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSpot) {
+    e.preventDefault();
+    const i = envConfig.spots.indexOf(selectedSpot);
+    if (i >= 0) envConfig.spots.splice(i, 1);
+    selectSpot(null);
+    rebuildEnv(1);
+  }
+});
+
+document.getElementById('spotAdd').addEventListener('click', () => {
+  const s = {
+    u: Math.random(),
+    v: Math.random(),
+    size: 0.04 + Math.random() * 0.26,
+    strength: 1,
+    color: document.getElementById('spotColor').value || '#ffffff'
+  };
+  envConfig.spots.push(s);
+  selectSpot(s);
+  rebuildEnv(1);
+});
+
+document.getElementById('spotDel').addEventListener('click', () => {
+  if (!selectedSpot) return;
+  const i = envConfig.spots.indexOf(selectedSpot);
+  if (i >= 0) envConfig.spots.splice(i, 1);
+  selectSpot(null);
+  rebuildEnv(1);
+});
+
+let envFullTimer = null;
+let dragQueued = false;
+function envDrag() {
+  if (dragQueued) return;
+  dragQueued = true;
+  requestAnimationFrame(() => { dragQueued = false; rebuildEnv(0.5); });
+}
+function envCommit() {
+  clearTimeout(envFullTimer);
+  envFullTimer = setTimeout(() => rebuildEnv(1), 140);
+}
+
+const GRADIENT_PRESETS = {
+  coin: {
+    label: 'Монета (золото)',
+    stops: [
+      { pos: 0.00, color: '#1c0a06' },
+      { pos: 0.28, color: '#7d2408' },
+      { pos: 0.55, color: '#d97a1e' },
+      { pos: 0.80, color: '#f2c53d' },
+      { pos: 1.00, color: '#fff4c6' },
+    ],
+  },
+  diamond: {
+    label: 'Алмаз (лёд)',
+    stops: [
+      { pos: 0.00, color: '#05070f' },
+      { pos: 0.24, color: '#22315e' },
+      { pos: 0.50, color: '#4f9fe0' },
+      { pos: 0.74, color: '#b6e3ff' },
+      { pos: 1.00, color: '#ffffff' },
+    ],
+  },
+};
+
+function cloneGradStops(stops) { return stops.map((s) => ({ pos: s.pos, color: s.color })); }
+
+const gradientMap = {
+  enabled: true,
+  mix: 1.0,
+  stops: cloneGradStops(GRADIENT_PRESETS.coin.stops),
+};
+
+const gradLUT = new Uint8Array(256 * 3);
+
+function rebuildGradLUT() {
+  const stops = gradientMap.stops.slice().sort((a, b) => a.pos - b.pos);
+  const cols = stops.map((s) => hexToRgb(s.color).map((v) => v * 255));
+  const last = Math.max(0, cols.length - 1);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let c;
+    if (!cols.length) c = [255, 255, 255];
+    else if (t <= stops[0].pos) c = cols[0];
+    else if (t >= stops[last].pos) c = cols[last];
+    else {
+      c = cols[0];
+      for (let k = 0; k < stops.length - 1; k++) {
+        const a = stops[k], b = stops[k + 1];
+        if (t <= b.pos) {
+          const f = (t - a.pos) / ((b.pos - a.pos) || 1);
+          c = [
+            cols[k][0] + (cols[k + 1][0] - cols[k][0]) * f,
+            cols[k][1] + (cols[k + 1][1] - cols[k][1]) * f,
+            cols[k][2] + (cols[k + 1][2] - cols[k][2]) * f,
+          ];
+          break;
+        }
+      }
+    }
+    gradLUT[i * 3] = c[0];
+    gradLUT[i * 3 + 1] = c[1];
+    gradLUT[i * 3 + 2] = c[2];
+  }
+}
+
+function sampleLUTHex(pos) {
+  const i = Math.round(clamp(pos, 0, 1) * 255) * 3;
+  const to = (v) => Math.round(v).toString(16).padStart(2, '0');
+  return '#' + to(gradLUT[i]) + to(gradLUT[i + 1]) + to(gradLUT[i + 2]);
+}
+
+function applyGradientImageData(img) {
+  if (!gradientMap.enabled || gradientMap.mix <= 0) return;
+  const d = img.data;
+  const lut = gradLUT;
+  const mix = gradientMap.mix;
+  for (let i = 0; i < d.length; i += 4) {
+    const r = d[i], g = d[i + 1], b = d[i + 2];
+    const l = (0.299 * r + 0.587 * g + 0.114 * b) | 0;
+    const k = l * 3;
+    if (mix >= 1) {
+      d[i] = lut[k]; d[i + 1] = lut[k + 1]; d[i + 2] = lut[k + 2];
+    } else {
+      d[i] = r + (lut[k] - r) * mix;
+      d[i + 1] = g + (lut[k + 1] - g) * mix;
+      d[i + 2] = b + (lut[k + 2] - b) * mix;
+    }
+  }
+}
+
+function applyGradientCtx(ctx, w, h) {
+  if (!gradientMap.enabled || gradientMap.mix <= 0) return;
+  const img = ctx.getImageData(0, 0, w, h);
+  applyGradientImageData(img);
+  ctx.putImageData(img, 0, 0);
+}
+
+const gradOverlay = document.createElement('canvas');
+gradOverlay.className = 'gradOverlay';
+viewer.appendChild(gradOverlay);
+const gradOverlayCtx = gradOverlay.getContext('2d', { willReadFrequently: true });
+
+function updateGradOverlay() {
+  if (!gradientMap.enabled || gradientMap.mix <= 0 || exporting) {
+    gradOverlay.style.display = 'none';
+    return;
+  }
+  const w = Math.max(1, viewer.clientWidth);
+  const h = Math.max(1, viewer.clientHeight);
+  if (gradOverlay.width !== w || gradOverlay.height !== h) {
+    gradOverlay.width = w;
+    gradOverlay.height = h;
+  }
+  gradOverlay.style.display = 'block';
+  gradOverlayCtx.clearRect(0, 0, w, h);
+  gradOverlayCtx.drawImage(renderer.domElement, 0, 0, w, h);
+  applyGradientCtx(gradOverlayCtx, w, h);
+}
+
+const gmCanvas = document.getElementById('gradMapCanvas');
+const gmCtx = gmCanvas.getContext('2d');
+const GM_W = gmCanvas.width, GM_H = gmCanvas.height;
+const gmSelEl = document.getElementById('gradMapSel');
+
+let gmSelected = gradientMap.stops[2];
+let gmDragging = false;
+
+color('gradMapColor', () => gmSelected ? gmSelected.color : '#f2c53d', (v) => {
+  if (!gmSelected) return;
+  gmSelected.color = v;
+  gmLive();
+  gmDraw();
+});
+range('gradMapPos', () => gmSelected ? gmSelected.pos * 100 : 0, (v) => {
+  if (!gmSelected) return;
+  gmSelected.pos = clamp(v / 100, 0, 1);
+  gradientMap.stops.sort((a, b) => a.pos - b.pos);
+  gmLive();
+  gmDraw();
+  gmSyncControls();
+}, (v) => (v / 100).toFixed(2));
+range('gradMapMix', () => gradientMap.mix, (v) => {
+  gradientMap.mix = v;
+  updateGradOverlay();
+}, f2);
+check('gradMapEnabled', () => gradientMap.enabled, (v) => { gradientMap.enabled = v; updateGradOverlay(); });
+
+function gmSorted() { return gradientMap.stops.slice().sort((a, b) => a.pos - b.pos); }
+
+function gmDraw() {
+  const stops = gmSorted();
+  const g = gmCtx.createLinearGradient(0, 0, GM_W, 0);
+  if (stops.length) stops.forEach((s) => g.addColorStop(clamp(s.pos, 0, 1), s.color));
+  else g.addColorStop(0, '#000000');
+  gmCtx.fillStyle = g;
+  gmCtx.fillRect(0, 0, GM_W, GM_H);
+
+  for (const s of stops) {
+    const x = s.pos * GM_W, y = GM_H / 2;
+    gmCtx.beginPath();
+    gmCtx.arc(x, y, 6, 0, Math.PI * 2);
+    gmCtx.fillStyle = s.color;
+    gmCtx.fill();
+    gmCtx.lineWidth = s === gmSelected ? 3 : 1.5;
+    gmCtx.strokeStyle = s === gmSelected ? '#6fb7ff' : 'rgba(255,255,255,0.85)';
+    gmCtx.stroke();
+  }
+}
+
+function gmSyncControls() {
+  const has = !!gmSelected;
+  setDisabled('gradMapDel', !has || gradientMap.stops.length <= 2);
+  setDisabled('gradMapColor', !has);
+  setDisabled('gradMapPos', !has);
+  if (has) {
+    const gc = document.getElementById('gradMapColor');
+    if (gc) gc.value = gmSelected.color;
+    if (sliderCtl.gradMapPos) sliderCtl.gradMapPos.setDisplay(gmSelected.pos * 100);
+  }
+  setNoteText(gmSelEl, tf('Точек: {n}', { n: gradientMap.stops.length }));
+}
+
+function gmSelect(s) {
+  gmSelected = s;
+  gmSyncControls();
+  gmDraw();
+}
+
+function gmLive() { rebuildGradLUT(); updateGradOverlay(); }
+
+function gmLocalPos(e) {
+  const r = gmCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (GM_W / r.width), y: (e.clientY - r.top) * (GM_H / r.height) };
+}
+
+function gmHit(px) {
+  let best = null, bd = Infinity;
+  for (const s of gradientMap.stops) {
+    const d = Math.abs(px - s.pos * GM_W);
+    if (d < 12 && d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+gmCanvas.addEventListener('pointerdown', (e) => {
+  gmCanvas.focus();
+  const { x } = gmLocalPos(e);
+  const hit = gmHit(x);
+  if (hit) {
+    gmSelect(hit);
+    gmDragging = true;
+    try { gmCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  } else {
+    gmSelect(null);
+  }
+});
+
+gmCanvas.addEventListener('pointermove', (e) => {
+  if (!gmDragging || !gmSelected) return;
+  const { x } = gmLocalPos(e);
+  gmSelected.pos = clamp(x / GM_W, 0, 1);
+  gradientMap.stops.sort((a, b) => a.pos - b.pos);
+  gmLive();
+  gmDraw();
+  gmSyncControls();
+});
+
+function gmEnd(e) {
+  if (!gmDragging) return;
+  gmDragging = false;
+  try { gmCanvas.releasePointerCapture(e.pointerId); } catch (err) {}
+}
+gmCanvas.addEventListener('pointerup', gmEnd);
+gmCanvas.addEventListener('pointercancel', gmEnd);
+
+gmCanvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x } = gmLocalPos(e);
+  const hit = gmHit(x);
+  if (hit && gradientMap.stops.length > 2) {
+    gradientMap.stops.splice(gradientMap.stops.indexOf(hit), 1);
+    gmSelect(null);
+    gmLive();
+    gmDraw();
+    gmSyncControls();
+  }
+});
+
+gmCanvas.addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && gmSelected && gradientMap.stops.length > 2) {
+    e.preventDefault();
+    gradientMap.stops.splice(gradientMap.stops.indexOf(gmSelected), 1);
+    gmSelect(null);
+    gmLive();
+    gmDraw();
+    gmSyncControls();
+  }
+});
+
+document.getElementById('gradMapAdd').addEventListener('click', () => {
+  const sorted = gmSorted();
+  let pos = 0.5, prev = 0, gap = -1;
+  for (const s of sorted) {
+    if (s.pos - prev > gap) { gap = s.pos - prev; pos = (s.pos + prev) / 2; }
+    prev = s.pos;
+  }
+  if (1 - prev > gap) pos = (1 + prev) / 2;
+  const s = { pos, color: sampleLUTHex(pos) };
+  gradientMap.stops.push(s);
+  gradientMap.stops.sort((a, b) => a.pos - b.pos);
+  gmSelect(s);
+  gmLive();
+});
+
+document.getElementById('gradMapDel').addEventListener('click', () => {
+  if (!gmSelected || gradientMap.stops.length <= 2) return;
+  gradientMap.stops.splice(gradientMap.stops.indexOf(gmSelected), 1);
+  gmSelect(null);
+  gmLive();
+  gmDraw();
+});
+
+const gradPresetSelect = document.getElementById('gradPreset');
+Object.keys(GRADIENT_PRESETS).forEach((k) => {
+  const o = document.createElement('option');
+  o.value = k;
+  o.textContent = GRADIENT_PRESETS[k].label;
+  gradPresetSelect.appendChild(o);
+});
+gradPresetSelect.value = 'coin';
+
+function setGradientStops(stops, presetKey) {
+  gradientMap.stops = cloneGradStops(stops);
+  gradientMap.stops.sort((a, b) => a.pos - b.pos);
+  gmSelected = gradientMap.stops[0];
+  if (presetKey != null) gradPresetSelect.value = presetKey;
+  rebuildGradLUT();
+  gmDraw();
+  gmSyncControls();
+  updateGradOverlay();
+}
+
+function applyGradientPreset(key) {
+  const p = GRADIENT_PRESETS[key];
+  if (!p) return;
+  setGradientStops(p.stops, key);
+}
+
+gradPresetSelect.addEventListener('change', () => applyGradientPreset(gradPresetSelect.value));
+
+const GRAD_SAVED_KEY = 'objEditor.gradients';
+let savedGradients = [];
+try {
+  const raw = localStorage.getItem(GRAD_SAVED_KEY);
+  if (raw) savedGradients = JSON.parse(raw);
+} catch (e) { savedGradients = []; }
+if (!Array.isArray(savedGradients)) savedGradients = [];
+
+const gradSavedSelect = document.getElementById('gradSaved');
+const gradSaveNameInput = document.getElementById('gradSaveName');
+
+function refreshSavedGradients() {
+  gradSavedSelect.innerHTML = '';
+  savedGradients.forEach((g, i) => {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = g.name;
+    gradSavedSelect.appendChild(o);
+  });
+  setDisabled('gradLoadBtn', savedGradients.length === 0);
+  setDisabled('gradSavedDel', savedGradients.length === 0);
+}
+
+function persistSavedGradients() {
+  try { localStorage.setItem(GRAD_SAVED_KEY, JSON.stringify(savedGradients)); } catch (e) {}
+}
+
+document.getElementById('gradSaveBtn').addEventListener('click', () => {
+  const name = (gradSaveNameInput.value || '').trim() || t('Градиент');
+  const entry = { name, stops: cloneGradStops(gradientMap.stops).sort((a, b) => a.pos - b.pos) };
+  const i = savedGradients.findIndex((g) => g.name === name);
+  if (i >= 0) savedGradients[i] = entry; else savedGradients.push(entry);
+  persistSavedGradients();
+  refreshSavedGradients();
+  gradSavedSelect.value = String(i >= 0 ? i : savedGradients.length - 1);
+});
+
+document.getElementById('gradLoadBtn').addEventListener('click', () => {
+  const g = savedGradients[Number(gradSavedSelect.value)];
+  if (!g || !Array.isArray(g.stops) || g.stops.length < 2) return;
+  setGradientStops(g.stops, null);
+});
+
+document.getElementById('gradSavedDel').addEventListener('click', () => {
+  const i = Number(gradSavedSelect.value);
+  if (!(i >= 0 && i < savedGradients.length)) return;
+  savedGradients.splice(i, 1);
+  persistSavedGradients();
+  refreshSavedGradients();
+});
+
+refreshSavedGradients();
+
+const exPrefix = document.getElementById('exPrefix');
+const exRotate = document.getElementById('exRotate');
+const exInfo = document.getElementById('exInfo');
+
+let exportFrames = 60;
+let exportTransparent = true;
+let exportZip = true;
+
+range('exFrames', () => exportFrames, (v) => { exportFrames = v; }, f0);
+check('exTransparent', () => exportTransparent, (v) => { exportTransparent = v; });
+check('exZip', () => exportZip, (v) => { exportZip = v; });
+
+const maskMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+const outCanvas = document.createElement('canvas');
+const outCtx = outCanvas.getContext('2d');
+const maskCanvas = document.createElement('canvas');
+const maskCtx = maskCanvas.getContext('2d');
+const colorCanvas = document.createElement('canvas');
+const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+
+function downloadCanvas(canvas, name) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      resolve();
+    }, 'image/png');
+  });
+}
+
+function canvasToUint8(canvas) {
+  return new Promise((resolve) => {
+    canvas.toBlob(async (blob) => {
+      resolve(new Uint8Array(await blob.arrayBuffer()));
+    }, 'image/png');
+  });
+}
+
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function crc32(u8) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function buildZip(files) {
+  const enc = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  for (const f of files) {
+    const nameBytes = enc.encode(f.name);
+    const data = f.data;
+    const crc = crc32(data);
+    const size = data.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const dv = new DataView(local.buffer);
+    dv.setUint32(0, 0x04034b50, true);
+    dv.setUint16(4, 20, true);
+    dv.setUint32(14, crc, true);
+    dv.setUint32(18, size, true);
+    dv.setUint32(22, size, true);
+    dv.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    chunks.push(local, data);
+
+    const cent = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(cent.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    cent.set(nameBytes, 46);
+    central.push(cent);
+
+    offset += local.length + size;
+  }
+
+  let centralSize = 0;
+  for (const c of central) centralSize += c.length;
+
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, files.length, true);
+  ev.setUint16(10, files.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+
+  const out = new Uint8Array(offset + centralSize + 22);
+  let p = 0;
+  for (const c of chunks) { out.set(c, p); p += c.length; }
+  for (const c of central) { out.set(c, p); p += c.length; }
+  out.set(end, p);
+  return out;
+}
+
+function downloadZip(bytes, name) {
+  const blob = new Blob([bytes], { type: 'application/zip' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function computeBox(W, H) {
+  const mesh = activeMesh();
+  objectSpin.updateMatrixWorld(true);
+  camera.updateMatrixWorld(true);
+  const geo = mesh.geometry;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const bb = geo.boundingBox;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const v = new THREE.Vector3();
+  const addPoint = (vec) => {
+    const p = vec.clone().applyMatrix4(mesh.matrixWorld).project(camera);
+    const sx = (p.x * 0.5 + 0.5) * W;
+    const sy = (1 - (p.y * 0.5 + 0.5)) * H;
+    if (sx < minX) minX = sx;
+    if (sx > maxX) maxX = sx;
+    if (sy < minY) minY = sy;
+    if (sy > maxY) maxY = sy;
+  };
+
+  const corners = [
+    [bb.min.x, bb.min.y, bb.min.z], [bb.max.x, bb.min.y, bb.min.z],
+    [bb.min.x, bb.max.y, bb.min.z], [bb.max.x, bb.max.y, bb.min.z],
+    [bb.min.x, bb.min.y, bb.max.z], [bb.max.x, bb.min.y, bb.max.z],
+    [bb.min.x, bb.max.y, bb.max.z], [bb.max.x, bb.max.y, bb.max.z],
+  ];
+  for (const c of corners) addPoint(v.set(c[0], c[1], c[2]));
+
+  const bs = geo.boundingSphere;
+  const c = bs.center.clone().applyMatrix4(mesh.matrixWorld);
+  const r = bs.radius * Math.max(Math.abs(mesh.scale.x), Math.abs(mesh.scale.y), Math.abs(mesh.scale.z));
+  const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+  const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  for (const dir of [right, up]) {
+    addPoint(c.clone().addScaledVector(dir, r));
+    addPoint(c.clone().addScaledVector(dir, -r));
+  }
+
+  const padX = (maxX - minX) * 0.08;
+  const padY = (maxY - minY) * 0.08;
+  const x0 = Math.max(0, Math.floor(minX - padX));
+  const y0 = Math.max(0, Math.floor(minY - padY));
+  const x1 = Math.min(W, Math.ceil(maxX + padX));
+  const y1 = Math.min(H, Math.ceil(maxY + padY));
+  return { x0, y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) };
+}
+
+let exporting = false;
+
+async function capture(isSingle) {
+  if (exporting) return;
+  exporting = true;
+  setDisabled('exSingle', true);
+  setDisabled('exSeq', true);
+
+  const winW = Math.max(1, viewer.clientWidth);
+  const winH = Math.max(1, viewer.clientHeight);
+  const baseW = winW, baseH = winH;
+  const MAX_RENDER = 8192;
+  const AA = Math.max(1, Math.min(4, Math.floor(MAX_RENDER / baseW), Math.floor(MAX_RENDER / baseH)));
+  const prevPR = renderer.getPixelRatio();
+  const transparent = exportTransparent;
+
+  renderer.setPixelRatio(1);
+  renderer.setSize(baseW * AA, baseH * AA, false);
+  const W = baseW * AA, H = baseH * AA;
+
+  const isDiamond = objectType === 'diamond';
+  const totalAngle = isDiamond
+    ? (Math.PI * 2) / Math.max(1, Math.round(diamondCfg.facets))
+    : (Number(exRotate.value) === 180 ? Math.PI : Math.PI * 2);
+  const frames = isSingle ? 1 : exportFrames;
+  const step = frames > 1 ? totalAngle / frames : 0;
+  const base = objectSpin.rotation[spinState.axis];
+
+  objectSpin.updateMatrixWorld(true);
+  camera.updateMatrixWorld(true);
+
+  // Keep the preview camera (position/zoom/env-relative angle), but crop tightly to the object.
+  const box = computeBox(W, H);
+
+  const outW = Math.max(1, Math.round(box.w / AA));
+  const outH = Math.max(1, Math.round(box.h / AA));
+  outCanvas.width = outW; outCanvas.height = outH;
+  maskCanvas.width = outW; maskCanvas.height = outH;
+  outCtx.imageSmoothingEnabled = true;
+  outCtx.imageSmoothingQuality = 'high';
+  maskCtx.imageSmoothingEnabled = true;
+  maskCtx.imageSmoothingQuality = 'high';
+  setNoteText(exInfo, tf('Кадр: {w}×{h} px × {n} ({aa}× SSAA)', { w: outW, h: outH, n: frames, aa: AA }));
+
+  const prefix = (exPrefix.value || 'object').replace(/[^\w\-]+/g, '_');
+  const zipMode = !isSingle && exportZip;
+  const zipFiles = [];
+
+  const gl = renderer.getContext();
+  const glY = Math.max(0, H - box.y0 - box.h);
+  if (colorCanvas.width !== box.w || colorCanvas.height !== box.h) {
+    colorCanvas.width = box.w; colorCanvas.height = box.h;
+  }
+  const colorImg = colorCtx.createImageData(box.w, box.h);
+  const colorU32 = new Uint32Array(colorImg.data.buffer);
+  const readBuf = new Uint8Array(box.w * box.h * 4);
+  const rowBytes = box.w * 4;
+
+  const prevTransmission = diamondMaterial.transmission;
+
+  for (let i = 0; i < frames; i++) {
+    objectSpin.rotation[spinState.axis] = base + step * i;
+    objectSpin.updateMatrixWorld(true);
+
+    // Color pass with full material (transmission preserved) over the environment background.
+    scene.overrideMaterial = null;
+    if (diamond.visible && prevTransmission > 0 && diamondMaterial.transmission <= 0) {
+      diamondMaterial.transmission = prevTransmission;
+      diamondMaterial.needsUpdate = true;
+    }
+    applySceneBackground(false);
+    renderer.setClearAlpha(1);
+    renderer.render(scene, camera);
+
+    // Read back pixels straight from the drawing buffer so low-alpha glass keeps its RGB.
+    renderer.setRenderTarget(null);
+    gl.readPixels(box.x0, glY, box.w, box.h, gl.RGBA, gl.UNSIGNED_BYTE, readBuf);
+    for (let y = 0; y < box.h; y++) {
+      const src = (box.h - 1 - y) * rowBytes;
+      colorImg.data.set(readBuf.subarray(src, src + rowBytes), y * rowBytes);
+    }
+    for (let k = 0; k < colorU32.length; k++) colorU32[k] |= 0xFF000000;
+    colorCtx.putImageData(colorImg, 0, 0);
+
+    outCtx.clearRect(0, 0, outW, outH);
+    outCtx.drawImage(colorCanvas, 0, 0, box.w, box.h, 0, 0, outW, outH);
+
+    if (transparent) {
+      // Silhouette mask: force the material opaque so the mask is solid, not just the rim.
+      if (diamond.visible && diamondMaterial.transmission > 0) {
+        diamondMaterial.transmission = 0;
+        diamondMaterial.needsUpdate = true;
+      }
+      scene.background = null;
+      scene.overrideMaterial = maskMaterial;
+      renderer.setClearAlpha(0);
+      renderer.render(scene, camera);
+      maskCtx.clearRect(0, 0, outW, outH);
+      maskCtx.drawImage(renderer.domElement, box.x0, box.y0, box.w, box.h, 0, 0, outW, outH);
+      scene.overrideMaterial = null;
+      outCtx.globalCompositeOperation = 'destination-in';
+      outCtx.drawImage(maskCanvas, 0, 0);
+      outCtx.globalCompositeOperation = 'source-over';
+    }
+
+    const name = isSingle ? `${prefix}_${Date.now()}.png` : `${prefix}_${String(i).padStart(3, '0')}.png`;
+    applyGradientCtx(outCtx, outW, outH);
+    if (zipMode) {
+      zipFiles.push({ name, data: await canvasToUint8(outCanvas) });
+      setNoteText(exInfo, tf('Рендер {i}/{n} · {w}×{h} px', { i: i + 1, n: frames, w: outW, h: outH }));
+    } else {
+      await downloadCanvas(outCanvas, name);
+      setNoteText(exInfo, tf('Скачано {i}/{n}', { i: i + 1, n: frames }));
+    }
+  }
+
+  if (zipMode && zipFiles.length) {
+    setNoteText(exInfo, tf('Упаковка ZIP ({n} кадр.)…', { n: zipFiles.length }));
+    downloadZip(buildZip(zipFiles), `${prefix}_png_sequence.zip`);
+  }
+
+  objectSpin.rotation[spinState.axis] = base;
+  if (diamond.visible && diamondMaterial.transmission !== prevTransmission) {
+    diamondMaterial.transmission = prevTransmission;
+    diamondMaterial.needsUpdate = true;
+  }
+  scene.overrideMaterial = null;
+  exporting = false;
+  applySceneBackground(false);
+  renderer.setClearAlpha(1);
+  renderer.setPixelRatio(prevPR);
+  resizeRenderer();
+
+  setDisabled('exSingle', false);
+  setDisabled('exSeq', false);
+  setNoteText(exInfo, tf('Готово: {n} кадр(ов)', { n: frames }) + (zipMode ? ' (ZIP)' : ''));
+}
+
+document.getElementById('exSingle').addEventListener('click', () => capture(true));
+document.getElementById('exSeq').addEventListener('click', () => capture(false));
+
+function collectSettings() {
+  return {
+    version: 2,
+    objectType,
+    coin: {
+      geometry: { ...geo },
+      reeding: { ...reeding },
+      groove: { ...groove },
+      profile: {
+        enabled: profile.enabled, side: profile.side,
+        points: profile.points.map((p) => ({ r: p.r, h: p.h, smooth: p.smooth, ease: p.ease })),
+      },
+      relief: {
+        enabled: relief.enabled, height: relief.height, invert: relief.invert, scale: relief.scale,
+        offsetX: relief.offsetX, offsetZ: relief.offsetZ, dataURL: relief.dataURL,
+      },
+      relief2: {
+        enabled: relief2.enabled, height: relief2.height, invert: relief2.invert, scale: relief2.scale,
+        offsetX: relief2.offsetX, offsetZ: relief2.offsetZ, dataURL: relief2.dataURL,
+      },
+      normalMap: {
+        enabled: normalMapCfg.enabled, pattern: normalMapCfg.pattern, strength: normalMapCfg.strength,
+        frequency: normalMapCfg.frequency, scale: normalMapCfg.scale, offsetX: normalMapCfg.offsetX, offsetZ: normalMapCfg.offsetZ,
+        maskEnabled: normalMapCfg.maskEnabled, maskInvert: normalMapCfg.maskInvert, maskScale: normalMapCfg.maskScale,
+        maskOffsetX: normalMapCfg.maskOffsetX, maskOffsetZ: normalMapCfg.maskOffsetZ, maskDataURL: normalMapCfg.maskDataURL,
+        ringEnabled: normalMapCfg.ringEnabled, ringInner: normalMapCfg.ringInner, ringOuter: normalMapCfg.ringOuter, ringSoft: normalMapCfg.ringSoft,
+      },
+      material: {
+        color: '#' + material.color.getHexString(), metalness: material.metalness, roughness: material.roughness,
+        envMapIntensity: material.envMapIntensity, clearcoat: material.clearcoat,
+        clearcoatRoughness: material.clearcoatRoughness, preset: matPresetSelect.value,
+      },
+    },
+    diamond: {
+      cfg: { ...diamondCfg },
+      ior: diamondMaterial.ior, thickness: diamondMaterial.thickness,
+      dispersion: diamondMaterial.dispersion != null ? diamondMaterial.dispersion : null,
+      envMapIntensity: diamondMaterial.envMapIntensity,
+      color: '#' + diamondMaterial.color.getHexString(), roughness: diamondMaterial.roughness,
+    },
+    env: {
+      background: envConfig.background, showEnvBg, mode: envMode,
+      gradient: envConfig.gradient.map((s) => ({ pos: s.pos, color: s.color })),
+      spots: envConfig.spots.map((s) => ({ u: s.u, v: s.v, size: s.size, strength: s.strength, color: s.color })),
+      imageDataURL: envImageDataURL,
+    },
+    scene: {
+      lightCount: keyLights.filter((l) => l.visible).length,
+      lightIntensity: keyLights[0] ? keyLights[0].intensity : 30,
+      exposure: renderer.toneMappingExposure,
+      autoSpin: spinState.auto, spinAxis: spinState.axis, spinAngle: objectSpin.rotation[spinState.axis],
+    },
+    gradientMap: { enabled: gradientMap.enabled, mix: gradientMap.mix, stops: gradientMap.stops.map((s) => ({ pos: s.pos, color: s.color })) },
+    export: { frames: exportFrames, prefix: exPrefix.value, transparent: exportTransparent, rotate: Number(exRotate.value), zip: exportZip },
+    camera: { position: camera.position.toArray(), target: controls.target.toArray() },
+  };
+}
+
+function applySettings(o) {
+  if (!o || typeof o !== 'object') return;
+
+  if (o.coin) {
+    const c = o.coin;
+    if (c.geometry) Object.assign(geo, c.geometry);
+    if (c.reeding) Object.assign(reeding, c.reeding);
+    if (c.groove) Object.assign(groove, c.groove);
+    if (c.profile) {
+      if (c.profile.enabled != null) profile.enabled = !!c.profile.enabled;
+      if (c.profile.side) profile.side = c.profile.side;
+      if (Array.isArray(c.profile.points) && c.profile.points.length >= 2) {
+        profile.points = c.profile.points
+          .map((p) => ({
+            r: clamp(Number(p.r) || 0, 0, 1),
+            h: clamp(Number(p.h) || 0, -PROFILE_YRANGE, PROFILE_YRANGE),
+            smooth: p.smooth != null ? clamp(Number(p.smooth), 0, 1) : 0.6,
+            ease: p.ease != null ? clamp(Number(p.ease), 0, 1) : 1,
+          }))
+          .sort((a, b) => a.r - b.r);
+        prSelected = profile.points[0];
+      }
+    }
+    for (const slotName of ['relief', 'relief2']) {
+      const src = c[slotName];
+      if (!src) continue;
+      const slot = slotName === 'relief' ? relief : relief2;
+      slot.enabled = !!src.enabled;
+      if (src.height != null) slot.height = src.height;
+      slot.invert = !!src.invert;
+      if (src.scale != null) slot.scale = src.scale;
+      if (src.offsetX != null) slot.offsetX = src.offsetX;
+      if (src.offsetZ != null) slot.offsetZ = src.offsetZ;
+      if (src.dataURL) {
+        const img = new Image();
+        img.onload = () => { setReliefImageFor(slot, img); slot.dataURL = src.dataURL; scheduleGeometry(); };
+        img.src = src.dataURL;
+      }
+    }
+    if (c.normalMap) {
+      const n = c.normalMap;
+      if (n.enabled != null) normalMapCfg.enabled = !!n.enabled;
+      if (n.pattern) normalMapCfg.pattern = n.pattern;
+      if (n.strength != null) normalMapCfg.strength = n.strength;
+      if (n.frequency != null) normalMapCfg.frequency = n.frequency;
+      if (n.scale != null) normalMapCfg.scale = n.scale;
+      if (n.offsetX != null) normalMapCfg.offsetX = n.offsetX;
+      if (n.offsetZ != null) normalMapCfg.offsetZ = n.offsetZ;
+      if (n.maskEnabled != null) normalMapCfg.maskEnabled = !!n.maskEnabled;
+      if (n.maskInvert != null) normalMapCfg.maskInvert = !!n.maskInvert;
+      if (n.maskScale != null) normalMapCfg.maskScale = n.maskScale;
+      if (n.maskOffsetX != null) normalMapCfg.maskOffsetX = n.maskOffsetX;
+      if (n.maskOffsetZ != null) normalMapCfg.maskOffsetZ = n.maskOffsetZ;
+      if (n.ringEnabled != null) normalMapCfg.ringEnabled = !!n.ringEnabled;
+      if (n.ringInner != null) normalMapCfg.ringInner = clamp(Number(n.ringInner), 0, 1);
+      if (n.ringOuter != null) normalMapCfg.ringOuter = clamp(Number(n.ringOuter), 0, 1);
+      if (n.ringSoft != null) normalMapCfg.ringSoft = clamp(Number(n.ringSoft), 0.002, 0.3);
+      if (n.maskDataURL) {
+        const img = new Image();
+        img.onload = () => { setNormalMaskFromSource(img); normalMapCfg.maskDataURL = n.maskDataURL; scheduleNormalMap(); };
+        img.src = n.maskDataURL;
+      } else {
+        normalMapCfg.maskGrid = null;
+        normalMapCfg.maskDataURL = null;
+      }
+    }
+    if (c.material) {
+      const m = c.material;
+      if (m.color) material.color.set(m.color);
+      if (m.metalness != null) material.metalness = m.metalness;
+      if (m.roughness != null) material.roughness = m.roughness;
+      if (m.envMapIntensity != null) material.envMapIntensity = m.envMapIntensity;
+      if (m.clearcoat != null) material.clearcoat = m.clearcoat;
+      if (m.clearcoatRoughness != null) material.clearcoatRoughness = m.clearcoatRoughness;
+      if (m.preset) matPresetSelect.value = m.preset;
+    }
+  }
+
+  if (o.diamond) {
+    const d = o.diamond;
+    if (d.cfg) {
+      if (d.cfg.facets != null) diamondCfg.facets = Number(d.cfg.facets);
+      if (d.cfg.chamfer != null) diamondCfg.chamfer = Number(d.cfg.chamfer);
+      for (const def of dmGeoDefs) if (d.cfg[def.key] != null) diamondCfg[def.key] = Number(d.cfg[def.key]);
+    }
+    if (d.ior != null) diamondMaterial.ior = Number(d.ior);
+    if (d.thickness != null) diamondMaterial.thickness = Number(d.thickness);
+    if (d.dispersion != null && diamondMaterial.dispersion != null) diamondMaterial.dispersion = Number(d.dispersion);
+    if (d.envMapIntensity != null) diamondMaterial.envMapIntensity = Number(d.envMapIntensity);
+    if (d.color) diamondMaterial.color.set(d.color);
+    if (d.roughness != null) diamondMaterial.roughness = Number(d.roughness);
+  }
+
+  if (o.env) {
+    const e = o.env;
+    if (e.background) envConfig.background = e.background;
+    if (e.showEnvBg != null) showEnvBg = !!e.showEnvBg;
+    if (Array.isArray(e.gradient)) envConfig.gradient = e.gradient.map((s, i, arr) => ({ pos: s.pos != null ? s.pos : i / Math.max(1, arr.length - 1), color: s.color || '#000000' }));
+    if (Array.isArray(e.spots)) envConfig.spots = e.spots.map((s) => ({ u: Number(s.u) || 0, v: s.v != null ? Number(s.v) : 0, size: s.size != null ? Number(s.size) : 0.15, strength: s.strength != null ? Number(s.strength) : 30, color: s.color || '#ffffff' }));
+    if (e.imageDataURL) {
+      envImageDataURL = e.imageDataURL;
+      envMode = e.mode || 'image';
+      loadEnvImageFromURL(envImageDataURL);
+    } else {
+      if (envImageTex) { envImageTex.dispose(); envImageTex = null; }
+      envImageDataURL = null;
+      envMode = e.mode || 'procedural';
+    }
+  }
+
+  if (o.scene) {
+    if (o.scene.lightCount != null) keyLights.forEach((l, i) => { l.visible = i < o.scene.lightCount; });
+    if (o.scene.lightIntensity != null) keyLights.forEach((l) => { l.intensity = o.scene.lightIntensity; });
+    if (o.scene.exposure != null) renderer.toneMappingExposure = o.scene.exposure;
+    if (o.scene.autoSpin != null) spinState.auto = !!o.scene.autoSpin;
+    if (o.scene.spinAxis) spinState.axis = o.scene.spinAxis;
+    if (o.scene.spinAngle != null) objectSpin.rotation[spinState.axis] = o.scene.spinAngle;
+  }
+
+  if (o.gradientMap) {
+    if (o.gradientMap.enabled != null) gradientMap.enabled = !!o.gradientMap.enabled;
+    if (o.gradientMap.mix != null) gradientMap.mix = o.gradientMap.mix;
+    if (Array.isArray(o.gradientMap.stops) && o.gradientMap.stops.length >= 2) {
+      gradientMap.stops = o.gradientMap.stops.map((s) => ({ pos: clamp(Number(s.pos) || 0, 0, 1), color: s.color || '#ffffff' }));
+      gradientMap.stops.sort((a, b) => a.pos - b.pos);
+      gmSelected = gradientMap.stops[0];
+    }
+    rebuildGradLUT();
+    gmDraw();
+    gmSyncControls();
+    updateGradOverlay();
+  }
+
+  if (o.export) {
+    if (o.export.frames != null) exportFrames = o.export.frames;
+    if (o.export.prefix != null) exPrefix.value = o.export.prefix;
+    if (o.export.transparent != null) exportTransparent = !!o.export.transparent;
+    if (o.export.rotate != null) exRotate.value = String(o.export.rotate);
+    if (o.export.zip != null) exportZip = !!o.export.zip;
+  }
+
+  const type = o.objectType === 'diamond' ? 'diamond' : 'coin';
+  objectTypeSelect.value = type;
+  exRotate.disabled = type === 'diamond';
+
+  if (o.camera && Array.isArray(o.camera.position) && Array.isArray(o.camera.target)) {
+    camera.position.fromArray(o.camera.position);
+    controls.target.fromArray(o.camera.target);
+    controls.update();
+    setObjectType(type, false);
+  } else {
+    setObjectType(type, true);
+  }
+
+  syncers.forEach((s) => s());
+  prSyncControls();
+  syncSymmetryUI();
+  applySceneBackground();
+  drawEditor();
+  syncSpotControls();
+  rebuildGeometryNow();
+  rebuildDiamondGeometry();
+  updateNormalMap();
+  rebuildEnv(1);
+}
+
+document.getElementById('exSave').addEventListener('click', () => {
+  const data = JSON.stringify(collectSettings(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (exPrefix.value || 'object') + '-settings.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+});
+
+const exFile = document.getElementById('exFile');
+document.getElementById('exLoad').addEventListener('click', () => exFile.click());
+exFile.addEventListener('change', () => {
+  const f = exFile.files && exFile.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { applySettings(JSON.parse(r.result)); }
+    catch (err) { alert(t('Не удалось прочитать JSON: ') + err.message); }
+  };
+  r.readAsText(f);
+  exFile.value = '';
+});
+
+const root = document.documentElement;
+const THEME_KEY = 'objEditor.theme';
+const CONTRAST_KEY = 'objEditor.contrast';
+const FONTSIZE_KEY = 'objEditor.fontsize';
+const SLIDERWIDTH_KEY = 'objEditor.sliderwidth';
+const MENUPADDING_KEY = 'objEditor.menupadding';
+const DIVIDERS_KEY = 'objEditor.dividers';
+const themeEl = document.getElementById('theme');
+const contrastEl = document.getElementById('contrast');
+const fontsizeEl = document.getElementById('fontsize');
+const sliderwidthEl = document.getElementById('sliderwidth');
+const menupaddingEl = document.getElementById('menupadding');
+const dividersEl = document.getElementById('dividers');
+
+function applyTheme(value) {
+  const brightness = Math.round((value / 100) * 255);
+  root.style.setProperty('--bg', brightness);
+  const dark = brightness <= 127;
+  root.style.setProperty('--fg-r', dark ? 255 : 0);
+  root.style.setProperty('--fg-g', dark ? 255 : 0);
+  root.style.setProperty('--fg-b', dark ? 255 : 0);
+}
+function applyContrast(v) { root.style.setProperty('--contrast', v / 100); }
+function applyFontsize(v) { root.style.setProperty('--font-size', v); scheduleRefreshLabels(); }
+function applySliderWidth(v) { root.style.setProperty('--slider-width', v + 'px'); scheduleRefreshLabels(); }
+function applyMenuPadding(v) { root.style.setProperty('--menu-padding', v + 'px'); scheduleRefreshLabels(); }
+function applyDividers(on) { root.classList.toggle('hide-dividers', !on); }
+
+const savedTheme = localStorage.getItem(THEME_KEY);
+themeEl.value = savedTheme !== null ? savedTheme : 25;
+const savedContrast = localStorage.getItem(CONTRAST_KEY);
+contrastEl.value = savedContrast !== null ? savedContrast : 100;
+const savedFont = localStorage.getItem(FONTSIZE_KEY);
+fontsizeEl.value = savedFont !== null ? savedFont : 15;
+const savedWidth = localStorage.getItem(SLIDERWIDTH_KEY);
+sliderwidthEl.value = savedWidth !== null ? savedWidth : 168;
+const savedMenuPadding = localStorage.getItem(MENUPADDING_KEY);
+menupaddingEl.value = savedMenuPadding !== null ? savedMenuPadding : 32;
+const savedDividers = localStorage.getItem(DIVIDERS_KEY);
+dividersEl.checked = savedDividers !== null ? savedDividers === '1' : true;
+
+themeEl.addEventListener('input', () => { applyTheme(themeEl.value); localStorage.setItem(THEME_KEY, themeEl.value); });
+contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); localStorage.setItem(CONTRAST_KEY, contrastEl.value); });
+fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); localStorage.setItem(FONTSIZE_KEY, fontsizeEl.value); });
+sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); localStorage.setItem(SLIDERWIDTH_KEY, sliderwidthEl.value); });
+menupaddingEl.addEventListener('input', () => { applyMenuPadding(menupaddingEl.value); localStorage.setItem(MENUPADDING_KEY, menupaddingEl.value); });
+dividersEl.addEventListener('change', () => { applyDividers(dividersEl.checked); localStorage.setItem(DIVIDERS_KEY, dividersEl.checked ? '1' : '0'); });
+
+applyTheme(themeEl.value);
+applyContrast(contrastEl.value);
+applyFontsize(fontsizeEl.value);
+applySliderWidth(sliderwidthEl.value);
+applyMenuPadding(menupaddingEl.value);
+applyDividers(dividersEl.checked);
+
+tagI18n();
+const langSelectEl = document.getElementById('langSelect');
+if (langSelectEl) {
+  langSelectEl.value = lang;
+  langSelectEl.addEventListener('change', () => {
+    lang = langSelectEl.value === 'en' ? 'en' : 'ru';
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  });
+}
+applyLang();
+
+document.getElementById('resetAll').addEventListener('click', () => {
+  if (!confirm(t('Сбросить все настройки редактора?'))) return;
+  localStorage.removeItem('objEditor.settings');
+  localStorage.removeItem(CAMDIST_PREFIX + 'coin');
+  localStorage.removeItem(CAMDIST_PREFIX + 'diamond');
+  location.reload();
+});
+
+const SPLIT_KEY = 'objEditor.split';
+const resizer = document.getElementById('resizer');
+const panelLeft = document.querySelector('.menu');
+const layout = document.querySelector('.app');
+
+function getMaxLeft() { return layout.getBoundingClientRect().width - resizer.offsetWidth; }
+function setLeft(px) {
+  const max = getMaxLeft();
+  px = Math.max(0, Math.min(max, px));
+  panelLeft.style.width = px + 'px';
+}
+function applySplitPercent(p) { setLeft(getMaxLeft() * p / 100); }
+
+const savedSplit = localStorage.getItem(SPLIT_KEY);
+applySplitPercent(savedSplit !== null ? parseFloat(savedSplit) : 42);
+
+let draggingSplit = false;
+let dragOffset = 0;
+function stopDrag(e) {
+  if (!draggingSplit) return;
+  draggingSplit = false;
+  try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+  document.body.style.userSelect = '';
+  const max = getMaxLeft();
+  const pct = ((parseFloat(panelLeft.style.width) || 0) / max) * 100;
+  localStorage.setItem(SPLIT_KEY, pct);
+  scheduleRefreshLabels();
+}
+resizer.addEventListener('pointerdown', (e) => {
+  draggingSplit = true;
+  resizer.setPointerCapture(e.pointerId);
+  document.body.style.userSelect = 'none';
+  dragOffset = e.clientX - resizer.getBoundingClientRect().left;
+});
+resizer.addEventListener('pointermove', (e) => {
+  if (!draggingSplit) return;
+  setLeft(e.clientX - dragOffset - layout.getBoundingClientRect().left);
+});
+resizer.addEventListener('pointerup', stopDrag);
+resizer.addEventListener('pointercancel', stopDrag);
+window.addEventListener('resize', () => {
+  setLeft(parseFloat(panelLeft.style.width) || 0);
+  scheduleRefreshLabels();
+});
+
+function resizeRenderer() {
+  const w = Math.max(1, viewer.clientWidth);
+  const h = Math.max(1, viewer.clientHeight);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+new ResizeObserver(resizeRenderer).observe(viewer);
+window.addEventListener('resize', resizeRenderer);
+
+const clock = new THREE.Clock();
+function animate() {
+  const dt = clock.getDelta();
+  if (!exporting && spinState.auto) {
+    objectSpin.rotation[spinState.axis] += dt * 0.9;
+    syncSpinUI();
+  }
+  controls.update();
+  renderer.render(scene, camera);
+  if (!exporting) { updateGradOverlay(); drawEditor(); }
+  requestAnimationFrame(animate);
+}
+
+setReliefImage(makeDefaultReliefCanvas());
+setReliefImageFor(relief2, makeDefaultReliefCanvas());
+rebuildGeometryNow();
+rebuildDiamondGeometry();
+setObjectType('coin', true);
+material.needsUpdate = true;
+diamondMaterial.needsUpdate = true;
+updateNormalMap();
+syncers.forEach((s) => s());
+drawEditor();
+syncSpotControls();
+rebuildGradLUT();
+gmDraw();
+gmSyncControls();
+prSyncControls();
+rebuildEnv(1);
+resizeRenderer();
+animate();
+
+let restored = false;
+try {
+  const saved = localStorage.getItem('objEditor.settings');
+  if (saved) { applySettings(JSON.parse(saved)); restored = true; }
+} catch (e) {}
+
+restoreCameraDistance();
+
+let saveTimer = null;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    if (exporting) return;
+    saveCameraDistance();
+    try { localStorage.setItem('objEditor.settings', JSON.stringify(collectSettings())); } catch (e) {}
+  }, 600);
+}
+window.addEventListener('pointerup', scheduleSave);
+window.addEventListener('wheel', scheduleSave, { passive: true });
+setInterval(scheduleSave, 10000);
+</script>
+</body>
+</html>
