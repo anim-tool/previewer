@@ -632,6 +632,7 @@ const I18N = {
     'Готово: {n} кадр(ов)': 'Done: {n} frame(s)',
     'Не удалось прочитать JSON: ': 'Failed to read JSON: ',
     'Сбросить все настройки редактора?': 'Reset all editor settings?',
+    'Подтвердить сброс': 'Confirm reset',
     'Градиент': 'Gradient',
     'Центр': 'Center',
     'Край': 'Edge',
@@ -3703,13 +3704,51 @@ if (langSelectEl) {
 }
 applyLang();
 
-document.getElementById('resetAll').addEventListener('click', () => {
-  if (!confirm(t('Сбросить все настройки редактора?'))) return;
-  localStorage.removeItem('objEditor.settings');
-  localStorage.removeItem(CAMDIST_PREFIX + 'coin');
-  localStorage.removeItem(CAMDIST_PREFIX + 'diamond');
-  location.reload();
-});
+let resetting = false;
+let resetArmed = false;
+let resetArmTimer = null;
+
+const resetBtn = document.getElementById('resetAll');
+const resetLabel = resetBtn ? resetBtn.querySelector('.label') : null;
+const RESET_LABEL = (resetLabel && resetLabel.getAttribute('data-i18n')) || (resetLabel ? resetLabel.textContent.trim() : '');
+
+function disarmReset() {
+  resetArmed = false;
+  if (resetLabel) resetLabel.textContent = t(RESET_LABEL);
+}
+
+function doResetAll() {
+  resetting = true;
+  clearTimeout(saveTimer);
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('objEditor.') === 0 && k !== LANG_KEY) keys.push(k);
+    }
+    for (const k of keys) { try { localStorage.removeItem(k); } catch (e) {} }
+  } catch (e) {}
+  try { localStorage.removeItem('objEditor.settings'); } catch (e) {}
+  try { localStorage.removeItem(CAMDIST_PREFIX + 'coin'); } catch (e) {}
+  try { localStorage.removeItem(CAMDIST_PREFIX + 'diamond'); } catch (e) {}
+  try { location.reload(); } catch (e) {}
+  setTimeout(() => { try { location.href = location.href; } catch (e) {} }, 60);
+}
+
+if (resetBtn) {
+  resetBtn.addEventListener('click', () => {
+    if (!resetArmed) {
+      resetArmed = true;
+      if (resetLabel) resetLabel.textContent = t('Подтвердить сброс');
+      clearTimeout(resetArmTimer);
+      resetArmTimer = setTimeout(disarmReset, 3000);
+      return;
+    }
+    clearTimeout(resetArmTimer);
+    disarmReset();
+    doResetAll();
+  });
+}
 
 const SPLIT_KEY = 'objEditor.split';
 const resizer = document.getElementById('resizer');
@@ -3809,9 +3848,10 @@ restoreCameraDistance();
 
 let saveTimer = null;
 function scheduleSave() {
+  if (resetting) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    if (exporting) return;
+    if (resetting || exporting) return;
     saveCameraDistance();
     try { localStorage.setItem('objEditor.settings', JSON.stringify(collectSettings())); } catch (e) {}
   }, 600);
