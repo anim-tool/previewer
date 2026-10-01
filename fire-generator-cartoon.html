@@ -302,9 +302,10 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: c
 (function () {
   try {
     var root = document.documentElement;
-    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
-    var th = s('ui.theme');
-    var theme = th !== null ? parseInt(th, 10) : 25;
+    var cfg = null;
+    try { var raw = localStorage.getItem('fire-generator-cartoon'); cfg = raw ? JSON.parse(raw) : null; } catch (e) { cfg = null; }
+    var th = cfg && cfg.theme ? cfg.theme.theme : null;
+    var theme = th !== null && th !== '' ? parseInt(th, 10) : 25;
     if (isFinite(theme)) {
       var b = Math.round((theme / 100) * 255);
       root.style.setProperty('--bg', b);
@@ -313,14 +314,14 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: c
       root.style.setProperty('--fg-g', d ? 255 : 0);
       root.style.setProperty('--fg-b', d ? 255 : 0);
     }
-    var c = s('ui.contrast');
-    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
-    var f = s('ui.fontsize');
-    if (f !== null) root.style.setProperty('--font-size', f);
-    var mp = s('ui.menupadding');
-    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
-    var sp = s('ui-split');
-    var pct = sp !== null ? parseFloat(sp) : 50;
+    var c = cfg && cfg.theme ? cfg.theme.contrast : null;
+    if (c !== null && c !== undefined && c !== '') root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = cfg && cfg.theme ? cfg.theme.fontsize : null;
+    if (f !== null && f !== undefined && f !== '') root.style.setProperty('--font-size', f);
+    var sw = cfg && cfg.theme ? cfg.theme.sliderwidth : null;
+    if (sw !== null && sw !== undefined && sw !== '') root.style.setProperty('--slider-width', sw + 'px');
+    var sp = cfg && cfg.layout ? cfg.layout.split : null;
+    var pct = sp !== null && sp !== undefined ? parseFloat(sp) : 50;
     if (isFinite(pct)) {
       var st = document.createElement('style');
       st.textContent = '.panel-left{width:calc((100vw - 20px) * ' + (pct / 100) + ')}';
@@ -334,8 +335,8 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: c
   <div class="theme-control">
     <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
     <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
-    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="16"></div>
-    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="15"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="320"></div>
   </div>
 
   <div class="layout">
@@ -419,6 +420,7 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: c
           <div class="cell cell-head"><span class="label">Настройки</span></div>
           <div class="cell cell-btn" id="exSave"><span class="label">Сохранить JSON</span></div>
           <div class="cell cell-btn" id="exLoad"><span class="label">Загрузить JSON</span></div>
+          <div class="cell cell-btn cell-danger" id="resetSettings"><span class="label">Сбросить настройки</span></div>
           <input type="file" id="exFile" accept="application/json,.json" style="display:none">
           <div class="cell-note" id="exInfo">—</div>
 
@@ -441,33 +443,93 @@ input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: c
 <script>
 const root = document.documentElement;
 
-const THEME_KEY = 'ui.theme';
-const CONTRAST_KEY = 'ui.contrast';
-const FONTSIZE_KEY = 'ui.fontsize';
-const SLIDERWIDTH_KEY = 'ui.slider-width';
-const SPLIT_KEY = 'ui-split';
-const CW_KEY = 'canvas.w';
-const CH_KEY = 'canvas.h';
-const SPIKE_COUNT_KEY = 'spike.count';
-const SPIKE_SEED_KEY = 'spike.seed';
-const DISTORT_KEY = 'noise.distort';
-const NOISE_SCALE_KEY = 'noise.scale';
-const NOISE_OCT_KEY = 'noise.octaves';
-const NOISE_GAIN_KEY = 'noise.gain';
-const NOISE_LAC_KEY = 'noise.lacunarity';
-const NOISE_SEED_KEY = 'noise.seed';
-const FIRE_STOPS_KEY = 'grad.color';
-const ALPHA_STOPS_KEY = 'grad.alpha';
-const SPIKE_ANIM_KEY = 'anim.spike.cycles';
-const SPIKE_SIZE_KEY = 'anim.spike.size';
-const SPIKE_POS_KEY = 'anim.spike.pos';
-const NOISE_ANIM_KEY = 'anim.noise.cycles';
-const FRAMES_KEY = 'anim.frames';
-const FPS_KEY = 'anim.fps';
-const EDGE_ERASE_KEY = 'edge.erase';
-const PAD_TOP_KEY = 'pad.top';
-const PAD_SIDE_KEY = 'pad.side';
-const RENDER_DOWN_KEY = 'render.down';
+const STORAGE_KEY = 'fire-generator-cartoon';
+
+let settingsReady = false;
+
+const DEFAULT_SETTINGS = {
+  version: 1,
+  theme: {
+    theme: '25',
+    contrast: '100',
+    fontsize: '15',
+    sliderwidth: '320',
+  },
+  sliders: {
+    canvasW: 600,
+    canvasH: 176,
+    spikeCount: 30,
+    distort: 100,
+    noiseScale: 92,
+    noiseOctaves: 2,
+    noiseGain: 31,
+    noiseLacunarity: 245,
+    spikeCycles: 1,
+    spikeSizeAmp: 34,
+    spikePosAmp: 2,
+    noiseCycles: 2,
+    edgeErase: 20,
+    padTop: 0,
+    padSide: 0,
+    frames: 30,
+    fps: 30,
+    renderDown: 2,
+  },
+  inputs: {
+    spikeSeed: '1',
+    noiseSeed: '1',
+  },
+  colors: {
+    gradientColor: '#fff6c2',
+  },
+  selects: {
+    preset: 'classic',
+  },
+  gradient: [
+    { pos: 0, color: '#fff6c2' },
+    { pos: 0.140625, color: '#fff6c2' },
+    { pos: 0.5649671052631579, color: '#ffd524' },
+    { pos: 0.6110197368421053, color: '#ed7015' },
+    { pos: 0.8412828947368421, color: '#e0230a' },
+    { pos: 1, color: '#e0230a' },
+  ],
+  alpha: [
+    { pos: 0.9695723684210527, a: 1 },
+    { pos: 1, a: 0 },
+  ],
+  layout: {
+    split: 50,
+  },
+};
+
+function readStoredSettings() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    return o && typeof o === 'object' ? o : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+const STORED_SETTINGS = readStoredSettings() || {};
+
+function pickSection(name, fallback) {
+  const src = STORED_SETTINGS[name];
+  return src && typeof src === 'object' ? Object.assign({}, fallback, src) : fallback;
+}
+
+const ACTIVE_SETTINGS = {
+  theme: pickSection('theme', DEFAULT_SETTINGS.theme),
+  sliders: pickSection('sliders', DEFAULT_SETTINGS.sliders),
+  inputs: pickSection('inputs', DEFAULT_SETTINGS.inputs),
+  colors: pickSection('colors', DEFAULT_SETTINGS.colors),
+  selects: pickSection('selects', DEFAULT_SETTINGS.selects),
+  gradient: Array.isArray(STORED_SETTINGS.gradient) && STORED_SETTINGS.gradient.length >= 2 ? STORED_SETTINGS.gradient : DEFAULT_SETTINGS.gradient,
+  alpha: Array.isArray(STORED_SETTINGS.alpha) && STORED_SETTINGS.alpha.length >= 2 ? STORED_SETTINGS.alpha : DEFAULT_SETTINGS.alpha,
+  layout: pickSection('layout', DEFAULT_SETTINGS.layout),
+};
 
 const themeEl = document.getElementById('theme');
 const contrastEl = document.getElementById('contrast');
@@ -496,23 +558,23 @@ const camera = { zoom: 1 };
 
 /* ---------------- animation ---------------- */
 
-let spikeCycles = 2;
-let spikeSizeAmp = 40;
-let spikePosAmp = 30;
-let noiseCycles = 4;
+let spikeCycles = ACTIVE_SETTINGS.sliders.spikeCycles;
+let spikeSizeAmp = ACTIVE_SETTINGS.sliders.spikeSizeAmp;
+let spikePosAmp = ACTIVE_SETTINGS.sliders.spikePosAmp;
+let noiseCycles = ACTIVE_SETTINGS.sliders.noiseCycles;
 
-let frames = 30;
-let fps = 30;
+let frames = ACTIVE_SETTINGS.sliders.frames;
+let fps = ACTIVE_SETTINGS.sliders.fps;
 let frameIndex = 0;
 let playAcc = 0;
 let exporting = false;
 
-let contentW = 400;
-let contentH = 200;
-let padTop = 0;
-let padSide = 0;
-let edgeErase = 0;
-let renderDown = 1;
+let contentW = ACTIVE_SETTINGS.sliders.canvasW;
+let contentH = ACTIVE_SETTINGS.sliders.canvasH;
+let padTop = ACTIVE_SETTINGS.sliders.padTop;
+let padSide = ACTIVE_SETTINGS.sliders.padSide;
+let edgeErase = ACTIVE_SETTINGS.sliders.edgeErase;
+let renderDown = ACTIVE_SETTINGS.sliders.renderDown;
 
 let lastFrameTs = 0;
 let dirty = true;
@@ -553,15 +615,15 @@ requestAnimationFrame(animFrame);
 
 /* ---------------- spike ---------------- */
 
-let spikeCount = 1;
-let spikeSeed = 1;
+let spikeCount = ACTIVE_SETTINGS.sliders.spikeCount;
+let spikeSeed = Number(ACTIVE_SETTINGS.inputs.spikeSeed);
 
-let distort = 0;
-let noiseScale = 32;
-let noiseOctaves = 4;
-let noiseGain = 50;
-let noiseLacunarity = 200;
-let noiseSeed = 1;
+let distort = ACTIVE_SETTINGS.sliders.distort;
+let noiseScale = ACTIVE_SETTINGS.sliders.noiseScale;
+let noiseOctaves = ACTIVE_SETTINGS.sliders.noiseOctaves;
+let noiseGain = ACTIVE_SETTINGS.sliders.noiseGain;
+let noiseLacunarity = ACTIVE_SETTINGS.sliders.noiseLacunarity;
+let noiseSeed = Number(ACTIVE_SETTINGS.inputs.noiseSeed);
 
 function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -580,21 +642,35 @@ function hexToRgb(hex) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+function normalizeColorStops(arr) {
+  const out = [];
+  for (const s of arr) {
+    if (!s || typeof s !== 'object') continue;
+    let c = String(s.color || '');
+    if (c && c[0] !== '#') c = '#' + c;
+    if (!/^#[0-9a-f]{6}$/i.test(c)) continue;
+    out.push({ pos: clamp01(Number(s.pos) || 0), color: c });
+  }
+  return out.length >= 2 ? out : null;
+}
+
+function normalizeAlphaStops(arr) {
+  const out = [];
+  for (const s of arr) {
+    if (!s || typeof s !== 'object') continue;
+    const a = Number(s.a);
+    if (!isFinite(a)) continue;
+    out.push({ pos: clamp01(Number(s.pos) || 0), a: clamp01(a) });
+  }
+  return out.length >= 2 ? out : null;
+}
+
 const gradient = {
-  stops: [
-    { pos: 0.00, color: '#fff8d6' },
-    { pos: 0.28, color: '#ffd21e' },
-    { pos: 0.55, color: '#ff7b00' },
-    { pos: 0.80, color: '#e8280b' },
-    { pos: 1.00, color: '#3a0500' },
-  ],
+  stops: normalizeColorStops(ACTIVE_SETTINGS.gradient) || normalizeColorStops(DEFAULT_SETTINGS.gradient),
 };
 
 const alphaGradient = {
-  stops: [
-    { pos: 0.00, a: 1.00 },
-    { pos: 1.00, a: 0.00 },
-  ],
+  stops: normalizeAlphaStops(ACTIVE_SETTINGS.alpha) || normalizeAlphaStops(DEFAULT_SETTINGS.alpha),
 };
 
 const GRADIENTS = {
@@ -1047,28 +1123,14 @@ function range(id, get, set, after) {
 
 range('canvasW', () => contentW, (v) => {
   setCanvasSize(v, contentH);
-  try { localStorage.setItem(CW_KEY, String(v)); } catch (e) {}
+  persistSettings();
 });
 range('canvasH', () => contentH, (v) => {
   setCanvasSize(contentW, v);
-  try { localStorage.setItem(CH_KEY, String(v)); } catch (e) {}
+  persistSettings();
 });
 
 /* ---------------- spike + noise settings ---------------- */
-
-const num = (k, d) => {
-  const v = parseFloat(localStorage.getItem(k));
-  return isFinite(v) ? v : d;
-};
-
-spikeCount = num(SPIKE_COUNT_KEY, spikeCount);
-spikeSeed = num(SPIKE_SEED_KEY, spikeSeed);
-distort = num(DISTORT_KEY, distort);
-noiseScale = num(NOISE_SCALE_KEY, noiseScale);
-noiseOctaves = num(NOISE_OCT_KEY, noiseOctaves);
-noiseGain = num(NOISE_GAIN_KEY, noiseGain);
-noiseLacunarity = num(NOISE_LAC_KEY, noiseLacunarity);
-noiseSeed = num(NOISE_SEED_KEY, noiseSeed);
 
 function numberInput(id, get, set) {
   const el = document.getElementById(id);
@@ -1083,83 +1145,45 @@ function numberInput(id, get, set) {
 
 numberInput('spikeSeed', () => spikeSeed, (v) => {
   spikeSeed = v;
-  try { localStorage.setItem(SPIKE_SEED_KEY, String(v)); } catch (e) {}
+  persistSettings();
 });
 numberInput('noiseSeed', () => noiseSeed, (v) => {
   noiseSeed = v;
-  try { localStorage.setItem(NOISE_SEED_KEY, String(v)); } catch (e) {}
+  persistSettings();
 });
 
-function setting(id, key, apply) {
+function setting(id, apply) {
   range(id, apply.get, (v) => {
     apply.set(v);
-    try { localStorage.setItem(key, String(v)); } catch (e) {}
+    persistSettings();
     requestDraw();
   });
 }
 
-setting('spikeCount', SPIKE_COUNT_KEY, { get: () => spikeCount, set: (v) => { spikeCount = v; } });
-setting('distort', DISTORT_KEY, { get: () => distort, set: (v) => { distort = v; } });
-setting('noiseScale', NOISE_SCALE_KEY, { get: () => noiseScale, set: (v) => { noiseScale = v; } });
-setting('noiseOctaves', NOISE_OCT_KEY, { get: () => noiseOctaves, set: (v) => { noiseOctaves = v; } });
-setting('noiseGain', NOISE_GAIN_KEY, { get: () => noiseGain, set: (v) => { noiseGain = v; } });
-setting('noiseLacunarity', NOISE_LAC_KEY, { get: () => noiseLacunarity, set: (v) => { noiseLacunarity = v; } });
+setting('spikeCount', { get: () => spikeCount, set: (v) => { spikeCount = v; } });
+setting('distort', { get: () => distort, set: (v) => { distort = v; } });
+setting('noiseScale', { get: () => noiseScale, set: (v) => { noiseScale = v; } });
+setting('noiseOctaves', { get: () => noiseOctaves, set: (v) => { noiseOctaves = v; } });
+setting('noiseGain', { get: () => noiseGain, set: (v) => { noiseGain = v; } });
+setting('noiseLacunarity', { get: () => noiseLacunarity, set: (v) => { noiseLacunarity = v; } });
 
-spikeCycles = num(SPIKE_ANIM_KEY, spikeCycles);
-spikeSizeAmp = num(SPIKE_SIZE_KEY, spikeSizeAmp);
-spikePosAmp = num(SPIKE_POS_KEY, spikePosAmp);
-noiseCycles = num(NOISE_ANIM_KEY, noiseCycles);
-frames = num(FRAMES_KEY, frames);
-fps = num(FPS_KEY, fps);
+setting('spikeCycles', { get: () => spikeCycles, set: (v) => { spikeCycles = v; } });
+setting('spikeSizeAmp', { get: () => spikeSizeAmp, set: (v) => { spikeSizeAmp = v; } });
+setting('spikePosAmp', { get: () => spikePosAmp, set: (v) => { spikePosAmp = v; } });
+setting('noiseCycles', { get: () => noiseCycles, set: (v) => { noiseCycles = v; } });
+setting('frames', { get: () => frames, set: (v) => { frames = v; } });
+setting('fps', { get: () => fps, set: (v) => { fps = v; } });
 
-setting('spikeCycles', SPIKE_ANIM_KEY, { get: () => spikeCycles, set: (v) => { spikeCycles = v; } });
-setting('spikeSizeAmp', SPIKE_SIZE_KEY, { get: () => spikeSizeAmp, set: (v) => { spikeSizeAmp = v; } });
-setting('spikePosAmp', SPIKE_POS_KEY, { get: () => spikePosAmp, set: (v) => { spikePosAmp = v; } });
-setting('noiseCycles', NOISE_ANIM_KEY, { get: () => noiseCycles, set: (v) => { noiseCycles = v; } });
-setting('frames', FRAMES_KEY, { get: () => frames, set: (v) => { frames = v; } });
-setting('fps', FPS_KEY, { get: () => fps, set: (v) => { fps = v; } });
-
-edgeErase = num(EDGE_ERASE_KEY, edgeErase);
-padTop = num(PAD_TOP_KEY, padTop);
-padSide = num(PAD_SIDE_KEY, padSide);
-renderDown = num(RENDER_DOWN_KEY, renderDown);
-
-setting('edgeErase', EDGE_ERASE_KEY, { get: () => edgeErase, set: (v) => { edgeErase = v; } });
-setting('renderDown', RENDER_DOWN_KEY, { get: () => renderDown, set: (v) => { renderDown = v; } });
-setting('padTop', PAD_TOP_KEY, { get: () => padTop, set: (v) => { padTop = v; setCanvasSize(contentW, contentH); } });
-setting('padSide', PAD_SIDE_KEY, { get: () => padSide, set: (v) => { padSide = v; setCanvasSize(contentW, contentH); } });
+setting('edgeErase', { get: () => edgeErase, set: (v) => { edgeErase = v; } });
+setting('renderDown', { get: () => renderDown, set: (v) => { renderDown = v; } });
+setting('padTop', { get: () => padTop, set: (v) => { padTop = v; setCanvasSize(contentW, contentH); } });
+setting('padSide', { get: () => padSide, set: (v) => { padSide = v; setCanvasSize(contentW, contentH); } });
 
 /* ---------------- gradient ramp editors ---------------- */
 
-function loadStops(key, isAlpha) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    const arr = JSON.parse(raw);
-    if (!Array.isArray(arr) || arr.length < 2) return null;
-    const out = [];
-    for (const s of arr) {
-      if (!s || typeof s !== 'object') continue;
-      const pos = clamp01(Number(s.pos) || 0);
-      if (isAlpha) {
-        const a = Number(s.a);
-        if (!isFinite(a)) continue;
-        out.push({ pos, a: clamp01(a) });
-      } else {
-        let c = String(s.color || '');
-        if (c && c[0] !== '#') c = '#' + c;
-        if (!/^#[0-9a-f]{6}$/i.test(c)) continue;
-        out.push({ pos, color: c });
-      }
-    }
-    return out.length >= 2 ? out : null;
-  } catch (e) {
-    return null;
-  }
-}
-
-function persistStops(key, stops) {
-  try { localStorage.setItem(key, JSON.stringify(stops)); } catch (e) {}
+function persistSettings() {
+  if (!settingsReady) return;
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(collectSettings())); } catch (e) {}
 }
 
 function setDisabled(id, on) {
@@ -1273,7 +1297,7 @@ function gradSyncControls() {
     setNoteText(gradientSelEl, tf('Точек: {n}', { n: gradient.stops.length }));
   }
   gradDraw();
-  persistStops(FIRE_STOPS_KEY, gradient.stops);
+  persistSettings();
   scheduleFireLUT();
 }
 
@@ -1466,7 +1490,7 @@ function alphaSyncControls() {
     setNoteText(alphaSelEl, tf('Точек: {n}', { n: alphaGradient.stops.length }));
   }
   alphaDraw();
-  persistStops(ALPHA_STOPS_KEY, alphaGradient.stops);
+  persistSettings();
   scheduleFireLUT();
 }
 
@@ -1559,16 +1583,16 @@ document.getElementById('alphaAdd').addEventListener('click', () => {
 
 document.getElementById('alphaDel').addEventListener('click', () => alphaDelete(alphaSelected));
 
-/* ---- presets + persisted stops ---- */
+/* ---- presets ---- */
 
-const savedColorStops = loadStops(FIRE_STOPS_KEY, false);
-if (savedColorStops) gradient.stops = savedColorStops;
-const savedAlphaStops = loadStops(ALPHA_STOPS_KEY, true);
-if (savedAlphaStops) alphaGradient.stops = savedAlphaStops;
+const presetEl = document.getElementById('preset');
+if (ACTIVE_SETTINGS.selects && ACTIVE_SETTINGS.selects.preset && GRADIENTS[ACTIVE_SETTINGS.selects.preset]) {
+  presetEl.value = ACTIVE_SETTINGS.selects.preset;
+}
 gradSelected = gradient.stops[1] || gradient.stops[0];
 alphaSelected = alphaGradient.stops[0];
 
-document.getElementById('preset').addEventListener('change', (e) => {
+presetEl.addEventListener('change', (e) => {
   const key = e.target.value;
   if (!key || !GRADIENTS[key]) return;
   gradient.stops = GRADIENTS[key].map((s) => ({ pos: s[0], color: s[1] }));
@@ -1602,6 +1626,12 @@ function collectSettings() {
   const selects = {};
   document.querySelectorAll('.cell-select select[id]').forEach((el) => { selects[el.id] = el.value; });
 
+  const layout = { split: 50 };
+  try {
+    const max = getMaxLeft();
+    layout.split = max > 0 ? ((parseFloat(panelLeft.style.width) || 0) / max) * 100 : 50;
+  } catch (e) {}
+
   return {
     version: 1,
     theme,
@@ -1611,6 +1641,7 @@ function collectSettings() {
     selects,
     gradient: gradient.stops.map((s) => ({ pos: s.pos, color: s.color })),
     alpha: alphaGradient.stops.map((s) => ({ pos: s.pos, a: s.a })),
+    layout,
   };
 }
 
@@ -1618,10 +1649,17 @@ function applySettings(o) {
   if (!o || typeof o !== 'object') return;
 
   if (o.theme) {
-    [['theme', applyTheme], ['contrast', applyContrast], ['fontsize', applyFontsize], ['sliderwidth', applySliderWidth]].forEach((pair) => {
-      const el = document.getElementById(pair[0]);
-      if (el && o.theme[pair[0]] != null) { el.value = o.theme[pair[0]]; pair[1](o.theme[pair[0]]); }
+    ['theme', 'contrast', 'fontsize', 'sliderwidth'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el && o.theme[id] != null) {
+        el.value = o.theme[id];
+        el.dispatchEvent(new Event('input'));
+      }
     });
+  }
+
+  if (o.layout && o.layout.split != null && isFinite(parseFloat(o.layout.split))) {
+    applySplitPercent(parseFloat(o.layout.split));
   }
 
   if (o.sliders) Object.keys(o.sliders).forEach((id) => {
@@ -1685,6 +1723,38 @@ exFile.addEventListener('change', () => {
   };
   r.readAsText(f);
   exFile.value = '';
+});
+
+/* ---- reset to JSON defaults (confirm on the button itself) ---- */
+
+const resetBtn = document.getElementById('resetSettings');
+const resetLabel = resetBtn.querySelector('.label');
+const RESET_TEXT = 'Сбросить настройки';
+const RESET_CONFIRM_TEXT = 'Нажмите ещё раз';
+let resetArmed = false;
+let resetTimer = null;
+
+function resetSettings() {
+  applySettings(DEFAULT_SETTINGS);
+  applyCamera();
+  setNoteText(exInfo, 'Настройки сброшены');
+}
+
+resetBtn.addEventListener('click', () => {
+  if (!resetArmed) {
+    resetArmed = true;
+    resetLabel.textContent = RESET_CONFIRM_TEXT;
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => {
+      resetArmed = false;
+      resetLabel.textContent = RESET_TEXT;
+    }, 3000);
+    return;
+  }
+  clearTimeout(resetTimer);
+  resetArmed = false;
+  resetLabel.textContent = RESET_TEXT;
+  resetSettings();
 });
 
 /* ---------------- sequence render ---------------- */
@@ -1792,19 +1862,15 @@ btnRender.addEventListener('click', renderSequence);
 
 /* ---------------- theme control ---------------- */
 
-const savedTheme = localStorage.getItem(THEME_KEY);
-themeEl.value = savedTheme !== null ? savedTheme : 25;
-const savedContrast = localStorage.getItem(CONTRAST_KEY);
-contrastEl.value = savedContrast !== null ? savedContrast : 100;
-const savedFont = localStorage.getItem(FONTSIZE_KEY);
-fontsizeEl.value = savedFont !== null ? savedFont : 16;
-const savedWidth = localStorage.getItem(SLIDERWIDTH_KEY);
-sliderwidthEl.value = savedWidth !== null ? savedWidth : 168;
+themeEl.value = ACTIVE_SETTINGS.theme.theme;
+contrastEl.value = ACTIVE_SETTINGS.theme.contrast;
+fontsizeEl.value = ACTIVE_SETTINGS.theme.fontsize;
+sliderwidthEl.value = ACTIVE_SETTINGS.theme.sliderwidth;
 
-themeEl.addEventListener('input', () => { applyTheme(themeEl.value); localStorage.setItem(THEME_KEY, themeEl.value); });
-contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); localStorage.setItem(CONTRAST_KEY, contrastEl.value); });
-fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); localStorage.setItem(FONTSIZE_KEY, fontsizeEl.value); });
-sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); localStorage.setItem(SLIDERWIDTH_KEY, sliderwidthEl.value); });
+themeEl.addEventListener('input', () => { applyTheme(themeEl.value); persistSettings(); });
+contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); persistSettings(); });
+fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); persistSettings(); });
+sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); persistSettings(); });
 
 applyTheme(themeEl.value);
 applyContrast(contrastEl.value);
@@ -1825,8 +1891,7 @@ function setLeft(px) {
 }
 function applySplitPercent(p) { setLeft(getMaxLeft() * p / 100); }
 
-const savedSplit = localStorage.getItem(SPLIT_KEY);
-applySplitPercent(savedSplit !== null ? parseFloat(savedSplit) : 50);
+applySplitPercent(parseFloat(ACTIVE_SETTINGS.layout.split));
 
 let draggingSplit = false;
 let dragOffset = 0;
@@ -1835,9 +1900,7 @@ function stopDrag(e) {
   draggingSplit = false;
   try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
   document.body.style.userSelect = '';
-  const max = getMaxLeft();
-  const pct = ((parseFloat(panelLeft.style.width) || 0) / max) * 100;
-  localStorage.setItem(SPLIT_KEY, pct);
+  persistSettings();
 }
 resizer.addEventListener('pointerdown', (e) => {
   draggingSplit = true;
@@ -1857,13 +1920,13 @@ window.addEventListener('resize', () => {
 
 /* ---------------- init ---------------- */
 
-const savedW = parseFloat(localStorage.getItem(CW_KEY));
-const savedH = parseFloat(localStorage.getItem(CH_KEY));
-
-setCanvasSize(isFinite(savedW) ? savedW : 400, isFinite(savedH) ? savedH : 200);
+setCanvasSize(contentW, contentH);
 sliders.canvasW.display(contentW);
 sliders.canvasH.display(contentH);
 applyCamera();
+
+settingsReady = true;
+persistSettings();
 </script>
 </body>
 </html>
