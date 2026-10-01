@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas View</title>
+<style>
+:root {
+  --bg: 64;
+  --fg-r: 255;
+  --fg-g: 255;
+  --fg-b: 255;
+  --font-size: 16;
+  --contrast: 1;
+  --fg: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc: rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width: 168px;
+  --menu-padding: calc(var(--font-size) * 0.75px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)) transparent;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 10%), var(--bgc)); }
+
+body {
+  background-color: var(--bgc);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 100%), var(--bgc));
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+}
+
+.theme-control {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  opacity: 0.1;
+  background: rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.05);
+  color: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  font-size: 12px;
+  z-index: 10;
+}
+.theme-control:hover { opacity: 1; }
+.theme-control > div { display: flex; align-items: center; gap: 4px; }
+.theme-control label { font-size: inherit; }
+.theme-control input[type="range"] { width: 60px; }
+
+.wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.layout { display: flex; height: 100vh; overflow: hidden; }
+.panel-left { flex: 0 0 auto; width: 50%; min-width: 0; overflow: auto; padding: var(--menu-padding); }
+.panel-right {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.resizer { flex: 0 0 20px; cursor: col-resize; position: relative; touch-action: none; }
+.resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 25%), var(--bgc));
+}
+
+label { font-size: calc(0.875 * var(--font-size) * 1px); }
+
+.cells { display: block; font-size: 0; line-height: 1.6; user-select: none; -webkit-user-select: none; }
+.cells hr {
+  border: none;
+  border-top: 1px solid var(--bgc);
+  margin: 3px 0;
+  padding: 0;
+  clear: both;
+}
+
+.cell,
+.adv-slider {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: var(--slider-width);
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  color: inherit;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cell > .label,
+.adv-label {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adv-value {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.adv-slider { --pct: 0; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.adv-slider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--pct) * 1%);
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 22%), var(--bgc));
+  pointer-events: none;
+}
+.adv-slider:focus-visible { outline: 1px solid currentColor; outline-offset: -1px; }
+
+.cell.cell-head { cursor: default; font-weight: 600; background: none; }
+.cell.cell-head > .label { color: color-mix(in srgb, color-mix(in srgb, #e6c35c 35%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc)); }
+
+.cell-note {
+  position: relative;
+  display: inline-block;
+  width: var(--slider-width);
+  max-width: 100%;
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc));
+  line-height: calc(var(--font-size) * 1.5 * 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cell-input:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+
+.cell input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.cell input[type="number"] {
+  padding: 0;
+  border: none;
+  background: color-mix(in srgb, #63d471 6%, transparent);
+  font-size: inherit;
+  height: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-input { width: calc(var(--slider-width) * 2 + 3px); }
+.cell-input > .label { flex: 0 0 auto; width: var(--slider-width); }
+
+.cell-input > .label {
+  background-image:
+    radial-gradient(circle, var(--bgc) calc(var(--font-size) * 0.125px), transparent calc(var(--font-size) * 0.175px)),
+    radial-gradient(circle, var(--bgc) calc(var(--font-size) * 0.125px), transparent calc(var(--font-size) * 0.175px));
+  background-size: calc(var(--font-size) * 0.5px) calc(var(--font-size) * 0.5px);
+  background-position: 0 0, calc(var(--font-size) * 0.25px) calc(var(--font-size) * 0.25px);
+}
+
+.cell-btn {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  border: none;
+  outline: none;
+  border-radius: 999px;
+}
+.cell-btn:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 20%), var(--bgc)); }
+.cell-btn:active { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc)); }
+.cell-danger { color: color-mix(in srgb, color-mix(in srgb, #e05555 45%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc)); }
+.cell[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+
+.cell select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  cursor: pointer;
+}
+.cell select option { background: rgb(var(--bg) var(--bg) var(--bg)); color: rgb(var(--fg-r) var(--fg-g) var(--fg-b)); }
+
+.cell-select { width: calc(var(--slider-width) * 2 + 3px); }
+.cell-select > .label { flex: 0 0 auto; width: var(--slider-width); }
+.cell-select:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+
+#gradientCanvas, #alphaCanvas {
+  display: inline-block;
+  vertical-align: bottom;
+  width: var(--slider-width);
+  height: calc(var(--font-size) * 1.5px);
+  padding: 0;
+  margin: 1px 3px 1px 0;
+  border: none;
+  outline: none;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.cell-color { cursor: pointer; }
+.cell-color input[type="color"] {
+  flex: 0 0 auto;
+  width: 32px;
+  height: calc(var(--font-size) * 1.1 * 1px);
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.cell-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.cell-color input[type="color"]::-webkit-color-swatch { border: none; }
+.cell-color input[type="color"]::-moz-color-swatch { border: none; }
+.cell-color input[type="color"][disabled] { opacity: 0.4; cursor: default; }
+
+#view {
+  display: block;
+  border: 1px solid color-mix(in srgb, var(--fg) calc(var(--contrast) * 55%), var(--bgc));
+  background: #101014;
+  cursor: crosshair;
+  transform-origin: 50% 50%;
+  flex: 0 0 auto;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  color: inherit;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: currentColor; opacity: 0.75; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track { height: 2px; background: currentColor; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: currentColor; border: none; cursor: pointer; }
+</style>
+<script>
+(function () {
+  try {
+    var root = document.documentElement;
+    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var th = s('ui.theme');
+    var theme = th !== null ? parseInt(th, 10) : 25;
+    if (isFinite(theme)) {
+      var b = Math.round((theme / 100) * 255);
+      root.style.setProperty('--bg', b);
+      var d = b <= 127;
+      root.style.setProperty('--fg-r', d ? 255 : 0);
+      root.style.setProperty('--fg-g', d ? 255 : 0);
+      root.style.setProperty('--fg-b', d ? 255 : 0);
+    }
+    var c = s('ui.contrast');
+    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = s('ui.fontsize');
+    if (f !== null) root.style.setProperty('--font-size', f);
+    var mp = s('ui.menupadding');
+    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
+    var sp = s('ui-split');
+    var pct = sp !== null ? parseFloat(sp) : 50;
+    if (isFinite(pct)) {
+      var st = document.createElement('style');
+      st.textContent = '.panel-left{width:calc((100vw - 20px) * ' + (pct / 100) + ')}';
+      document.head.appendChild(st);
+    }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+  <div class="theme-control">
+    <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
+    <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="16"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+  </div>
+
+  <div class="layout">
+    <div class="panel panel-left">
+      <div class="wrap">
+        <div class="cells" id="flow">
+
+          <div class="cell cell-head"><span class="label">Канвас</span></div>
+          <div class="adv-slider" id="canvasW" data-min="16" data-max="1200" data-step="1"><span class="adv-label">Ширина</span><span class="adv-value" id="canvasWVal">400</span></div>
+          <div class="adv-slider" id="canvasH" data-min="16" data-max="600" data-step="1"><span class="adv-label">Высота</span><span class="adv-value" id="canvasHVal">200</span></div>
+
+          <hr>
+          <div class="adv-slider" id="spikeCount" data-min="0" data-max="200" data-step="1"><span class="adv-label">Шипы</span><span class="adv-value" id="spikeCountVal">1</span></div>
+          <div class="cell cell-input"><span class="label">Сид</span><input type="number" id="spikeSeed" value="1" step="1"></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Искажение</span></div>
+          <div class="adv-slider" id="distort" data-min="0" data-max="100" data-step="1"><span class="adv-label">Сила</span><span class="adv-value" id="distortVal">0</span></div>
+          <div class="adv-slider" id="noiseScale" data-min="2" data-max="128" data-step="1"><span class="adv-label">Масштаб</span><span class="adv-value" id="noiseScaleVal">32</span></div>
+          <div class="adv-slider" id="noiseOctaves" data-min="1" data-max="8" data-step="1"><span class="adv-label">Октавы</span><span class="adv-value" id="noiseOctavesVal">4</span></div>
+          <div class="adv-slider" id="noiseGain" data-min="0" data-max="100" data-step="1"><span class="adv-label">Затухание</span><span class="adv-value" id="noiseGainVal">50</span></div>
+          <div class="adv-slider" id="noiseLacunarity" data-min="100" data-max="400" data-step="5"><span class="adv-label">Лакунарность</span><span class="adv-value" id="noiseLacunarityVal">200</span></div>
+          <div class="cell cell-input"><span class="label">Сид шума</span><input type="number" id="noiseSeed" value="1" step="1"></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Анимация шипов</span></div>
+          <div class="adv-slider" id="spikeCycles" data-min="0" data-max="8" data-step="1"><span class="adv-label">Циклы</span><span class="adv-value" id="spikeCyclesVal">2</span></div>
+          <div class="adv-slider" id="spikeSizeAmp" data-min="0" data-max="100" data-step="1"><span class="adv-label">Размер</span><span class="adv-value" id="spikeSizeAmpVal">40</span></div>
+          <div class="adv-slider" id="spikePosAmp" data-min="0" data-max="100" data-step="1"><span class="adv-label">Положение</span><span class="adv-value" id="spikePosAmpVal">30</span></div>
+
+          <div class="cell cell-head"><span class="label">Анимация шума</span></div>
+          <div class="adv-slider" id="noiseCycles" data-min="0" data-max="20" data-step="1"><span class="adv-label">Прокрутка</span><span class="adv-value" id="noiseCyclesVal">4</span></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Края</span></div>
+          <div class="adv-slider" id="edgeErase" data-min="0" data-max="150" data-step="1"><span class="adv-label">Стирание края</span><span class="adv-value" id="edgeEraseVal">0</span></div>
+          <div class="adv-slider" id="padTop" data-min="0" data-max="300" data-step="1"><span class="adv-label">Отступ сверху</span><span class="adv-value" id="padTopVal">0</span></div>
+          <div class="adv-slider" id="padSide" data-min="0" data-max="300" data-step="1"><span class="adv-label">Отступ по краям</span><span class="adv-value" id="padSideVal">0</span></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Рендер</span></div>
+          <div class="adv-slider" id="frames" data-min="8" data-max="240" data-step="1"><span class="adv-label">Кадров</span><span class="adv-value" id="framesVal">30</span></div>
+          <div class="adv-slider" id="fps" data-min="8" data-max="60" data-step="1"><span class="adv-label">FPS</span><span class="adv-value" id="fpsVal">30</span></div>
+          <div class="adv-slider" id="renderDown" data-min="1" data-max="4" data-step="0.25"><span class="adv-label">Уменьшить ×</span><span class="adv-value" id="renderDownVal">1</span></div>
+          <div class="cell cell-btn" id="btnRender"><span class="label">Рендер PNG (ZIP)</span></div>
+          <div class="cell-note" id="rendInfo">—</div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Цвет (градиент)</span></div>
+          <div class="cell cell-select">
+            <span class="label">Пресет</span>
+            <select id="preset">
+              <option value="">— пресет —</option>
+              <option value="classic" selected>Классика</option>
+              <option value="emerald">Изумруд (Dota)</option>
+              <option value="plasma">Плазма (синий)</option>
+              <option value="toxic">Токсин (зелёный)</option>
+              <option value="void">Бездна (фиолет)</option>
+              <option value="ice">Ледяной</option>
+              <option value="candy">Розовый</option>
+              <option value="cartoon">Мультяшный огонь</option>
+            </select>
+          </div>
+          <canvas id="gradientCanvas" width="168" height="24" tabindex="0"></canvas>
+          <div class="cell cell-btn" id="gradientAdd"><span class="label">+ Точка</span></div>
+          <div class="cell cell-btn cell-danger" id="gradientDel"><span class="label">Удалить точку</span></div>
+          <div class="cell cell-color"><span class="label">Цвет точки</span><input type="color" id="gradientColor" value="#ff7b00"></div>
+          <div class="adv-slider" id="gradientPos" data-min="0" data-max="100" data-step="1"><span class="adv-label">Позиция точки</span><span class="adv-value" id="gradientPosVal">0</span></div>
+          <div class="cell-note" id="gradientSel">—</div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Прозрачность (градиент)</span></div>
+          <canvas id="alphaCanvas" width="168" height="24" tabindex="0"></canvas>
+          <div class="cell cell-btn" id="alphaAdd"><span class="label">+ Точка</span></div>
+          <div class="cell cell-btn cell-danger" id="alphaDel"><span class="label">Удалить точку</span></div>
+          <div class="adv-slider" id="alphaVal" data-min="0" data-max="100" data-step="1"><span class="adv-label">Непрозрачность точки</span><span class="adv-value" id="alphaValVal">0</span></div>
+          <div class="adv-slider" id="alphaPos" data-min="0" data-max="100" data-step="1"><span class="adv-label">Позиция точки</span><span class="adv-value" id="alphaPosVal">0</span></div>
+          <div class="cell-note" id="alphaSel">—</div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Настройки</span></div>
+          <div class="cell cell-btn" id="exSave"><span class="label">Сохранить JSON</span></div>
+          <div class="cell cell-btn" id="exLoad"><span class="label">Загрузить JSON</span></div>
+          <input type="file" id="exFile" accept="application/json,.json" style="display:none">
+          <div class="cell-note" id="exInfo">—</div>
+
+          <hr>
+          <div class="cell-note" id="zoomNote">Масштаб: 100%</div>
+          <div class="cell cell-btn" id="resetView"><span class="label">Сбросить камеру</span></div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="resizer" id="resizer"></div>
+
+    <div class="panel panel-right">
+      <canvas id="view" width="400" height="200"></canvas>
+    </div>
+  </div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const root = document.documentElement;
+
+const THEME_KEY = 'ui.theme';
+const CONTRAST_KEY = 'ui.contrast';
+const FONTSIZE_KEY = 'ui.fontsize';
+const SLIDERWIDTH_KEY = 'ui.slider-width';
+const SPLIT_KEY = 'ui-split';
+const CW_KEY = 'canvas.w';
+const CH_KEY = 'canvas.h';
+const SPIKE_COUNT_KEY = 'spike.count';
+const SPIKE_SEED_KEY = 'spike.seed';
+const DISTORT_KEY = 'noise.distort';
+const NOISE_SCALE_KEY = 'noise.scale';
+const NOISE_OCT_KEY = 'noise.octaves';
+const NOISE_GAIN_KEY = 'noise.gain';
+const NOISE_LAC_KEY = 'noise.lacunarity';
+const NOISE_SEED_KEY = 'noise.seed';
+const FIRE_STOPS_KEY = 'grad.color';
+const ALPHA_STOPS_KEY = 'grad.alpha';
+const SPIKE_ANIM_KEY = 'anim.spike.cycles';
+const SPIKE_SIZE_KEY = 'anim.spike.size';
+const SPIKE_POS_KEY = 'anim.spike.pos';
+const NOISE_ANIM_KEY = 'anim.noise.cycles';
+const FRAMES_KEY = 'anim.frames';
+const FPS_KEY = 'anim.fps';
+const EDGE_ERASE_KEY = 'edge.erase';
+const PAD_TOP_KEY = 'pad.top';
+const PAD_SIDE_KEY = 'pad.side';
+const RENDER_DOWN_KEY = 'render.down';
+
+const themeEl = document.getElementById('theme');
+const contrastEl = document.getElementById('contrast');
+const fontsizeEl = document.getElementById('fontsize');
+const sliderwidthEl = document.getElementById('sliderwidth');
+const zoomNoteEl = document.getElementById('zoomNote');
+const view = document.getElementById('view');
+const panelRight = document.querySelector('.panel-right');
+
+function applyTheme(value) {
+  const brightness = Math.round((value / 100) * 255);
+  root.style.setProperty('--bg', brightness);
+  const dark = brightness <= 127;
+  root.style.setProperty('--fg-r', dark ? 255 : 0);
+  root.style.setProperty('--fg-g', dark ? 255 : 0);
+  root.style.setProperty('--fg-b', dark ? 255 : 0);
+  view.style.background = dark ? '#101014' : '#eef0f4';
+}
+function applyContrast(v) { root.style.setProperty('--contrast', v / 100); }
+function applyFontsize(v) { root.style.setProperty('--font-size', v); }
+function applySliderWidth(v) { root.style.setProperty('--slider-width', v + 'px'); }
+
+/* ---------------- canvas + camera ---------------- */
+
+const camera = { zoom: 1 };
+
+/* ---------------- animation ---------------- */
+
+let spikeCycles = 2;
+let spikeSizeAmp = 40;
+let spikePosAmp = 30;
+let noiseCycles = 4;
+
+let frames = 30;
+let fps = 30;
+let frameIndex = 0;
+let playAcc = 0;
+let exporting = false;
+
+let contentW = 400;
+let contentH = 200;
+let padTop = 0;
+let padSide = 0;
+let edgeErase = 0;
+let renderDown = 1;
+
+let lastFrameTs = 0;
+let dirty = true;
+
+function requestDraw() { dirty = true; }
+
+function loopPhase() {
+  const F = Math.max(1, Math.round(frames));
+  return (((frameIndex % F) + F) % F) / F;
+}
+
+function animFrame(ts) {
+  if (!lastFrameTs) lastFrameTs = ts;
+  const dt = Math.min(0.1, Math.max(0, (ts - lastFrameTs) / 1000));
+  lastFrameTs = ts;
+
+  if (!exporting && (spikeCycles > 0 || noiseCycles > 0)) {
+    const F = Math.max(1, Math.round(frames));
+    playAcc += dt;
+    const stepDt = 1 / Math.max(1, fps);
+    let guard = 0;
+    while (playAcc >= stepDt && guard < 10) {
+      playAcc -= stepDt;
+      frameIndex = (frameIndex + 1) % F;
+      guard++;
+    }
+    if (guard >= 10) playAcc = 0;
+    dirty = true;
+  }
+
+  if (dirty && !exporting) {
+    dirty = false;
+    drawSpike();
+  }
+  requestAnimationFrame(animFrame);
+}
+requestAnimationFrame(animFrame);
+
+/* ---------------- spike ---------------- */
+
+let spikeCount = 1;
+let spikeSeed = 1;
+
+let distort = 0;
+let noiseScale = 32;
+let noiseOctaves = 4;
+let noiseGain = 50;
+let noiseLacunarity = 200;
+let noiseSeed = 1;
+
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function hex2rgb(h) {
+  h = String(h).replace('#', '');
+  if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+  const n = parseInt(h, 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function hexToRgb(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex).trim());
+  if (!m) return [255, 255, 255];
+  const n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+const gradient = {
+  stops: [
+    { pos: 0.00, color: '#fff8d6' },
+    { pos: 0.28, color: '#ffd21e' },
+    { pos: 0.55, color: '#ff7b00' },
+    { pos: 0.80, color: '#e8280b' },
+    { pos: 1.00, color: '#3a0500' },
+  ],
+};
+
+const alphaGradient = {
+  stops: [
+    { pos: 0.00, a: 1.00 },
+    { pos: 1.00, a: 0.00 },
+  ],
+};
+
+const GRADIENTS = {
+  classic: [[0, '#fff8d6'], [0.28, '#ffd21e'], [0.55, '#ff7b00'], [0.8, '#e8280b'], [1, '#3a0500']],
+  emerald: [[0, '#f3fff0'], [0.25, '#a8ff6a'], [0.55, '#22c74d'], [0.8, '#0a7a3c'], [1, '#04260f']],
+  plasma: [[0, '#ffffff'], [0.22, '#c9f2ff'], [0.5, '#41a6ff'], [0.78, '#1b3ccc'], [1, '#080a35']],
+  toxic: [[0, '#f6ffe0'], [0.25, '#d9ff3d'], [0.55, '#7dcc18'], [0.8, '#3c7a10'], [1, '#102605']],
+  void: [[0, '#ffe9ff'], [0.25, '#e29cff'], [0.55, '#9a3cff'], [0.8, '#4a108c'], [1, '#150329']],
+  ice: [[0, '#ffffff'], [0.25, '#dff7ff'], [0.55, '#7fd6ff'], [0.8, '#2f7ecf'], [1, '#0a2540']],
+  candy: [[0, '#fff4fb'], [0.25, '#ffc0ec'], [0.55, '#ff4fb0'], [0.8, '#c01273'], [1, '#3a0524']],
+  cartoon: [[0, '#fff6c2'], [0.30, '#fff6c2'], [0.32, '#ffd524'], [0.55, '#ffd524'], [0.57, '#ff8a1e'], [0.80, '#ff8a1e'], [0.82, '#e0230a'], [1, '#e0230a']],
+};
+
+function gradSampleHexText(pos) {
+  const stops = gradient.stops.slice().sort((a, b) => a.pos - b.pos);
+  if (!stops.length) return '#ffffff';
+  if (pos <= stops[0].pos) return stops[0].color;
+  const last = stops[stops.length - 1];
+  if (pos >= last.pos) return last.color;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (pos <= b.pos) {
+      const f = (pos - a.pos) / ((b.pos - a.pos) || 1);
+      const ca = hexToRgb(a.color);
+      const cb = hexToRgb(b.color);
+      const c = [0, 1, 2].map((k) => Math.round(ca[k] + (cb[k] - ca[k]) * f));
+      return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+    }
+  }
+  return last.color;
+}
+
+function alphaSampleAt(pos) {
+  const stops = alphaGradient.stops.slice().sort((a, b) => a.pos - b.pos);
+  if (!stops.length) return 1;
+  if (pos <= stops[0].pos) return stops[0].a;
+  const last = stops[stops.length - 1];
+  if (pos >= last.pos) return last.a;
+  for (let i = 0; i < stops.length - 1; i++) {
+    const a = stops[i];
+    const b = stops[i + 1];
+    if (pos <= b.pos) {
+      const f = (pos - a.pos) / ((b.pos - a.pos) || 1);
+      return a.a + (b.a - a.a) * f;
+    }
+  }
+  return last.a;
+}
+
+function scheduleFireLUT() {
+  requestDraw();
+}
+
+function buildRampLut() {
+  const N = 256;
+  const r = new Uint8Array(N);
+  const g = new Uint8Array(N);
+  const b = new Uint8Array(N);
+  const a = new Uint8Array(N);
+  const stops = gradient.stops.slice().sort((x, y) => x.pos - y.pos).map((s) => ({ pos: s.pos, rgb: hex2rgb(s.color) }));
+  for (let i = 0; i < N; i++) {
+    const t = 1 - i / (N - 1);
+    let col;
+    if (!stops.length) col = [255, 255, 255];
+    else if (t <= stops[0].pos) col = stops[0].rgb;
+    else if (t >= stops[stops.length - 1].pos) col = stops[stops.length - 1].rgb;
+    else {
+      col = stops[stops.length - 1].rgb;
+      for (let j = 0; j < stops.length - 1; j++) {
+        if (t >= stops[j].pos && t <= stops[j + 1].pos) {
+          const f = (t - stops[j].pos) / Math.max(1e-6, stops[j + 1].pos - stops[j].pos);
+          col = [
+            lerp(stops[j].rgb[0], stops[j + 1].rgb[0], f),
+            lerp(stops[j].rgb[1], stops[j + 1].rgb[1], f),
+            lerp(stops[j].rgb[2], stops[j + 1].rgb[2], f),
+          ];
+          break;
+        }
+      }
+    }
+    r[i] = col[0];
+    g[i] = col[1];
+    b[i] = col[2];
+    a[i] = Math.round(clamp01(alphaSampleAt(t)) * 255);
+  }
+  return { r, g, b, a };
+}
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return function () {
+    t = (t + 0x6D2B79F5) | 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hash2(x, y, seed) {
+  let h = (seed ^ Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263)) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+function valueNoise(x, y, seed) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const n00 = hash2(x0, y0, seed);
+  const n10 = hash2(x0 + 1, y0, seed);
+  const n01 = hash2(x0, y0 + 1, seed);
+  const n11 = hash2(x0 + 1, y0 + 1, seed);
+  const a = n00 + (n10 - n00) * u;
+  const b = n01 + (n11 - n01) * u;
+  return a + (b - a) * v;
+}
+
+function fbm(x, y, seed, octaves, lacunarity, gain) {
+  let amp = 1;
+  let freq = 1;
+  let sum = 0;
+  let norm = 0;
+  for (let o = 0; o < octaves; o++) {
+    sum += amp * valueNoise(x * freq, y * freq, seed + o * 1013);
+    norm += amp;
+    amp *= gain;
+    freq *= lacunarity;
+  }
+  return norm > 0 ? sum / norm : 0;
+}
+
+function valueNoisePeriodic(x, y, seed, periodY) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const fx = x - x0;
+  const fy = y - y0;
+  const u = fx * fx * (3 - 2 * fx);
+  const v = fy * fy * (3 - 2 * fy);
+  const wrap = (i) => {
+    let m = i % periodY;
+    if (m < 0) m += periodY;
+    return m;
+  };
+  const ya = wrap(y0);
+  const yb = wrap(y0 + 1);
+  const n00 = hash2(x0, ya, seed);
+  const n10 = hash2(x0 + 1, ya, seed);
+  const n01 = hash2(x0, yb, seed);
+  const n11 = hash2(x0 + 1, yb, seed);
+  const a = n00 + (n10 - n00) * u;
+  const b = n01 + (n11 - n01) * u;
+  return a + (b - a) * v;
+}
+
+function fbmLoop(x, y, seed, octaves, lacunarity, gain, period, phase) {
+  let amp = 1;
+  let freq = 1;
+  let sum = 0;
+  let norm = 0;
+  for (let o = 0; o < octaves; o++) {
+    const per = Math.max(1, Math.round(period * freq));
+    sum += amp * valueNoisePeriodic(x * freq, y * freq + phase * per, seed + o * 1013, per);
+    norm += amp;
+    amp *= gain;
+    freq *= lacunarity;
+  }
+  return norm > 0 ? sum / norm : 0;
+}
+
+function sampleBilinear(buf, w, h, x, y) {
+  if (x < 0 || y < 0 || x > w - 1 || y > h - 1) return 0;
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const x1 = Math.min(x0 + 1, w - 1);
+  const y1 = Math.min(y0 + 1, h - 1);
+  const fx = x - x0;
+  const fy = y - y0;
+  const a = buf[y0 * w + x0];
+  const b = buf[y0 * w + x1];
+  const c = buf[y1 * w + x0];
+  const d = buf[y1 * w + x1];
+  return (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+}
+
+function drawSpike() {
+  const ctx = view.getContext('2d');
+  const W = view.width;
+  const H = view.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const offX = Math.round(padSide);
+  const offY = Math.round(padTop);
+  const cw = Math.max(1, contentW);
+  const ch = Math.max(1, contentH);
+
+  const n = 0.5;
+  const invN = 1 / n;
+  const soft = 1;
+
+  const smooth = (t) => {
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return t * t * (3 - 2 * t);
+  };
+
+  const rand = mulberry32(spikeSeed);
+  const acc = new Float32Array(W * H);
+
+  let bx0 = W;
+  let bx1 = -1;
+  let by0 = H;
+
+  const phase = loopPhase();
+  const animT = phase * Math.PI * 2 * spikeCycles;
+  const sizeAmp = spikeSizeAmp / 100;
+  const posAmp = spikePosAmp / 100;
+
+  for (let k = 0; k < spikeCount; k++) {
+    const baseX = offX + rand() * cw;
+    const maxSize = 0.15 + rand() * 0.85;
+    const sp0 = rand() * Math.PI * 2;
+    const sp1 = rand() * Math.PI * 2;
+
+    const lowSize = Math.max(0.05, maxSize * (1 - sizeAmp));
+    const midSize = (maxSize + lowSize) / 2;
+    const halfSize = (maxSize - lowSize) / 2;
+    const size = midSize + halfSize * Math.sin(animT + sp0);
+
+    const relX = baseX - offX;
+    const posRange = posAmp * cw * 0.4;
+    const posHalf = Math.min(posRange, relX, cw - relX);
+    const cx = baseX + posHalf * Math.sin(animT + sp1);
+
+    const a = cw * 0.42 * size;
+    const b = ch * 0.98 * size;
+    const cy = offY + ch;
+
+    const x0 = Math.max(0, Math.floor(cx - a));
+    const x1 = Math.min(W - 1, Math.ceil(cx + a));
+    const y0 = Math.max(0, Math.floor(cy - b));
+
+    if (x0 < bx0) bx0 = x0;
+    if (x1 > bx1) bx1 = x1;
+    if (y0 < by0) by0 = y0;
+
+    for (let y = y0; y < H; y++) {
+      const vp = Math.pow(Math.abs((y - cy) / b), n);
+      const row = y * W;
+      for (let x = x0; x <= x1; x++) {
+        const r = Math.pow(Math.pow(Math.abs((x - cx) / a), n) + vp, invN);
+        const alpha = smooth((1 - r) / soft);
+        if (alpha <= 0) continue;
+        const idx = row + x;
+        if (alpha > acc[idx]) acc[idx] = alpha;
+      }
+    }
+  }
+
+  let src = acc;
+
+  if (distort > 0 && bx1 >= bx0 && H > 0) {
+    const out = new Float32Array(W * H);
+    const inv = 1 / Math.max(1, noiseScale);
+    const gain = noiseGain / 100;
+    const lac = Math.max(0.01, noiseLacunarity / 100);
+    const oct = Math.max(1, Math.round(noiseOctaves));
+    const ext = Math.ceil(distort) + 1;
+    const rx0 = Math.max(0, bx0 - ext);
+    const rx1 = Math.min(W - 1, bx1 + ext);
+    const ry0 = Math.max(0, by0 - ext);
+    const denom = H > 1 ? H - 1 : 1;
+
+    const nphase = phase;
+    const loopNoise = noiseCycles > 0;
+    const nperiod = Math.max(1, Math.round(noiseCycles));
+
+    for (let y = ry0; y < H; y++) {
+      const fade = 1 - y / denom;
+      const amp = distort * fade;
+      const ny = (y - offY) * inv;
+      const row = y * W;
+      for (let x = rx0; x <= rx1; x++) {
+        if (amp < 0.01) { out[row + x] = acc[row + x]; continue; }
+        const nx = (x - offX) * inv;
+        let n1;
+        let n2;
+        if (loopNoise) {
+          n1 = fbmLoop(nx, ny, noiseSeed, oct, lac, gain, nperiod, nphase);
+          n2 = fbmLoop(nx + 31.7, ny + 17.3, noiseSeed + 911, oct, lac, gain, nperiod, nphase);
+        } else {
+          n1 = fbm(nx, ny, noiseSeed, oct, lac, gain);
+          n2 = fbm(nx + 31.7, ny + 17.3, noiseSeed + 911, oct, lac, gain);
+        }
+        const sx = x + (n1 - 0.5) * 2 * amp;
+        const sy = y + (n2 - 0.5) * 2 * amp;
+        out[row + x] = sampleBilinear(acc, W, H, sx, sy);
+      }
+    }
+
+    src = out;
+  }
+
+  const lut = buildRampLut();
+  const img = ctx.createImageData(W, H);
+  const data = img.data;
+  const er = Math.max(0, Math.round(edgeErase));
+
+  for (let i = 0, p = 0; i < src.length; i++, p += 4) {
+    let intensity = src[i];
+    if (intensity <= 0) continue;
+    if (er > 0) {
+      const x = i % W;
+      const y = (i - x) / W;
+      let dist = y - offY;
+      const dl = x - offX;
+      if (dl < dist) dist = dl;
+      const dr = offX + cw - 1 - x;
+      if (dr < dist) dist = dr;
+      if (dist < er) {
+        if (dist < 0) continue;
+        let m = dist / er;
+        m = m * m * (3 - 2 * m);
+        intensity *= m;
+        if (intensity <= 0) continue;
+      }
+    }
+    let li = (intensity * 255) | 0;
+    if (li > 255) li = 255;
+    const av = lut.a[li];
+    if (av <= 0) continue;
+    data[p] = lut.r[li];
+    data[p + 1] = lut.g[li];
+    data[p + 2] = lut.b[li];
+    data[p + 3] = av;
+  }
+
+  ctx.putImageData(img, 0, 0);
+}
+
+function setCanvasSize(w, h) {
+  contentW = Math.max(1, Math.round(w));
+  contentH = Math.max(1, Math.round(h));
+  const vw = contentW + 2 * Math.round(padSide);
+  const vh = contentH + Math.round(padTop);
+  view.width = vw;
+  view.height = vh;
+  view.style.width = vw + 'px';
+  view.style.height = vh + 'px';
+  requestDraw();
+}
+
+function applyCamera() {
+  view.style.transform = 'scale(' + camera.zoom + ')';
+  zoomNoteEl.textContent = 'Масштаб: ' + Math.round(camera.zoom * 100) + '%';
+}
+
+panelRight.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camera.zoom *= Math.exp(-e.deltaY * 0.0015);
+  if (!isFinite(camera.zoom) || camera.zoom === 0) return;
+  applyCamera();
+}, { passive: false });
+
+document.getElementById('resetView').addEventListener('click', () => {
+  camera.zoom = 1;
+  applyCamera();
+});
+
+/* ---------------- slider component ---------------- */
+
+const sliders = {};
+
+function range(id, get, set, after) {
+  const el = document.getElementById(id);
+  const out = document.getElementById(id + 'Val');
+  const min = parseFloat(el.dataset.min);
+  const max = parseFloat(el.dataset.max);
+  const step = parseFloat(el.dataset.step || '1');
+  let current = min;
+  let disabled = false;
+
+  function clampVal(raw) {
+    const snapped = Math.round((raw - min) / step) * step + min;
+    return parseFloat(Math.max(min, Math.min(max, snapped)).toFixed(10));
+  }
+  function render() {
+    if (out) out.textContent = String(current);
+    el.style.setProperty('--pct', max === min ? 0 : ((current - min) / (max - min)) * 100);
+    el.setAttribute('aria-valuenow', current);
+  }
+  function setDisplay(v) { current = clampVal(v); render(); }
+  function commit(raw) {
+    if (disabled) return;
+    current = clampVal(raw);
+    render();
+    set(current);
+    if (after) after();
+  }
+  function valueFromX(clientX) {
+    const r = el.getBoundingClientRect();
+    const ratio = r.width === 0 ? 0 : (clientX - r.left) / r.width;
+    return min + ratio * (max - min);
+  }
+
+  el.tabIndex = 0;
+  el.setAttribute('role', 'slider');
+  el.setAttribute('aria-valuemin', min);
+  el.setAttribute('aria-valuemax', max);
+
+  el.addEventListener('pointerdown', (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    el.focus();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}
+    el.dataset.dragging = '1';
+    commit(valueFromX(e.clientX));
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (disabled || el.dataset.dragging !== '1') return;
+    commit(valueFromX(e.clientX));
+  });
+  const endDrag = () => { delete el.dataset.dragging; };
+  el.addEventListener('pointerup', endDrag);
+  el.addEventListener('pointercancel', endDrag);
+  el.addEventListener('wheel', (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    commit(current + (e.deltaY < 0 ? -1 : 1) * step);
+  }, { passive: false });
+  el.addEventListener('keydown', (e) => {
+    if (disabled) return;
+    let next = null;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = current + step;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = current - step;
+    else if (e.key === 'Home') next = min;
+    else if (e.key === 'End') next = max;
+    if (next !== null) { e.preventDefault(); commit(next); }
+  });
+
+  setDisplay(get());
+  sliders[id] = { set: commit, display: setDisplay };
+  return el;
+}
+
+/* ---------------- canvas settings ---------------- */
+
+range('canvasW', () => contentW, (v) => {
+  setCanvasSize(v, contentH);
+  try { localStorage.setItem(CW_KEY, String(v)); } catch (e) {}
+});
+range('canvasH', () => contentH, (v) => {
+  setCanvasSize(contentW, v);
+  try { localStorage.setItem(CH_KEY, String(v)); } catch (e) {}
+});
+
+/* ---------------- spike + noise settings ---------------- */
+
+const num = (k, d) => {
+  const v = parseFloat(localStorage.getItem(k));
+  return isFinite(v) ? v : d;
+};
+
+spikeCount = num(SPIKE_COUNT_KEY, spikeCount);
+spikeSeed = num(SPIKE_SEED_KEY, spikeSeed);
+distort = num(DISTORT_KEY, distort);
+noiseScale = num(NOISE_SCALE_KEY, noiseScale);
+noiseOctaves = num(NOISE_OCT_KEY, noiseOctaves);
+noiseGain = num(NOISE_GAIN_KEY, noiseGain);
+noiseLacunarity = num(NOISE_LAC_KEY, noiseLacunarity);
+noiseSeed = num(NOISE_SEED_KEY, noiseSeed);
+
+function numberInput(id, get, set) {
+  const el = document.getElementById(id);
+  el.value = String(get());
+  el.addEventListener('input', () => {
+    const v = parseInt(el.value, 10);
+    if (!isFinite(v)) return;
+    set(v);
+    requestDraw();
+  });
+}
+
+numberInput('spikeSeed', () => spikeSeed, (v) => {
+  spikeSeed = v;
+  try { localStorage.setItem(SPIKE_SEED_KEY, String(v)); } catch (e) {}
+});
+numberInput('noiseSeed', () => noiseSeed, (v) => {
+  noiseSeed = v;
+  try { localStorage.setItem(NOISE_SEED_KEY, String(v)); } catch (e) {}
+});
+
+function setting(id, key, apply) {
+  range(id, apply.get, (v) => {
+    apply.set(v);
+    try { localStorage.setItem(key, String(v)); } catch (e) {}
+    requestDraw();
+  });
+}
+
+setting('spikeCount', SPIKE_COUNT_KEY, { get: () => spikeCount, set: (v) => { spikeCount = v; } });
+setting('distort', DISTORT_KEY, { get: () => distort, set: (v) => { distort = v; } });
+setting('noiseScale', NOISE_SCALE_KEY, { get: () => noiseScale, set: (v) => { noiseScale = v; } });
+setting('noiseOctaves', NOISE_OCT_KEY, { get: () => noiseOctaves, set: (v) => { noiseOctaves = v; } });
+setting('noiseGain', NOISE_GAIN_KEY, { get: () => noiseGain, set: (v) => { noiseGain = v; } });
+setting('noiseLacunarity', NOISE_LAC_KEY, { get: () => noiseLacunarity, set: (v) => { noiseLacunarity = v; } });
+
+spikeCycles = num(SPIKE_ANIM_KEY, spikeCycles);
+spikeSizeAmp = num(SPIKE_SIZE_KEY, spikeSizeAmp);
+spikePosAmp = num(SPIKE_POS_KEY, spikePosAmp);
+noiseCycles = num(NOISE_ANIM_KEY, noiseCycles);
+frames = num(FRAMES_KEY, frames);
+fps = num(FPS_KEY, fps);
+
+setting('spikeCycles', SPIKE_ANIM_KEY, { get: () => spikeCycles, set: (v) => { spikeCycles = v; } });
+setting('spikeSizeAmp', SPIKE_SIZE_KEY, { get: () => spikeSizeAmp, set: (v) => { spikeSizeAmp = v; } });
+setting('spikePosAmp', SPIKE_POS_KEY, { get: () => spikePosAmp, set: (v) => { spikePosAmp = v; } });
+setting('noiseCycles', NOISE_ANIM_KEY, { get: () => noiseCycles, set: (v) => { noiseCycles = v; } });
+setting('frames', FRAMES_KEY, { get: () => frames, set: (v) => { frames = v; } });
+setting('fps', FPS_KEY, { get: () => fps, set: (v) => { fps = v; } });
+
+edgeErase = num(EDGE_ERASE_KEY, edgeErase);
+padTop = num(PAD_TOP_KEY, padTop);
+padSide = num(PAD_SIDE_KEY, padSide);
+renderDown = num(RENDER_DOWN_KEY, renderDown);
+
+setting('edgeErase', EDGE_ERASE_KEY, { get: () => edgeErase, set: (v) => { edgeErase = v; } });
+setting('renderDown', RENDER_DOWN_KEY, { get: () => renderDown, set: (v) => { renderDown = v; } });
+setting('padTop', PAD_TOP_KEY, { get: () => padTop, set: (v) => { padTop = v; setCanvasSize(contentW, contentH); } });
+setting('padSide', PAD_SIDE_KEY, { get: () => padSide, set: (v) => { padSide = v; setCanvasSize(contentW, contentH); } });
+
+/* ---------------- gradient ramp editors ---------------- */
+
+function loadStops(key, isAlpha) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length < 2) return null;
+    const out = [];
+    for (const s of arr) {
+      if (!s || typeof s !== 'object') continue;
+      const pos = clamp01(Number(s.pos) || 0);
+      if (isAlpha) {
+        const a = Number(s.a);
+        if (!isFinite(a)) continue;
+        out.push({ pos, a: clamp01(a) });
+      } else {
+        let c = String(s.color || '');
+        if (c && c[0] !== '#') c = '#' + c;
+        if (!/^#[0-9a-f]{6}$/i.test(c)) continue;
+        out.push({ pos, color: c });
+      }
+    }
+    return out.length >= 2 ? out : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function persistStops(key, stops) {
+  try { localStorage.setItem(key, JSON.stringify(stops)); } catch (e) {}
+}
+
+function setDisabled(id, on) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.setAttribute('aria-disabled', on ? 'true' : 'false');
+  if (el.tagName === 'INPUT') el.disabled = on;
+}
+
+function setNoteText(el, text) { if (el) el.textContent = text; }
+
+function tf(tpl, vars) {
+  return tpl.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null) ? String(vars[k]) : m);
+}
+
+function color(id, get, set) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  el.value = get();
+  el.addEventListener('input', () => set(el.value));
+  return el;
+}
+
+/* ---- color gradient editor ---- */
+
+const gradientCanvas = document.getElementById('gradientCanvas');
+const gradCtx = gradientCanvas.getContext('2d');
+const gradientSelEl = document.getElementById('gradientSel');
+const GR_PAD = 8;
+let GR_W = gradientCanvas.width;
+let GR_H = gradientCanvas.height;
+
+let gradSelected = gradient.stops[1] || gradient.stops[0];
+let gradDragging = false;
+
+function gradSorted() { return gradient.stops.slice().sort((a, b) => a.pos - b.pos); }
+
+function gradResize() {
+  const w = Math.max(1, Math.round(gradientCanvas.clientWidth || 168));
+  const h = Math.max(1, Math.round(gradientCanvas.clientHeight || 24));
+  if (gradientCanvas.width !== w || gradientCanvas.height !== h) {
+    gradientCanvas.width = w;
+    gradientCanvas.height = h;
+  }
+  GR_W = gradientCanvas.width;
+  GR_H = gradientCanvas.height;
+}
+
+function gradX(pos) { return GR_PAD + pos * (GR_W - 2 * GR_PAD); }
+function gradPosFromX(px) { return clamp01((px - GR_PAD) / ((GR_W - 2 * GR_PAD) || 1)); }
+
+function gradDraw() {
+  gradResize();
+  const stops = gradSorted();
+  const g = gradCtx.createLinearGradient(0, 0, GR_W, 0);
+  if (stops.length === 1) {
+    g.addColorStop(0, stops[0].color);
+    g.addColorStop(1, stops[0].color);
+  } else {
+    stops.forEach((s) => g.addColorStop(clamp01(s.pos), s.color));
+  }
+  gradCtx.fillStyle = g;
+  gradCtx.fillRect(0, 0, GR_W, GR_H);
+
+  const cy = GR_H / 2;
+  const r = Math.max(3, Math.min(6, GR_H / 2 - 2));
+  for (const s of stops) {
+    const x = gradX(s.pos);
+    gradCtx.beginPath();
+    gradCtx.moveTo(x, 0);
+    gradCtx.lineTo(x, GR_H);
+    gradCtx.strokeStyle = 'rgba(0,0,0,0.30)';
+    gradCtx.lineWidth = 1;
+    gradCtx.stroke();
+
+    gradCtx.beginPath();
+    gradCtx.arc(x, cy, r, 0, Math.PI * 2);
+    gradCtx.fillStyle = s.color;
+    gradCtx.fill();
+    gradCtx.lineWidth = s === gradSelected ? 3 : 1.5;
+    gradCtx.strokeStyle = s === gradSelected ? '#6fb7ff' : 'rgba(0,0,0,0.55)';
+    gradCtx.stroke();
+  }
+}
+
+function gradHit(px) {
+  let best = null;
+  let bd = Infinity;
+  for (const s of gradient.stops) {
+    const d = Math.abs(px - gradX(s.pos));
+    if (d < 12 && d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+function gradLocal(e) {
+  const r = gradientCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (GR_W / (r.width || 1)) };
+}
+
+function gradSyncControls() {
+  const has = !!gradSelected && gradient.stops.indexOf(gradSelected) >= 0;
+  setDisabled('gradientDel', !has || gradient.stops.length <= 2);
+  setDisabled('gradientColor', !has);
+  if (has) {
+    const gc = document.getElementById('gradientColor');
+    if (gc) gc.value = gradSelected.color;
+    if (sliders.gradientPos) sliders.gradientPos.display(gradSelected.pos * 100);
+    setNoteText(gradientSelEl, tf('Точек: {n} · выбрана #{i} ({p}%)', { n: gradient.stops.length, i: gradient.stops.indexOf(gradSelected) + 1, p: Math.round(gradSelected.pos * 100) }));
+  } else {
+    setNoteText(gradientSelEl, tf('Точек: {n}', { n: gradient.stops.length }));
+  }
+  gradDraw();
+  persistStops(FIRE_STOPS_KEY, gradient.stops);
+  scheduleFireLUT();
+}
+
+function gradSelect(s) {
+  gradSelected = s && gradient.stops.indexOf(s) >= 0 ? s : null;
+  gradSyncControls();
+}
+
+function gradDelete(s) {
+  if (!s || gradient.stops.length <= 2) return;
+  gradient.stops.splice(gradient.stops.indexOf(s), 1);
+  gradSelect(null);
+}
+
+color('gradientColor', () => gradSelected ? gradSelected.color : '#ff7b00', (v) => {
+  if (!gradSelected) return;
+  gradSelected.color = v;
+  gradSyncControls();
+});
+
+range('gradientPos', () => gradSelected ? gradSelected.pos * 100 : 0, (v) => {
+  if (!gradSelected) return;
+  gradSelected.pos = clamp01(v / 100);
+  gradSyncControls();
+});
+
+gradientCanvas.addEventListener('pointerdown', (e) => {
+  gradientCanvas.focus();
+  const { x } = gradLocal(e);
+  const hit = gradHit(x);
+  if (hit) {
+    gradSelect(hit);
+    gradDragging = true;
+    try { gradientCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+  } else {
+    gradSelect(null);
+  }
+});
+gradientCanvas.addEventListener('pointermove', (e) => {
+  if (!gradDragging || !gradSelected) return;
+  const { x } = gradLocal(e);
+  gradSelected.pos = gradPosFromX(x);
+  gradSyncControls();
+});
+function gradEndDrag(e) {
+  if (!gradDragging) return;
+  gradDragging = false;
+  try { gradientCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+}
+gradientCanvas.addEventListener('pointerup', gradEndDrag);
+gradientCanvas.addEventListener('pointercancel', gradEndDrag);
+
+gradientCanvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x } = gradLocal(e);
+  gradDelete(gradHit(x));
+});
+
+gradientCanvas.addEventListener('dblclick', (e) => {
+  const { x } = gradLocal(e);
+  const hit = gradHit(x);
+  if (hit) { gradDelete(hit); return; }
+  const pos = gradPosFromX(x);
+  const s = { pos, color: gradSampleHexText(pos) };
+  gradient.stops.push(s);
+  gradient.stops.sort((a, b) => a.pos - b.pos);
+  gradSelect(s);
+});
+
+gradientCanvas.addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && gradSelected) {
+    e.preventDefault();
+    gradDelete(gradSelected);
+  }
+});
+
+document.getElementById('gradientAdd').addEventListener('click', () => {
+  const stops = gradSorted();
+  let pos = 0.5, prev = 0, gap = -1;
+  for (const s of stops) {
+    if (s.pos - prev > gap) { gap = s.pos - prev; pos = (s.pos + prev) / 2; }
+    prev = s.pos;
+  }
+  if (1 - prev > gap) pos = (1 + prev) / 2;
+  const s = { pos, color: gradSampleHexText(pos) };
+  gradient.stops.push(s);
+  gradient.stops.sort((a, b) => a.pos - b.pos);
+  gradSelect(s);
+});
+
+document.getElementById('gradientDel').addEventListener('click', () => gradDelete(gradSelected));
+
+/* ---- alpha gradient editor ---- */
+
+const alphaCanvas = document.getElementById('alphaCanvas');
+const alphaCtx = alphaCanvas.getContext('2d');
+const alphaSelEl = document.getElementById('alphaSel');
+const AL_PAD = 8;
+let AL_W = alphaCanvas.width;
+let AL_H = alphaCanvas.height;
+
+let alphaSelected = alphaGradient.stops[0];
+let alphaDragging = false;
+
+function alphaSorted() { return alphaGradient.stops.slice().sort((a, b) => a.pos - b.pos); }
+
+function alphaResize() {
+  const w = Math.max(1, Math.round(alphaCanvas.clientWidth || 168));
+  const h = Math.max(1, Math.round(alphaCanvas.clientHeight || 24));
+  if (alphaCanvas.width !== w || alphaCanvas.height !== h) {
+    alphaCanvas.width = w;
+    alphaCanvas.height = h;
+  }
+  AL_W = alphaCanvas.width;
+  AL_H = alphaCanvas.height;
+}
+
+function alphaX(pos) { return AL_PAD + pos * (AL_W - 2 * AL_PAD); }
+function alphaPosFromX(px) { return clamp01((px - AL_PAD) / ((AL_W - 2 * AL_PAD) || 1)); }
+
+function alphaDraw() {
+  alphaResize();
+  const W = AL_W, H = AL_H;
+  alphaCtx.clearRect(0, 0, W, H);
+  const cell = Math.max(4, Math.round(H / 3));
+  for (let y = 0; y < H; y += cell) {
+    for (let x = 0; x < W; x += cell) {
+      const on = (((x / cell) | 0) + ((y / cell) | 0)) & 1;
+      alphaCtx.fillStyle = on ? '#b8b8b8' : '#8f8f8f';
+      alphaCtx.fillRect(x, y, cell, cell);
+    }
+  }
+  const stops = alphaSorted();
+  const g = alphaCtx.createLinearGradient(0, 0, W, 0);
+  if (stops.length === 1) {
+    g.addColorStop(0, 'rgba(255,255,255,' + clamp01(stops[0].a) + ')');
+    g.addColorStop(1, 'rgba(255,255,255,' + clamp01(stops[0].a) + ')');
+  } else {
+    stops.forEach((s) => g.addColorStop(clamp01(s.pos), 'rgba(255,255,255,' + clamp01(s.a) + ')'));
+  }
+  alphaCtx.fillStyle = g;
+  alphaCtx.fillRect(0, 0, W, H);
+
+  const yOf = (a) => H - 2 - clamp01(a) * (H - 4);
+  alphaCtx.beginPath();
+  stops.forEach((s, i) => {
+    const x = alphaX(s.pos), y = yOf(s.a);
+    if (i === 0) alphaCtx.moveTo(x, y); else alphaCtx.lineTo(x, y);
+  });
+  alphaCtx.strokeStyle = 'rgba(0,0,0,0.55)';
+  alphaCtx.lineWidth = 1.5;
+  alphaCtx.stroke();
+
+  const r = Math.max(3, Math.min(6, H / 2 - 2));
+  for (const s of stops) {
+    const x = alphaX(s.pos), y = yOf(s.a);
+    alphaCtx.beginPath();
+    alphaCtx.arc(x, y, r, 0, Math.PI * 2);
+    alphaCtx.fillStyle = 'rgba(255,255,255,' + clamp01(s.a) + ')';
+    alphaCtx.fill();
+    alphaCtx.lineWidth = s === alphaSelected ? 3 : 1.5;
+    alphaCtx.strokeStyle = s === alphaSelected ? '#6fb7ff' : 'rgba(0,0,0,0.55)';
+    alphaCtx.stroke();
+  }
+}
+
+function alphaHit(px) {
+  let best = null;
+  let bd = Infinity;
+  for (const s of alphaGradient.stops) {
+    const d = Math.abs(px - alphaX(s.pos));
+    if (d < 12 && d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+function alphaLocal(e) {
+  const r = alphaCanvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * (AL_W / (r.width || 1)) };
+}
+
+function alphaSyncControls() {
+  const has = !!alphaSelected && alphaGradient.stops.indexOf(alphaSelected) >= 0;
+  setDisabled('alphaDel', !has || alphaGradient.stops.length <= 2);
+  if (has) {
+    if (sliders.alphaVal) sliders.alphaVal.display(alphaSelected.a * 100);
+    if (sliders.alphaPos) sliders.alphaPos.display(alphaSelected.pos * 100);
+    setNoteText(alphaSelEl, tf('Точек: {n} · выбрана #{i} ({p}%)', { n: alphaGradient.stops.length, i: alphaGradient.stops.indexOf(alphaSelected) + 1, p: Math.round(alphaSelected.pos * 100) }));
+  } else {
+    setNoteText(alphaSelEl, tf('Точек: {n}', { n: alphaGradient.stops.length }));
+  }
+  alphaDraw();
+  persistStops(ALPHA_STOPS_KEY, alphaGradient.stops);
+  scheduleFireLUT();
+}
+
+function alphaSelect(s) {
+  alphaSelected = s && alphaGradient.stops.indexOf(s) >= 0 ? s : null;
+  alphaSyncControls();
+}
+
+function alphaDelete(s) {
+  if (!s || alphaGradient.stops.length <= 2) return;
+  alphaGradient.stops.splice(alphaGradient.stops.indexOf(s), 1);
+  alphaSelect(null);
+}
+
+range('alphaVal', () => alphaSelected ? alphaSelected.a * 100 : 0, (v) => {
+  if (!alphaSelected) return;
+  alphaSelected.a = clamp01(v / 100);
+  alphaSyncControls();
+});
+
+range('alphaPos', () => alphaSelected ? alphaSelected.pos * 100 : 0, (v) => {
+  if (!alphaSelected) return;
+  alphaSelected.pos = clamp01(v / 100);
+  alphaSyncControls();
+});
+
+alphaCanvas.addEventListener('pointerdown', (e) => {
+  alphaCanvas.focus();
+  const { x } = alphaLocal(e);
+  const hit = alphaHit(x);
+  if (hit) {
+    alphaSelect(hit);
+    alphaDragging = true;
+    try { alphaCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+  } else {
+    alphaSelect(null);
+  }
+});
+alphaCanvas.addEventListener('pointermove', (e) => {
+  if (!alphaDragging || !alphaSelected) return;
+  const { x } = alphaLocal(e);
+  alphaSelected.pos = alphaPosFromX(x);
+  alphaSyncControls();
+});
+function alphaEndDrag(e) {
+  if (!alphaDragging) return;
+  alphaDragging = false;
+  try { alphaCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
+}
+alphaCanvas.addEventListener('pointerup', alphaEndDrag);
+alphaCanvas.addEventListener('pointercancel', alphaEndDrag);
+
+alphaCanvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const { x } = alphaLocal(e);
+  alphaDelete(alphaHit(x));
+});
+
+alphaCanvas.addEventListener('dblclick', (e) => {
+  const { x } = alphaLocal(e);
+  const hit = alphaHit(x);
+  if (hit) { alphaDelete(hit); return; }
+  const pos = alphaPosFromX(x);
+  const s = { pos, a: alphaSampleAt(pos) };
+  alphaGradient.stops.push(s);
+  alphaGradient.stops.sort((a, b) => a.pos - b.pos);
+  alphaSelect(s);
+});
+
+alphaCanvas.addEventListener('keydown', (e) => {
+  if ((e.key === 'Delete' || e.key === 'Backspace') && alphaSelected) {
+    e.preventDefault();
+    alphaDelete(alphaSelected);
+  }
+});
+
+document.getElementById('alphaAdd').addEventListener('click', () => {
+  const stops = alphaSorted();
+  let pos = 0.5, prev = 0, gap = -1;
+  for (const s of stops) {
+    if (s.pos - prev > gap) { gap = s.pos - prev; pos = (s.pos + prev) / 2; }
+    prev = s.pos;
+  }
+  if (1 - prev > gap) pos = (1 + prev) / 2;
+  const s = { pos, a: alphaSampleAt(pos) };
+  alphaGradient.stops.push(s);
+  alphaGradient.stops.sort((a, b) => a.pos - b.pos);
+  alphaSelect(s);
+});
+
+document.getElementById('alphaDel').addEventListener('click', () => alphaDelete(alphaSelected));
+
+/* ---- presets + persisted stops ---- */
+
+const savedColorStops = loadStops(FIRE_STOPS_KEY, false);
+if (savedColorStops) gradient.stops = savedColorStops;
+const savedAlphaStops = loadStops(ALPHA_STOPS_KEY, true);
+if (savedAlphaStops) alphaGradient.stops = savedAlphaStops;
+gradSelected = gradient.stops[1] || gradient.stops[0];
+alphaSelected = alphaGradient.stops[0];
+
+document.getElementById('preset').addEventListener('change', (e) => {
+  const key = e.target.value;
+  if (!key || !GRADIENTS[key]) return;
+  gradient.stops = GRADIENTS[key].map((s) => ({ pos: s[0], color: s[1] }));
+  gradSelected = gradient.stops[0];
+  gradSyncControls();
+});
+
+gradSyncControls();
+alphaSyncControls();
+
+/* ---------------- settings import / export ---------------- */
+
+const exFile = document.getElementById('exFile');
+const exInfo = document.getElementById('exInfo');
+const EDITOR_SLIDERS = { gradientPos: 1, alphaVal: 1, alphaPos: 1 };
+
+function collectSettings() {
+  const theme = {};
+  [themeEl, contrastEl, fontsizeEl, sliderwidthEl].forEach((el) => { theme[el.id] = el.value; });
+
+  const sliders = {};
+  document.querySelectorAll('.adv-slider[id]').forEach((el) => {
+    if (EDITOR_SLIDERS[el.id]) return;
+    const now = el.getAttribute('aria-valuenow');
+    if (now !== null) sliders[el.id] = Number(now);
+  });
+  const inputs = {};
+  document.querySelectorAll('.cell-input input[id]').forEach((el) => { inputs[el.id] = el.value; });
+  const colors = {};
+  document.querySelectorAll('.cell-color input[type="color"][id]').forEach((el) => { colors[el.id] = el.value; });
+  const selects = {};
+  document.querySelectorAll('.cell-select select[id]').forEach((el) => { selects[el.id] = el.value; });
+
+  return {
+    version: 1,
+    theme,
+    sliders,
+    inputs,
+    colors,
+    selects,
+    gradient: gradient.stops.map((s) => ({ pos: s.pos, color: s.color })),
+    alpha: alphaGradient.stops.map((s) => ({ pos: s.pos, a: s.a })),
+  };
+}
+
+function applySettings(o) {
+  if (!o || typeof o !== 'object') return;
+
+  if (o.theme) {
+    [['theme', applyTheme], ['contrast', applyContrast], ['fontsize', applyFontsize], ['sliderwidth', applySliderWidth]].forEach((pair) => {
+      const el = document.getElementById(pair[0]);
+      if (el && o.theme[pair[0]] != null) { el.value = o.theme[pair[0]]; pair[1](o.theme[pair[0]]); }
+    });
+  }
+
+  if (o.sliders) Object.keys(o.sliders).forEach((id) => {
+    if (EDITOR_SLIDERS[id]) return;
+    if (sliders[id] && sliders[id].set) sliders[id].set(o.sliders[id]);
+  });
+  if (o.inputs) Object.keys(o.inputs).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = o.inputs[id]; el.dispatchEvent(new Event('input')); }
+  });
+  if (o.colors) Object.keys(o.colors).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = o.colors[id]; el.dispatchEvent(new Event('input')); }
+  });
+  if (o.selects) Object.keys(o.selects).forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = o.selects[id]; el.dispatchEvent(new Event('change')); }
+  });
+
+  if (Array.isArray(o.gradient) && o.gradient.length >= 2) {
+    gradient.stops = o.gradient.map((s) => ({ pos: clamp01(Number(s.pos) || 0), color: String(s.color) }));
+    gradSelected = gradient.stops[0];
+  }
+  if (Array.isArray(o.alpha) && o.alpha.length >= 2) {
+    alphaGradient.stops = o.alpha.map((s) => ({ pos: clamp01(Number(s.pos) || 0), a: clamp01(Number(s.a)) }));
+    alphaSelected = alphaGradient.stops[0];
+  }
+
+  gradSyncControls();
+  alphaSyncControls();
+  requestDraw();
+}
+
+function downloadFile(name, text) {
+  const blob = new Blob([text], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+document.getElementById('exSave').addEventListener('click', () => {
+  downloadFile('fire-test3-settings.json', JSON.stringify(collectSettings(), null, 2));
+  setNoteText(exInfo, 'Настройки сохранены в файл');
+});
+
+document.getElementById('exLoad').addEventListener('click', () => exFile.click());
+exFile.addEventListener('change', () => {
+  const f = exFile.files && exFile.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      applySettings(JSON.parse(r.result));
+      setNoteText(exInfo, 'Настройки загружены');
+    } catch (err) {
+      setNoteText(exInfo, 'Ошибка: ' + err.message);
+    }
+  };
+  r.readAsText(f);
+  exFile.value = '';
+});
+
+/* ---------------- sequence render ---------------- */
+
+const rendInfo = document.getElementById('rendInfo');
+const btnRender = document.getElementById('btnRender');
+
+function saveBlob(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function canvasBlob(canvas) {
+  if (canvas.toBlob) return new Promise((res) => canvas.toBlob(res, 'image/png'));
+  return fetch(canvas.toDataURL('image/png')).then((r) => r.blob());
+}
+
+function downscaleCanvas(src, scale) {
+  let cur = src;
+  let curW = src.width;
+  let curH = src.height;
+  let s = scale;
+  while (s < 0.5) {
+    const nw = Math.max(1, Math.round(curW * 0.5));
+    const nh = Math.max(1, Math.round(curH * 0.5));
+    const tmp = document.createElement('canvas');
+    tmp.width = nw;
+    tmp.height = nh;
+    const tctx = tmp.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    tctx.drawImage(cur, 0, 0, nw, nh);
+    cur = tmp;
+    curW = nw;
+    curH = nh;
+    s *= 2;
+  }
+  const fw = Math.max(1, Math.round(curW * s));
+  const fh = Math.max(1, Math.round(curH * s));
+  if (fw === curW && fh === curH) return cur;
+  const out = document.createElement('canvas');
+  out.width = fw;
+  out.height = fh;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = 'high';
+  octx.drawImage(cur, 0, 0, fw, fh);
+  return out;
+}
+
+async function renderSequence() {
+  if (exporting) return;
+  exporting = true;
+  btnRender.setAttribute('aria-disabled', 'true');
+  setNoteText(rendInfo, 'Рендер…');
+
+  const F = Math.max(1, Math.round(frames));
+  const scale = 1 / Math.max(1, renderDown || 1);
+  const outW = Math.max(1, Math.round(view.width * scale));
+  const outH = Math.max(1, Math.round(view.height * scale));
+  const pad = Math.max(3, String(F - 1).length);
+
+  const hasZip = typeof JSZip !== 'undefined';
+  const zip = hasZip ? new JSZip() : null;
+  const files = [];
+
+  const savedIndex = frameIndex;
+  for (let f = 0; f < F; f++) {
+    frameIndex = f;
+    drawSpike();
+    const frameCanvas = scale < 1 ? downscaleCanvas(view, scale) : view;
+    const blob = await canvasBlob(frameCanvas);
+    const name = 'fire-' + String(f).padStart(pad, '0') + '.png';
+    if (zip) zip.file(name, blob);
+    else files.push({ name, blob });
+    setNoteText(rendInfo, 'Рендер… ' + (f + 1) + ' / ' + F);
+    if ((f & 3) === 0) await new Promise((r) => setTimeout(r, 0));
+  }
+  frameIndex = savedIndex;
+
+  if (zip) {
+    setNoteText(rendInfo, 'Упаковка ZIP…');
+    const out = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    saveBlob(out, 'fire-sequence-' + outW + 'x' + outH + '-' + F + 'f.zip');
+    setNoteText(rendInfo, 'Готово: ' + F + ' кадров (ZIP)');
+  } else {
+    for (const it of files) {
+      saveBlob(it.blob, it.name);
+      await new Promise((r) => setTimeout(r, 120));
+    }
+    setNoteText(rendInfo, 'JSZip не загрузился — кадры сохранены по отдельности');
+  }
+
+  exporting = false;
+  btnRender.setAttribute('aria-disabled', 'false');
+  requestDraw();
+}
+
+btnRender.addEventListener('click', renderSequence);
+
+/* ---------------- theme control ---------------- */
+
+const savedTheme = localStorage.getItem(THEME_KEY);
+themeEl.value = savedTheme !== null ? savedTheme : 25;
+const savedContrast = localStorage.getItem(CONTRAST_KEY);
+contrastEl.value = savedContrast !== null ? savedContrast : 100;
+const savedFont = localStorage.getItem(FONTSIZE_KEY);
+fontsizeEl.value = savedFont !== null ? savedFont : 16;
+const savedWidth = localStorage.getItem(SLIDERWIDTH_KEY);
+sliderwidthEl.value = savedWidth !== null ? savedWidth : 168;
+
+themeEl.addEventListener('input', () => { applyTheme(themeEl.value); localStorage.setItem(THEME_KEY, themeEl.value); });
+contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); localStorage.setItem(CONTRAST_KEY, contrastEl.value); });
+fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); localStorage.setItem(FONTSIZE_KEY, fontsizeEl.value); });
+sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); localStorage.setItem(SLIDERWIDTH_KEY, sliderwidthEl.value); });
+
+applyTheme(themeEl.value);
+applyContrast(contrastEl.value);
+applyFontsize(fontsizeEl.value);
+applySliderWidth(sliderwidthEl.value);
+
+/* ---------------- resizer ---------------- */
+
+const resizer = document.getElementById('resizer');
+const panelLeft = document.querySelector('.panel-left');
+const layout = document.querySelector('.layout');
+
+function getMaxLeft() { return layout.getBoundingClientRect().width - resizer.offsetWidth; }
+function setLeft(px) {
+  const max = getMaxLeft();
+  px = Math.max(0, Math.min(max, px));
+  panelLeft.style.width = px + 'px';
+}
+function applySplitPercent(p) { setLeft(getMaxLeft() * p / 100); }
+
+const savedSplit = localStorage.getItem(SPLIT_KEY);
+applySplitPercent(savedSplit !== null ? parseFloat(savedSplit) : 50);
+
+let draggingSplit = false;
+let dragOffset = 0;
+function stopDrag(e) {
+  if (!draggingSplit) return;
+  draggingSplit = false;
+  try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+  document.body.style.userSelect = '';
+  const max = getMaxLeft();
+  const pct = ((parseFloat(panelLeft.style.width) || 0) / max) * 100;
+  localStorage.setItem(SPLIT_KEY, pct);
+}
+resizer.addEventListener('pointerdown', (e) => {
+  draggingSplit = true;
+  resizer.setPointerCapture(e.pointerId);
+  document.body.style.userSelect = 'none';
+  dragOffset = e.clientX - resizer.getBoundingClientRect().left;
+});
+resizer.addEventListener('pointermove', (e) => {
+  if (!draggingSplit) return;
+  setLeft(e.clientX - dragOffset - layout.getBoundingClientRect().left);
+});
+resizer.addEventListener('pointerup', stopDrag);
+resizer.addEventListener('pointercancel', stopDrag);
+window.addEventListener('resize', () => {
+  setLeft(parseFloat(panelLeft.style.width) || 0);
+});
+
+/* ---------------- init ---------------- */
+
+const savedW = parseFloat(localStorage.getItem(CW_KEY));
+const savedH = parseFloat(localStorage.getItem(CH_KEY));
+
+setCanvasSize(isFinite(savedW) ? savedW : 400, isFinite(savedH) ? savedH : 200);
+sliders.canvasW.display(contentW);
+sliders.canvasH.display(contentH);
+applyCamera();
+</script>
+</body>
+</html>
