@@ -188,6 +188,30 @@
             border-top: 1px solid var(--n2);
         }
 
+        .menu-section.hidden {
+            display: none;
+        }
+
+        .scenario-menu-toggle {
+            position: fixed;
+            left: 10px;
+            bottom: 10px;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            font-size: 16px;
+            line-height: 1;
+            border-radius: 6px;
+        }
+
+        .scenario-menu-toggle.visible {
+            display: flex;
+        }
+
         .slider-container {
             margin-bottom: 15px;
         }
@@ -1239,6 +1263,18 @@
                     <label for="zeroAlphaCheckbox">Check placeholders zero alpha</label>
                 </div>
                 <div class="checkbox-item">
+                    <input type="checkbox" id="placeholdersListCheckbox">
+                    <label for="placeholdersListCheckbox">List placeholders</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="eventsListCheckbox">
+                    <label for="eventsListCheckbox">List events</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="eventsVerboseCheckbox">
+                    <label for="eventsVerboseCheckbox">List events (verbose)</label>
+                </div>
+                <div class="checkbox-item">
                     <input type="checkbox" id="sdPairsCheckbox" checked>
                     <label for="sdPairsCheckbox">Check sd- pairs</label>
                 </div>
@@ -1285,6 +1321,7 @@
                     <input type="range" id="themeSlider" class="slider" min="0" max="255" step="1" value="30">
                 </div>
             </div>
+            <button id="scenarioMenuToggle" class="scenario-menu-toggle" title="Toggle menu" type="button">&#9776;</button>
         </div>
 
         <div class="resize-handle" id="resize-handle"></div>
@@ -1409,6 +1446,67 @@
                 return errors;
             }
 
+            function collectEventList() {
+                const result = [];
+                Object.keys(state.skeletons).forEach(skeletonName => {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return;
+                    const events = sk.skeleton.data.events || [];
+                    const names = new Set();
+                    for (let i = 0; i < events.length; i++) {
+                        const name = events[i] && events[i].name;
+                        if (name) names.add(name);
+                    }
+                    names.forEach(name => result.push(skeletonName + '|' + name));
+                });
+                return result;
+            }
+
+            function collectEventListVerbose() {
+                const result = [];
+                Object.keys(state.skeletons).forEach(skeletonName => {
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return;
+                    const data = sk.skeleton.data;
+                    const events = data.events || [];
+                    const usage = {};
+                    const animations = data.animations || [];
+                    for (let a = 0; a < animations.length; a++) {
+                        const anim = animations[a];
+                        const timelines = anim.timelines || [];
+                        for (let t = 0; t < timelines.length; t++) {
+                            const timeline = timelines[t];
+                            const evs = timeline.events;
+                            if (!evs || !evs.length) continue;
+                            const frames = timeline.frames || [];
+                            for (let e = 0; e < evs.length; e++) {
+                                const ev = evs[e];
+                                const name = ev && ev.data && ev.data.name;
+                                if (!name) continue;
+                                const time = frames[e];
+                                if (time === undefined || time === null) continue;
+                                if (!usage[name]) usage[name] = {};
+                                if (usage[name][anim.name] === undefined) {
+                                    usage[name][anim.name] = time;
+                                }
+                            }
+                        }
+                    }
+                    const names = new Set();
+                    for (let i = 0; i < events.length; i++) {
+                        const name = events[i] && events[i].name;
+                        if (name) names.add(name);
+                    }
+                    Object.keys(usage).forEach(name => names.add(name));
+                    names.forEach(name => {
+                        const map = usage[name] || {};
+                        const entries = Object.keys(map).map(animName => animName + ': ' + Number(map[animName]).toFixed(2) + 's');
+                        result.push(skeletonName + '|' + name + ' [' + entries.join(', ') + ']');
+                    });
+                });
+                return result;
+            }
+
             function collectAllErrors() {
                 const errors = [];
                 if (state.loadErrors && state.loadErrors.length > 0) {
@@ -1419,6 +1517,15 @@
                 }
                 if (state.checkZeroAlpha && state.zeroAlphaWarnings.length > 0) {
                     errors.push(...state.zeroAlphaWarnings);
+                }
+                if (state.checkPlaceholders) {
+                    errors.push(...placeholderManager.listPlaceholders());
+                }
+                if (state.checkEvents) {
+                    errors.push(...collectEventList());
+                }
+                if (state.checkEventsVerbose) {
+                    errors.push(...collectEventListVerbose());
                 }
                 if (state.checkSdPairs) {
                     errors.push(...collectSdPairsErrors());
@@ -1478,6 +1585,9 @@
                 playlistErrors: [],
                 zeroAlphaWarnings: [],
                 checkZeroAlpha: false,
+                checkPlaceholders: false,
+                checkEvents: false,
+                checkEventsVerbose: false,
                 checkSdPairs: true,
                 checkUnused: false,
                 availableSkins: {},
@@ -3802,6 +3912,22 @@
                         }
                     }
                     return warnings;
+                },
+
+                listPlaceholders() {
+                    const result = [];
+                    Object.keys(state.skeletons).forEach(skeletonName => {
+                        const sk = state.skeletons[skeletonName];
+                        if (!sk || !sk.skeleton || !sk.skeleton.data) return;
+                        const slotsData = sk.skeleton.data.slots || [];
+                        for (let i = 0; i < slotsData.length; i++) {
+                            const name = slotsData[i].name;
+                            if (name && name.indexOf(this.PREFIX) >= 0) {
+                                result.push(skeletonName + '|' + name);
+                            }
+                        }
+                    });
+                    return result;
                 }
             };
 
@@ -4478,6 +4604,39 @@
                     });
                 },
 
+                initPlaceholdersListCheckbox() {
+                    const checkbox = document.getElementById('placeholdersListCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkPlaceholders;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkPlaceholders = e.target.checked;
+                        showChecksIfAny();
+                    });
+                },
+
+                initEventsListCheckbox() {
+                    const checkbox = document.getElementById('eventsListCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkEvents;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkEvents = e.target.checked;
+                        showChecksIfAny();
+                    });
+                },
+
+                initEventsVerboseCheckbox() {
+                    const checkbox = document.getElementById('eventsVerboseCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkEventsVerbose;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkEventsVerbose = e.target.checked;
+                        showChecksIfAny();
+                    });
+                },
+
                 initSdPairsCheckbox() {
                     const checkbox = document.getElementById('sdPairsCheckbox');
                     if (!checkbox) return;
@@ -4635,6 +4794,15 @@
                     });
                 },
 
+                initScenarioMenuToggle() {
+                    const btn = document.getElementById('scenarioMenuToggle');
+                    const menuSection = document.querySelector('.menu-section');
+                    if (!btn || !menuSection) return;
+                    btn.addEventListener('click', () => {
+                        menuSection.classList.toggle('hidden');
+                    });
+                },
+
                 renderAnimationsList() {
                     const container = document.getElementById('animationsList');
                     container.innerHTML = '';
@@ -4677,6 +4845,8 @@
                     const scenarioTimeline = document.getElementById('scenarioTimeline');
                     const rightArea = document.querySelector('.right-area');
                     const museumSections = document.querySelectorAll('.museum-section');
+                    const scenarioMenuToggle = document.getElementById('scenarioMenuToggle');
+                    const menuSection = document.querySelector('.menu-section');
 
                     if (state.activeMode === 'scenario') {
                         scenarioHeader.className = 'tab active';
@@ -4691,6 +4861,7 @@
                         scenarioTimeline.classList.add('visible');
                         rightArea.classList.remove('museum-mode');
                         museumSections.forEach(el => el.classList.remove('visible'));
+                        if (scenarioMenuToggle) scenarioMenuToggle.classList.add('visible');
                     } else if (state.activeMode === 'animation') {
                         scenarioHeader.className = 'tab inactive';
                         animationsHeader.className = 'tab active';
@@ -4704,6 +4875,8 @@
                         scenarioTimeline.classList.remove('visible');
                         rightArea.classList.remove('museum-mode');
                         museumSections.forEach(el => el.classList.remove('visible'));
+                        if (scenarioMenuToggle) scenarioMenuToggle.classList.remove('visible');
+                        if (menuSection) menuSection.classList.remove('hidden');
                     } else if (state.activeMode === 'museum') {
                         scenarioHeader.className = 'tab inactive';
                         animationsHeader.className = 'tab inactive';
@@ -4717,6 +4890,8 @@
                         scenarioTimeline.classList.remove('visible');
                         rightArea.classList.add('museum-mode');
                         museumSections.forEach(el => el.classList.add('visible'));
+                        if (scenarioMenuToggle) scenarioMenuToggle.classList.remove('visible');
+                        if (menuSection) menuSection.classList.remove('hidden');
                     }
 
                     playerManager.updateScenarioTimelineVisibility();
@@ -5334,12 +5509,16 @@
                 uiControls.initCheckbox();
                 uiControls.initPlaceholdersCheckbox();
                 uiControls.initZeroAlphaCheckbox();
+                uiControls.initPlaceholdersListCheckbox();
+                uiControls.initEventsListCheckbox();
+                uiControls.initEventsVerboseCheckbox();
                 uiControls.initSdPairsCheckbox();
                 uiControls.initUnusedCheckbox();
                 uiControls.initSnapCheckbox();
                 uiControls.initResetButton();
                 uiControls.initTextarea();
                 uiControls.initScenarioHeader();
+                uiControls.initScenarioMenuToggle();
                 skinManager.init();
                 museumManager.init();
                 frameManager.init();
