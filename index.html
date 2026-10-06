@@ -192,24 +192,25 @@
             display: none;
         }
 
-        .scenario-menu-toggle {
-            position: fixed;
-            left: 10px;
-            bottom: 10px;
-            z-index: 50;
+        .scenario-only {
             display: none;
-            align-items: center;
-            justify-content: center;
-            width: 36px;
-            height: 36px;
-            padding: 0;
-            font-size: 16px;
-            line-height: 1;
-            border-radius: 6px;
         }
 
-        .scenario-menu-toggle.visible {
+        .scenario-only.visible {
+            display: block;
+        }
+
+        .scenario-menu-toggle {
             display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            font-size: 15px;
+            line-height: 1;
+            border-radius: 6px;
+            flex-shrink: 0;
         }
 
         .slider-container {
@@ -807,6 +808,21 @@
             border-color: var(--n3);
         }
 
+        .player-btn.toggle-btn.pause-active {
+            color: var(--fg);
+            border-color: var(--n4);
+            animation: pausePulse 0.9s ease-in-out infinite;
+        }
+
+        @keyframes pausePulse {
+            0%, 100% {
+                background: var(--n2);
+            }
+            50% {
+                background: var(--n4);
+            }
+        }
+
         .player-btn svg {
             width: 100%;
             height: 100%;
@@ -1211,8 +1227,7 @@
                 <button id="errorBlockClose" class="error-block-close">&times;</button>
                 <div id="errorBlockText"></div>
             </div>
-            <div class="menu-section">
-                <div id="selectedInfoSection" class="museum-section">
+            <div id="selectedInfoSection" class="museum-section">
                     <input type="text" id="selectedNameInput" class="selected-name-input" placeholder="—" readonly>
                     <div class="coord-row">
                         <div class="coord-field">
@@ -1238,12 +1253,13 @@
                         <input type="range" id="selectedPositionSlider" class="player-slider selected-position-slider" min="0" max="1000" value="0" step="1" disabled>
                     </div>
                 </div>
-                <div id="museumSection" class="museum-section">
-                    <div class="checkbox-item">
-                        <input type="checkbox" id="snapCheckbox" checked>
-                        <label for="snapCheckbox">Snap to grid</label>
-                    </div>
+            <div id="museumSection" class="museum-section">
+                <div class="checkbox-item">
+                    <input type="checkbox" id="snapCheckbox" checked>
+                    <label for="snapCheckbox">Snap to grid</label>
                 </div>
+            </div>
+            <div class="menu-section">
                 <div class="scale-row">
                     <label class="slider-label">Scale</label>
                     <input type="range" id="scaleSlider" class="slider" min="0.05" max="2" step="0.001" value="1.0">
@@ -1258,29 +1274,35 @@
                     <input type="checkbox" id="placeholdersCheckbox">
                     <label for="placeholdersCheckbox">Show placeholders</label>
                 </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="zeroAlphaCheckbox">
-                    <label for="zeroAlphaCheckbox">Check placeholders zero alpha</label>
+                <div class="theme-row">
+                    <label class="slider-label">Placeholder scale</label>
+                    <input type="range" id="placeholderScaleSlider" class="slider" min="0.2" max="5" step="0.1" value="1">
                 </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="placeholdersListCheckbox">
-                    <label for="placeholdersListCheckbox">List placeholders</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="eventsListCheckbox">
-                    <label for="eventsListCheckbox">List events</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="eventsVerboseCheckbox">
-                    <label for="eventsVerboseCheckbox">List events (verbose)</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="sdPairsCheckbox" checked>
-                    <label for="sdPairsCheckbox">Check sd- pairs</label>
-                </div>
-                <div class="checkbox-item">
-                    <input type="checkbox" id="unusedCheckbox">
-                    <label for="unusedCheckbox">Check unused</label>
+                <div id="scenarioOnlyChecks" class="scenario-only">
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="zeroAlphaCheckbox">
+                        <label for="zeroAlphaCheckbox">Check placeholders zero alpha</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="placeholdersListCheckbox">
+                        <label for="placeholdersListCheckbox">List placeholders</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="eventsListCheckbox">
+                        <label for="eventsListCheckbox">List events</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="eventsVerboseCheckbox">
+                        <label for="eventsVerboseCheckbox">List events (verbose)</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="sdPairsCheckbox" checked>
+                        <label for="sdPairsCheckbox">Check sd- pairs</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="unusedCheckbox">
+                        <label for="unusedCheckbox">Check unused</label>
+                    </div>
                 </div>
                 <div id="skinSection" class="skin-section">
                     <label class="slider-label">Skin</label>
@@ -1316,12 +1338,12 @@
                         </div>
                     </div>
                 </div>
-                <div class="theme-row">
-                    <label class="slider-label">Theme</label>
-                    <input type="range" id="themeSlider" class="slider" min="0" max="255" step="1" value="30">
-                </div>
             </div>
-            <button id="scenarioMenuToggle" class="scenario-menu-toggle" title="Toggle menu" type="button">&#9776;</button>
+            <div class="theme-row">
+                <button id="scenarioMenuToggle" class="scenario-menu-toggle" title="Toggle menu" type="button">&#9776;</button>
+                <label class="slider-label">Theme</label>
+                <input type="range" id="themeSlider" class="slider" min="0" max="255" step="1" value="30">
+            </div>
         </div>
 
         <div class="resize-handle" id="resize-handle"></div>
@@ -1574,6 +1596,7 @@
                 activeMode: 'scenario',
                 activeAnimation: null,
                 availableAnimations: [],
+                animationDurations: {},
                 _lastScenarioText: '',
                 _suppressScenarioInput: false,
                 scenarioGeneration: 0,
@@ -1642,6 +1665,21 @@
                     visibilityPaintTarget: null
                 }
             };
+
+            state.playback = {
+                scenario: { playing: true, loop: true, pauseBefore: false, pauseAfter: false },
+                animation: { playing: true, loop: true, pauseBefore: false, pauseAfter: false }
+            };
+
+            const PLAYER_PLAYBACK_MODE = () => (state.activeMode === 'animation' ? 'animation' : 'scenario');
+            ['playing', 'loop', 'pauseBefore', 'pauseAfter'].forEach(key => {
+                Object.defineProperty(state.player, key, {
+                    get() { return state.playback[PLAYER_PLAYBACK_MODE()][key]; },
+                    set(value) { state.playback[PLAYER_PLAYBACK_MODE()][key] = value; },
+                    enumerable: true,
+                    configurable: true
+                });
+            });
 
             function getScenarioPlainText() {
                 const el = document.getElementById('playlist-input');
@@ -1834,6 +1872,25 @@
                         state.currentSkeleton.x = x;
                         state.currentSkeleton.y = y;
                     }
+                },
+
+                resetInstances() {
+                    placeholderManager.resetAll();
+
+                    Object.keys(state.skeletons).forEach(name => {
+                        const sk = state.skeletons[name];
+                        if (!sk) return;
+                        try {
+                            if (sk.state) sk.state.clearTracks();
+                            if (sk.parent) sk.parent.removeChild(sk);
+                            sk.destroy();
+                        } catch (e) {}
+                    });
+
+                    state.skeletons = {};
+                    state.skeletonResolution = {};
+                    state.currentSkeleton = null;
+                    state.currentSkeletonName = '';
                 },
 
                 reset() {
@@ -2294,9 +2351,7 @@
                     state.scenarioGeneration++;
                     playerManager.resetPhase();
 
-                    if (state.currentSkeleton) {
-                        state.currentSkeleton.state.clearTracks();
-                    }
+                    skeletonManager.resetInstances();
 
                     uiControls.updateHighlighting();
                     this.setupMuseumView();
@@ -2442,10 +2497,15 @@
                         }
 
                         const skeleton = state.skeletons[name];
+                        if (!item.animation) {
+                            item.animation = this.getDefaultAnimation(name);
+                        }
                         skeleton.scale.set(state.currentScale);
                         skeleton.visible = item.visible;
                         this.setAnimation(name, item.animation);
+                        skinManager.restoreSkin(name);
                         this.applyCameraTransform(skeleton, item.worldX, item.worldY);
+                        skeleton.state.timeScale = item.isPlaying ? 1 : 0;
 
                         if (isFirstBuild) {
                             const skins = state.availableSkins[name] || [];
@@ -2456,7 +2516,6 @@
                                 const sortedSkins = [...nonDefaultSkins].sort((a, b) => a.localeCompare(b));
                                 skinManager.applySkin(name, sortedSkins[0]);
                             }
-                            skeleton.state.timeScale = item.isPlaying ? 1 : 0;
                             const saved = savedState.skeletonStates ? savedState.skeletonStates[name] : null;
                             if (saved && saved.trackTime !== undefined) {
                                 const track = skeleton.state.getCurrent(0);
@@ -2613,24 +2672,34 @@
                 },
 
                 getDefaultAnimation(skeletonName) {
+                    let names = [];
                     const skeleton = state.skeletons[skeletonName];
-                    if (!skeleton || !skeleton.skeleton || !skeleton.skeleton.data) return '';
+                    if (skeleton && skeleton.skeleton && skeleton.skeleton.data && skeleton.skeleton.data.animations) {
+                        names = skeleton.skeleton.data.animations.map(a => a.name);
+                    } else {
+                        names = state.availableAnimations
+                            .filter(a => a.skeletonName === skeletonName)
+                            .map(a => a.animationName);
+                    }
+                    if (names.length === 0) return '';
 
-                    const animations = skeleton.skeleton.data.animations || [];
-                    if (animations.length === 0) return '';
+                    const idleAnim = names.find(n => n.toLowerCase().includes('idle'));
+                    if (idleAnim) return idleAnim;
 
-                    const idleAnim = animations.find(a => a.name.toLowerCase().includes('idle'));
-                    if (idleAnim) return idleAnim.name;
+                    const loopAnim = names.find(n => n.toLowerCase().includes('loop'));
+                    if (loopAnim) return loopAnim;
 
-                    const loopAnim = animations.find(a => a.name.toLowerCase().includes('loop'));
-                    if (loopAnim) return loopAnim.name;
-
-                    return animations[0].name;
+                    return names[0];
                 },
 
                 setAnimation(skeletonName, animationName) {
                     const skeleton = state.skeletons[skeletonName];
                     if (!skeleton) return;
+
+                    if (!animationName) {
+                        skeleton.skeleton.setToSetupPose();
+                        return;
+                    }
 
                     const track = skeleton.state.setAnimation(0, animationName, true);
                     if (track) {
@@ -2674,6 +2743,7 @@
                         } else {
                             this.setAnimation(name, item.animation);
                         }
+                        skeleton.state.timeScale = item.isPlaying ? 1 : 0;
                         this.applyCameraTransform(skeleton, item.worldX, item.worldY);
                         skinManager.restoreSkin(name);
                         placeholderManager.setVisible(state.showPlaceholders);
@@ -3780,7 +3850,26 @@
             const placeholderManager = {
                 PREFIX: 'placeholder',
                 FONT_SIZE: 60,
+                SCALE: 1,
                 entries: {},
+
+                getFontSize() {
+                    return this.FONT_SIZE * this.SCALE;
+                },
+
+                setScale(scale) {
+                    this.SCALE = scale;
+                    const fontSize = this.getFontSize();
+                    Object.keys(this.entries).forEach(skeletonName => {
+                        const entry = this.entries[skeletonName];
+                        for (let i = 0; i < entry.items.length; i++) {
+                            const it = entry.items[i];
+                            if (it.text && !it.text.destroyed && it.text.style) {
+                                it.text.style.fontSize = fontSize;
+                            }
+                        }
+                    });
+                },
 
                 buildFor(skeletonName) {
                     this.clearFor(skeletonName);
@@ -3796,7 +3885,7 @@
                             text: name,
                             style: {
                                 fontFamily: 'Arial',
-                                fontSize: this.FONT_SIZE,
+                                fontSize: this.getFontSize(),
                                 fill: 0xffffff,
                                 stroke: { color: 0x000000, width: 3, join: 'round' },
                                 align: 'center'
@@ -3996,6 +4085,8 @@
                             }
                         };
                     }
+
+                    playerManager.applyPlaybackState();
                 },
 
                 playSingleAnimation(skeletonName, animationName) {
@@ -4015,33 +4106,56 @@
                         }
 
                         if (!useNativeLoop) {
-                            trackEntry.listener = {
-                                complete: () => {
-                                    if (state.activeMode === 'animation' && state.activeAnimation &&
-                                        state.activeAnimation.skeletonName === skeletonName &&
-                                        state.activeAnimation.animationName === animationName) {
+                            this.attachAnimationListener(skeletonName, animationName, trackEntry);
+                        }
+                    }
 
-                                        const handleEnd = () => {
-                                            if (state.player.loop) {
-                                                const t = state.currentSkeleton.state.setAnimation(0, animationName, false);
-                                                if (t) {
-                                                    t.listener = trackEntry.listener;
-                                                    if (state.player.pauseBefore) {
-                                                        playerManager.startPauseBefore();
-                                                    }
-                                                }
-                                            }
-                                        };
+                    playerManager.applyPlaybackState();
+                },
 
-                                        if (state.player.pauseAfter) {
-                                            playerManager.startPauseAfter(handleEnd);
-                                        } else {
-                                            handleEnd();
-                                        }
+                attachAnimationListener(skeletonName, animationName, trackEntry) {
+                    if (!trackEntry) return;
+                    trackEntry.listener = {
+                        complete: () => {
+                            if (state.activeMode !== 'animation' || !state.activeAnimation ||
+                                state.activeAnimation.skeletonName !== skeletonName ||
+                                state.activeAnimation.animationName !== animationName) {
+                                return;
+                            }
+
+                            const handleEnd = () => {
+                                if (!state.player.loop) return;
+                                const t = state.currentSkeleton.state.setAnimation(0, animationName, false);
+                                if (t) {
+                                    this.attachAnimationListener(skeletonName, animationName, t);
+                                    if (state.player.pauseBefore) {
+                                        playerManager.startPauseBefore();
                                     }
                                 }
                             };
+
+                            if (state.player.pauseAfter) {
+                                playerManager.startPauseAfter(handleEnd);
+                            } else {
+                                handleEnd();
+                            }
                         }
+                    };
+                },
+
+                reconfigureAnimationPlayback() {
+                    if (state.activeMode !== 'animation' || !state.activeAnimation || !state.currentSkeleton) return;
+                    const skeletonName = state.activeAnimation.skeletonName;
+                    const animationName = state.activeAnimation.animationName;
+                    const track = state.currentSkeleton.state.getCurrent(0);
+                    if (!track || !track.animation) return;
+
+                    const nativeLoop = state.player.loop && !state.player.pauseBefore && !state.player.pauseAfter;
+                    track.loop = nativeLoop;
+                    if (nativeLoop) {
+                        track.listener = null;
+                    } else {
+                        this.attachAnimationListener(skeletonName, animationName, track);
                     }
                 },
 
@@ -4080,7 +4194,6 @@
                     showChecksIfAny();
 
                     if (state.playlist.length > 0) {
-                        state.player.playing = true;
                         playerManager.updatePlayPauseButton();
                         if (state.activeMode === 'scenario') {
                             await this.playAtIndex(0);
@@ -4093,15 +4206,35 @@
                 },
 
                 activateScenario() {
+                    if (state.activeMode !== 'scenario') {
+                        skeletonManager.resetInstances();
+                    }
                     state.scenarioGeneration++;
                     state.activeMode = 'scenario';
                     state.activeAnimation = null;
                     playerManager.updateScenarioTimelineVisibility();
                     if (state.playlist.length > 0) {
-                        state.player.playing = true;
                         playerManager.updatePlayPauseButton();
-                        this.playAtIndex(0);
+                        const idx = Math.min(Math.max(state.currentIndex, 0), state.playlist.length - 1);
+                        this.playAtIndex(idx);
                     }
+                    uiControls.updateHighlighting();
+                },
+
+                enterIdleAnimationMode() {
+                    state.scenarioGeneration++;
+                    state.activeMode = 'animation';
+                    state.activeAnimation = null;
+                    playerManager.resetPhase();
+
+                    if (state.currentSkeleton) {
+                        state.currentSkeleton.state.clearTracks();
+                        if (state.currentSkeleton.parent) {
+                            state.currentSkeleton.parent.removeChild(state.currentSkeleton);
+                        }
+                    }
+
+                    uiControls.updateInfoOverlay();
                     uiControls.updateHighlighting();
                 }
             };
@@ -4111,13 +4244,17 @@
 
                 getAnimationDuration(skeletonName, animationName) {
                     const sk = state.skeletons[skeletonName];
-                    if (!sk) return 0;
-                    const data = sk.skeleton ? sk.skeleton.data : null;
-                    if (!data || !data.animations) return 0;
-                    for (let i = 0; i < data.animations.length; i++) {
-                        if (data.animations[i].name === animationName) {
-                            return data.animations[i].duration;
+                    const data = sk && sk.skeleton ? sk.skeleton.data : null;
+                    if (data && data.animations) {
+                        for (let i = 0; i < data.animations.length; i++) {
+                            if (data.animations[i].name === animationName) {
+                                return data.animations[i].duration;
+                            }
                         }
+                    }
+                    const cached = state.animationDurations[skeletonName];
+                    if (cached && cached[animationName] !== undefined) {
+                        return cached[animationName];
                     }
                     return 0;
                 },
@@ -4137,6 +4274,12 @@
                     return dur;
                 },
 
+                applyPlaybackState() {
+                    if (state.activeMode === 'museum' || !state.currentSkeleton) return;
+                    const shouldRun = state.player.playing && state.player.phase === 'none';
+                    state.currentSkeleton.state.timeScale = shouldRun ? 1 : 0;
+                },
+
                 play() {
                     state.player.playing = true;
                     this.updatePlayPauseButton();
@@ -4152,11 +4295,21 @@
                     if (state.currentSkeleton) {
                         state.currentSkeleton.state.timeScale = 0;
                     }
+                    this.resetPhase();
                 },
 
                 togglePlay() {
                     if (state.player.playing) {
+                        const wasPauseAfter = state.player.phase === 'pauseAfter';
+                        const anim = state.activeAnimation;
                         this.pause();
+                        if (wasPauseAfter && state.activeMode === 'animation' && anim) {
+                            playlistManager.playSingleAnimation(anim.skeletonName, anim.animationName);
+                            this.resetPhase();
+                            if (state.currentSkeleton) {
+                                state.currentSkeleton.state.timeScale = 0;
+                            }
+                        }
                     } else {
                         this.play();
                     }
@@ -4165,24 +4318,21 @@
                 toggleLoop() {
                     state.player.loop = !state.player.loop;
                     this.updateLoopButton();
-                    if (state.activeMode === 'animation' && state.currentSkeleton) {
-                        const track = state.currentSkeleton.state.getCurrent(0);
-                        if (track) {
-                            track.loop = state.player.loop && !state.player.pauseBefore && !state.player.pauseAfter;
-                        }
-                    }
+                    playlistManager.reconfigureAnimationPlayback();
                 },
 
                 togglePauseBefore() {
                     state.player.pauseBefore = !state.player.pauseBefore;
                     this.updatePauseBeforeButton();
                     this.updateScenarioTimelineVisibility();
+                    playlistManager.reconfigureAnimationPlayback();
                 },
 
                 togglePauseAfter() {
                     state.player.pauseAfter = !state.player.pauseAfter;
                     this.updatePauseAfterButton();
                     this.updateScenarioTimelineVisibility();
+                    playlistManager.reconfigureAnimationPlayback();
                 },
 
                 updatePlayPauseButton() {
@@ -4221,6 +4371,13 @@
                     } else {
                         btn.classList.remove('active');
                     }
+                },
+
+                updatePausePhaseHighlight() {
+                    const beforeBtn = document.getElementById('pauseBeforeBtn');
+                    const afterBtn = document.getElementById('pauseAfterBtn');
+                    if (beforeBtn) beforeBtn.classList.toggle('pause-active', state.player.phase === 'pauseBefore');
+                    if (afterBtn) afterBtn.classList.toggle('pause-active', state.player.phase === 'pauseAfter');
                 },
 
                 updateScenarioTimelineVisibility() {
@@ -4280,6 +4437,7 @@
                     if (!track || !track.animation) return;
                     const duration = track.animation.duration;
                     if (duration <= 0) return;
+                    this.resetPhase();
                     track.trackTime = ratio * duration;
                 },
 
@@ -4340,6 +4498,8 @@
                                     }
                                 };
                             }
+
+                            this.applyPlaybackState();
                             return;
                         }
                         elapsed += effective;
@@ -4352,6 +4512,7 @@
                     state.player.pendingAction = null;
                     state.player.stallIndex = -1;
                     state.player.stallSince = 0;
+                    this.updatePausePhaseHighlight();
                 },
 
                 startPauseBefore() {
@@ -4362,6 +4523,7 @@
                         if (track) track.trackTime = 0;
                         state.currentSkeleton.state.timeScale = 0;
                     }
+                    this.updatePausePhaseHighlight();
                 },
 
                 startPauseAfter(callback) {
@@ -4371,6 +4533,7 @@
                     if (state.currentSkeleton) {
                         state.currentSkeleton.state.timeScale = 0;
                     }
+                    this.updatePausePhaseHighlight();
                 },
 
                 onTick() {
@@ -4394,6 +4557,7 @@
                             if (state.player.playing) {
                                 state.currentSkeleton.state.timeScale = 1;
                             }
+                            this.updatePausePhaseHighlight();
                         }
                         document.getElementById('positionSlider').value = 0;
                         if (state.activeMode === 'scenario') this.updateScenarioSliderPosition();
@@ -4406,12 +4570,14 @@
                         }
                         if (state.player.phaseElapsed >= this.PAUSE_DURATION) {
                             state.player.phase = 'none';
-                            if (state.player.pendingAction) {
-                                const action = state.player.pendingAction;
-                                state.player.pendingAction = null;
+                            const action = state.player.pendingAction;
+                            state.player.pendingAction = null;
+                            if (action) {
                                 action();
-                                return;
                             }
+                            this.applyPlaybackState();
+                            this.updatePausePhaseHighlight();
+                            if (action) return;
                         }
                         const track = state.currentSkeleton.state.getCurrent(0);
                         if (track && track.animation && track.animation.duration > 0) {
@@ -4593,6 +4759,15 @@
                     });
                 },
 
+                initPlaceholderScaleSlider() {
+                    const slider = document.getElementById('placeholderScaleSlider');
+                    if (!slider) return;
+                    slider.value = placeholderManager.SCALE;
+                    slider.addEventListener('input', (e) => {
+                        placeholderManager.setScale(parseFloat(e.target.value));
+                    });
+                },
+
                 initZeroAlphaCheckbox() {
                     const checkbox = document.getElementById('zeroAlphaCheckbox');
                     if (!checkbox) return;
@@ -4672,8 +4847,6 @@
                     const skeletonEl = document.getElementById('infoSkeletonName');
                     const animEl = document.getElementById('infoAnimationLine');
 
-                    overlay.classList.add('visible');
-
                     let skeletonName = '';
                     let animationName = '';
                     let duration = 0;
@@ -4691,6 +4864,14 @@
                         duration = playerManager.getAnimationDuration(skeletonName, animationName);
                     }
 
+                    if (!skeletonName && !animationName) {
+                        overlay.classList.remove('visible');
+                        skeletonEl.textContent = '';
+                        animEl.innerHTML = '';
+                        return;
+                    }
+
+                    overlay.classList.add('visible');
                     skeletonEl.textContent = skeletonName;
                     const durationStr = duration > 0 ? ' <span class="info-animation-duration">' + duration.toFixed(2) + 's</span>' : '';
                     animEl.innerHTML = animationName + durationStr;
@@ -4783,13 +4964,16 @@
                                 targetAnimation = item.animation;
                             }
                         }
+                        const wasDifferent = state.activeMode !== 'animation';
                         museumManager.exitMuseum();
+                        if (wasDifferent) {
+                            skeletonManager.resetInstances();
+                        }
                         if (targetSkeleton && targetAnimation) {
                             playlistManager.playSingleAnimation(targetSkeleton, targetAnimation);
                             uiControls.scrollActiveAnimationToCenter();
-                        } else if (state.availableAnimations.length > 0) {
-                            state.activeMode = 'animation';
-                            uiControls.updateHighlighting();
+                        } else if (wasDifferent) {
+                            playlistManager.enterIdleAnimationMode();
                         }
                     });
                 },
@@ -4845,8 +5029,6 @@
                     const scenarioTimeline = document.getElementById('scenarioTimeline');
                     const rightArea = document.querySelector('.right-area');
                     const museumSections = document.querySelectorAll('.museum-section');
-                    const scenarioMenuToggle = document.getElementById('scenarioMenuToggle');
-                    const menuSection = document.querySelector('.menu-section');
 
                     if (state.activeMode === 'scenario') {
                         scenarioHeader.className = 'tab active';
@@ -4861,7 +5043,6 @@
                         scenarioTimeline.classList.add('visible');
                         rightArea.classList.remove('museum-mode');
                         museumSections.forEach(el => el.classList.remove('visible'));
-                        if (scenarioMenuToggle) scenarioMenuToggle.classList.add('visible');
                     } else if (state.activeMode === 'animation') {
                         scenarioHeader.className = 'tab inactive';
                         animationsHeader.className = 'tab active';
@@ -4870,13 +5051,17 @@
                         animationsContent.classList.add('active');
                         museumContent.classList.remove('active');
                         scaleSlider.disabled = false;
-                        infoOverlay.classList.add('visible');
-                        playerBar.style.display = 'flex';
+                        const idleAnimation = !state.activeAnimation;
+                        if (idleAnimation) {
+                            infoOverlay.classList.remove('visible');
+                            playerBar.style.display = 'none';
+                        } else {
+                            infoOverlay.classList.add('visible');
+                            playerBar.style.display = 'flex';
+                        }
                         scenarioTimeline.classList.remove('visible');
                         rightArea.classList.remove('museum-mode');
                         museumSections.forEach(el => el.classList.remove('visible'));
-                        if (scenarioMenuToggle) scenarioMenuToggle.classList.remove('visible');
-                        if (menuSection) menuSection.classList.remove('hidden');
                     } else if (state.activeMode === 'museum') {
                         scenarioHeader.className = 'tab inactive';
                         animationsHeader.className = 'tab inactive';
@@ -4890,12 +5075,15 @@
                         scenarioTimeline.classList.remove('visible');
                         rightArea.classList.add('museum-mode');
                         museumSections.forEach(el => el.classList.add('visible'));
-                        if (scenarioMenuToggle) scenarioMenuToggle.classList.remove('visible');
-                        if (menuSection) menuSection.classList.remove('hidden');
                     }
 
                     playerManager.updateScenarioTimelineVisibility();
                     playerManager.resizeCanvas();
+
+                    const scenarioOnlyChecks = document.getElementById('scenarioOnlyChecks');
+                    if (scenarioOnlyChecks) {
+                        scenarioOnlyChecks.classList.toggle('visible', state.activeMode === 'scenario');
+                    }
 
                     const items = document.querySelectorAll('#animationsList .animation-item');
                     items.forEach(el => {
@@ -4912,6 +5100,11 @@
                             el.classList.remove('active');
                         }
                     });
+
+                    playerManager.updatePlayPauseButton();
+                    playerManager.updateLoopButton();
+                    playerManager.updatePauseBeforeButton();
+                    playerManager.updatePauseAfterButton();
 
                     updateScenarioLineHighlighting();
                 }
@@ -5031,6 +5224,7 @@
                         state.availableResolutions = {};
                         state.loadedSkeletons.clear();
                         state.availableAnimations = [];
+                        state.animationDurations = {};
                         state.availableSkins = {};
                         state.currentSkeleton = null;
                         state.currentSkeletonName = '';
@@ -5042,10 +5236,8 @@
                         state.activeAnimation = null;
                         state._lastScenarioText = '';
 
-                    state.player.playing = true;
-                    state.player.loop = true;
-                    state.player.pauseBefore = false;
-                    state.player.pauseAfter = false;
+                    state.playback.scenario = { playing: true, loop: true, pauseBefore: false, pauseAfter: false };
+                    state.playback.animation = { playing: true, loop: true, pauseBefore: false, pauseAfter: false };
                     state.player.phase = 'none';
                     state.player.phaseElapsed = 0;
                     state.player.pendingAction = null;
@@ -5157,17 +5349,21 @@
                             const skeletonObj = state.skeletons[skeletonName];
                             if (!skeletonObj) continue;
 
-                            let animations = [];
+                            let animationList = [];
                             try {
                                 const skeletonData = skeletonObj.skeleton?.data || skeletonObj.state?.data?.skeletonData;
-                                animations = (skeletonData?.animations || []).map(a => a.name);
+                                animationList = skeletonData?.animations || [];
                             } catch (e) {
                                 console.error('Failed to read animations:', e);
                             }
 
-                            animations.forEach(anim => {
-                                state.availableAnimations.push({ skeletonName, animationName: anim });
+                            const durations = {};
+                            animationList.forEach(a => {
+                                const animName = a.name;
+                                state.availableAnimations.push({ skeletonName, animationName: animName });
+                                durations[animName] = a.duration;
                             });
+                            state.animationDurations[skeletonName] = durations;
 
                             const zeroWarnings = placeholderManager.detectZeroAlpha(skeletonName);
                             if (zeroWarnings.length > 0) {
@@ -5177,7 +5373,7 @@
                             const skins = skinManager.readSkins(skeletonName);
                             state.availableSkins[skeletonName] = skins;
 
-                            const newLines = animations.map(anim => skeletonName + '|' + anim);
+                            const newLines = animationList.map(a => skeletonName + '|' + a.name);
                             if (scenarioText.trim()) {
                                 scenarioText += '\n' + newLines.join('\n');
                             } else {
@@ -5508,6 +5704,7 @@
                 uiControls.initScaleSlider();
                 uiControls.initCheckbox();
                 uiControls.initPlaceholdersCheckbox();
+                uiControls.initPlaceholderScaleSlider();
                 uiControls.initZeroAlphaCheckbox();
                 uiControls.initPlaceholdersListCheckbox();
                 uiControls.initEventsListCheckbox();
