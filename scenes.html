@@ -200,6 +200,14 @@
             display: block;
         }
 
+        .scene-only {
+            display: none;
+        }
+
+        .scene-only.visible {
+            display: block;
+        }
+
         .scenario-menu-toggle {
             display: flex;
             align-items: center;
@@ -1529,10 +1537,41 @@
             flex-shrink: 0;
             user-select: none;
             -webkit-user-select: none;
+            position: relative;
         }
 
         .scene-timeline.visible {
             display: flex;
+        }
+
+        .scene-label-splitter {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 6px;
+            margin-left: -6px;
+            cursor: col-resize;
+            z-index: 8;
+            display: none;
+        }
+
+        .scene-timeline.visible .scene-label-splitter {
+            display: block;
+        }
+
+        .scene-label-splitter::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            right: 0;
+            width: 1px;
+            background: var(--n3);
+        }
+
+        .scene-label-splitter:hover::after,
+        .scene-label-splitter.dragging::after {
+            background: var(--n5);
         }
 
         .scene-timeline-resize-handle {
@@ -1598,18 +1637,26 @@
             height: 26px;
         }
 
+        .scene-tl-row.dragging {
+            opacity: 0.5;
+        }
+
+        .scene-tl-row.drag-over {
+            background: var(--n2);
+        }
+
         .scene-tl-ruler-row {
             display: flex;
             align-items: stretch;
-            height: 20px;
+            height: 32px;
             position: sticky;
             top: 0;
             z-index: 5;
         }
 
         .scene-tl-ruler-label {
-            width: 132px;
-            flex: 0 0 132px;
+            width: var(--scene-label-w, 132px);
+            flex: 0 0 var(--scene-label-w, 132px);
             position: sticky;
             left: 0;
             z-index: 6;
@@ -1630,7 +1677,7 @@
         .scene-tl-ruler {
             position: relative;
             flex: 0 0 auto;
-            height: 20px;
+            height: 32px;
             border-bottom: 1px solid var(--n2);
             background: var(--bg);
             cursor: ew-resize;
@@ -1639,16 +1686,30 @@
 
         .scene-tl-tick {
             position: absolute;
-            top: 10px;
             bottom: 0;
+            height: 9px;
             width: 1px;
             background: var(--n3);
             pointer-events: none;
         }
 
+        .scene-tl-frame-tick {
+            position: absolute;
+            top: 0;
+            height: 8px;
+            width: 1px;
+            background: var(--n4);
+            pointer-events: none;
+        }
+
+        .scene-tl-frame-tick.second {
+            height: 12px;
+            background: var(--n3);
+        }
+
         .scene-tl-tick-label {
             position: absolute;
-            top: 1px;
+            top: 12px;
             padding-left: 3px;
             font-size: 9px;
             font-family: monospace;
@@ -1658,8 +1719,8 @@
         }
 
         .scene-tl-label {
-            width: 132px;
-            flex: 0 0 132px;
+            width: var(--scene-label-w, 132px);
+            flex: 0 0 var(--scene-label-w, 132px);
             position: sticky;
             left: 0;
             z-index: 4;
@@ -1672,13 +1733,13 @@
             font-family: monospace;
             color: var(--n-text);
             border-right: 1px solid var(--n2);
-            border-bottom: 1px solid var(--n1);
+            border-bottom: 1px solid var(--bg);
             box-sizing: border-box;
             overflow: hidden;
         }
 
         .scene-tl-label.selected {
-            background: var(--n2);
+            background: linear-gradient(rgba(var(--fg-rgb), 0.16), rgba(var(--fg-rgb), 0.16)), var(--bg);
         }
 
         .scene-tl-name {
@@ -1687,7 +1748,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            cursor: pointer;
+            cursor: grab;
         }
 
         .scene-tl-name.selected {
@@ -1706,7 +1767,8 @@
             position: relative;
             flex: 0 0 auto;
             height: 26px;
-            border-bottom: 1px solid var(--n1);
+            border-bottom: 1px solid var(--bg);
+            box-sizing: border-box;
             cursor: crosshair;
         }
 
@@ -1716,14 +1778,13 @@
             bottom: 3px;
             border-radius: 3px;
             background: rgba(var(--fg-rgb), 0.16);
-            border: 1px solid rgba(var(--fg-rgb), 0.35);
             box-sizing: border-box;
             overflow: hidden;
             cursor: grab;
             display: flex;
             align-items: center;
             font-size: 10px;
-            color: var(--fg);
+            color: rgba(var(--fg-rgb), 0.72);
             user-select: none;
             white-space: nowrap;
         }
@@ -1764,8 +1825,41 @@
             top: 0;
             bottom: 0;
             width: 1px;
-            background: rgba(var(--fg-rgb), 0.3);
+            background: #ffffff;
+            opacity: 1;
             pointer-events: none;
+        }
+
+        .scene-tl-strip.inst-selected:not(.missing) {
+            background: rgba(var(--fg-rgb), 0.34);
+        }
+
+        .scene-tl-vkey {
+            position: absolute;
+            top: 0;
+            width: 9px;
+            height: 9px;
+            margin-left: -4.5px;
+            border-radius: 50%;
+            border: 1px solid rgba(var(--fg-rgb), 0.9);
+            background: transparent;
+            box-sizing: border-box;
+            pointer-events: auto;
+            cursor: ew-resize;
+            z-index: 2;
+        }
+
+        .scene-tl-vkey.visible {
+            background: rgba(var(--fg-rgb), 0.95);
+        }
+
+        .scene-tl-vkey.selected {
+            outline: 2px solid rgba(120, 190, 255, 0.95);
+            outline-offset: 1px;
+        }
+
+        .scene-tl-toggle {
+            font-weight: bold;
         }
 
         .scene-tl-playhead {
@@ -1893,6 +1987,40 @@
             animation: sceneCopyFlash 0.8s ease-out;
         }
 
+        .add-scene-controls {
+            margin-top: 6px;
+        }
+
+        .museum-add-scene-btn {
+            width: 100%;
+        }
+
+        @keyframes addToSceneError {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(220, 70, 70, 0), 0 0 0 2px rgba(220, 70, 70, 0);
+            }
+            50% {
+                box-shadow: 0 0 0 0 rgba(220, 70, 70, 0), 0 0 0 3px rgba(220, 70, 70, 0.95);
+            }
+        }
+
+        @keyframes addToSceneSuccess {
+            0% {
+                box-shadow: 0 0 0 0 rgba(70, 210, 120, 0.9), 0 0 0 2px rgba(70, 210, 120, 1);
+            }
+            100% {
+                box-shadow: 0 0 0 10px rgba(70, 210, 120, 0), 0 0 0 2px rgba(70, 210, 120, 0);
+            }
+        }
+
+        .museum-add-scene-btn.add-error {
+            animation: addToSceneError 0.5s ease-in-out 2;
+        }
+
+        .museum-add-scene-btn.add-success {
+            animation: addToSceneSuccess 0.8s ease-out;
+        }
+
         .scene-timeline .scene-time-label {
             font-size: 13px;
         }
@@ -2016,6 +2144,9 @@
                         <button id="museumPlayAllBtn" class="player-btn toggle-btn text-btn" title="Play all animations">All</button>
                         <input type="range" id="selectedPositionSlider" class="player-slider selected-position-slider" min="0" max="1000" value="0" step="1" disabled>
                     </div>
+                    <div class="selected-controls add-scene-controls">
+                        <button id="museumAddToSceneBtn" class="museum-position-btn museum-add-scene-btn" type="button">Add to current scene</button>
+                    </div>
                 </div>
             <div id="museumSection" class="museum-section">
                 <div class="checkbox-item">
@@ -2023,8 +2154,12 @@
                     <label for="snapCheckbox">Snap to grid</label>
                 </div>
                 <div class="checkbox-item">
-                    <input type="checkbox" id="skeletonViewCheckbox">
+                    <input type="checkbox" id="skeletonViewCheckbox" checked>
                     <label for="skeletonViewCheckbox">Skeleton view (no animations)</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="showTitlesCheckbox" checked>
+                    <label for="showTitlesCheckbox">Show titles not selected</label>
                 </div>
             </div>
             <div class="menu-section">
@@ -2070,6 +2205,47 @@
                     <div class="checkbox-item">
                         <input type="checkbox" id="unusedCheckbox">
                         <label for="unusedCheckbox">Check unused</label>
+                    </div>
+                </div>
+                <div id="sceneGridSection" class="scene-only">
+                    <div class="scene-field-row">
+                        <label>Grid</label>
+                        <span style="flex:1;"></span>
+                        <button id="sceneGridResetBtn" class="scene-btn" type="button">Reset grid</button>
+                    </div>
+                    <div class="scene-fields">
+                        <div class="scene-field">
+                            <label>Step X</label>
+                            <input type="text" id="gridStepX" class="coord-input" value="100">
+                        </div>
+                        <div class="scene-field">
+                            <label>Step Y</label>
+                            <input type="text" id="gridStepY" class="coord-input" value="100">
+                        </div>
+                        <div class="scene-field">
+                            <label>Cols</label>
+                            <input type="text" id="gridCols" class="coord-input" value="10">
+                        </div>
+                        <div class="scene-field">
+                            <label>Rows</label>
+                            <input type="text" id="gridRows" class="coord-input" value="10">
+                        </div>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="gridSnap" checked>
+                        <label for="gridSnap">Snap to grid</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="gridSnapHalfs">
+                        <label for="gridSnapHalfs">Snap to halfs</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="gridFromReelsBox">
+                        <label for="gridFromReelsBox">From reels-box</label>
+                    </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="gridShow" checked>
+                        <label for="gridShow">Show grid</label>
                     </div>
                 </div>
                 <div id="skinSection" class="skin-section">
@@ -2153,6 +2329,7 @@
                 <div id="sceneTimelineScroll" class="scene-timeline-scroll">
                     <div id="sceneTimelineRows" class="scene-timeline-rows"></div>
                 </div>
+                <div id="sceneLabelSplitter" class="scene-label-splitter" title="Drag to resize names column"></div>
             </div>
             <div class="player-bar">
                 <div class="player-buttons">
@@ -2484,7 +2661,8 @@
                     selectionGraphics: null,
                     visibilityPainting: false,
                     visibilityPaintTarget: null,
-                    skeletonView: false
+                    skeletonView: true,
+                    showTitles: true
                 },
                 scenes: {
                     list: [],
@@ -2498,6 +2676,8 @@
                     instanceAnchorId: null,
                     hoveredInstanceId: null,
                     selectedStripId: null,
+                    selectedVisibilityKeyId: null,
+                    painting: null,
                     newAnimationName: '',
                     dragging: null,
                     panning: null,
@@ -2521,7 +2701,18 @@
                     labels: {},
                     dirty: false,
                     view: {
-                        pps: 100
+                        pps: 100,
+                        labelWidth: 132
+                    },
+                    grid: {
+                        stepX: 100,
+                        stepY: 100,
+                        cols: 10,
+                        rows: 10,
+                        snap: true,
+                        snapHalfs: false,
+                        fromReelsBox: false,
+                        show: true
                     }
                 }
             };
@@ -2765,6 +2956,9 @@
                 DEFAULT_SPACING: 300,
                 SYM_SPACING: 500,
                 FIT_PADDING: 2560,
+                STORAGE_KEY: 'spineViewerMuseumState',
+                SKELETON_VIEW_KEY: 'spineViewerSkeletonView',
+                SHOW_TITLES_KEY: 'spineViewerMuseumShowTitles',
 
                 init() {
                     this.initTab();
@@ -2774,15 +2968,49 @@
                     this.initCanvasInteraction();
                     this.initSelectedInputs();
                     this.initSelectedControls();
+                    this.initAddToSceneButton();
                     this.initSkeletonViewCheckbox();
+                    this.initShowTitlesCheckbox();
+
+                    window.addEventListener('beforeunload', () => this._saveStateNow());
                 },
 
                 initSkeletonViewCheckbox() {
                     const checkbox = document.getElementById('skeletonViewCheckbox');
                     if (!checkbox) return;
-                    checkbox.checked = !!state.museum.skeletonView;
+
+                    let enabled = true;
+                    let stored = null;
+                    try { stored = localStorage.getItem(this.SKELETON_VIEW_KEY); } catch (e) {}
+                    if (stored === '0') enabled = false;
+                    else if (stored === '1') enabled = true;
+
+                    state.museum.skeletonView = enabled;
+                    checkbox.checked = enabled;
+
                     checkbox.addEventListener('change', (e) => {
                         this.setSkeletonView(e.target.checked);
+                        try { localStorage.setItem(this.SKELETON_VIEW_KEY, e.target.checked ? '1' : '0'); } catch (err) {}
+                    });
+                },
+
+                initShowTitlesCheckbox() {
+                    const checkbox = document.getElementById('showTitlesCheckbox');
+                    if (!checkbox) return;
+
+                    let enabled = true;
+                    let stored = null;
+                    try { stored = localStorage.getItem(this.SHOW_TITLES_KEY); } catch (e) {}
+                    if (stored === '0') enabled = false;
+                    else if (stored === '1') enabled = true;
+
+                    state.museum.showTitles = enabled;
+                    checkbox.checked = enabled;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.museum.showTitles = e.target.checked;
+                        try { localStorage.setItem(this.SHOW_TITLES_KEY, e.target.checked ? '1' : '0'); } catch (err) {}
+                        this.updateDiamondPosition();
                     });
                 },
 
@@ -2793,11 +3021,22 @@
                         if (!sk) continue;
                         if (enabled) {
                             this.stopPlayAll(item.skeletonName);
+                            item._pausedTrackTime = this.getCurrentTrackTime(item.skeletonName);
                             sk.state.clearTracks();
                             sk.skeleton.setToSetupPose();
                             sk.state.timeScale = 0;
                         } else {
                             this.setAnimation(item.skeletonName, item.animation);
+                            if (!item.isPlaying && item._pausedTrackTime != null) {
+                                const track = sk.state.getCurrent(0);
+                                if (track) {
+                                    const dur = track.animation ? track.animation.duration : 0;
+                                    let tt = item._pausedTrackTime;
+                                    if (dur > 0 && tt > dur) tt = tt % dur;
+                                    if (tt < 0) tt = 0;
+                                    track.trackTime = tt;
+                                }
+                            }
                             sk.state.timeScale = item.isPlaying ? 1 : 0;
                         }
                     }
@@ -3002,7 +3241,10 @@
 
                 updateDiamondPosition() {
                     if (!state.museum.centerDiamondGraphics) return;
-                    state.museum.centerDiamondGraphics.clear();
+                    const g = state.museum.centerDiamondGraphics;
+                    g.clear();
+
+                    const showAll = !!state.museum.showTitles;
 
                     for (const item of state.museum.skeletons) {
                         const skeleton = state.skeletons[item.skeletonName];
@@ -3013,17 +3255,17 @@
                         const isHovered = state.museum.hoveredSkeleton === item.skeletonName;
                         const isSelected = state.museum.selectedSkeletons.includes(item.skeletonName);
 
-                        if (isSelected || isHovered) {
-                            const size = 10;
-                            const g = state.museum.centerDiamondGraphics;
+                        if (isSelected || isHovered || showAll) {
+                            const emphasized = isSelected || isHovered;
+                            const size = emphasized ? 10 : 7;
                             g.beginPath();
                             g.moveTo(centerX, centerY - size);
                             g.lineTo(centerX + size, centerY);
                             g.lineTo(centerX, centerY + size);
                             g.lineTo(centerX - size, centerY);
                             g.closePath();
-                            g.fill({ color: 0xffffff, alpha: 0.5 });
-                            g.stroke({ width: 2, color: 0x000000, alpha: 1.0 });
+                            g.fill({ color: 0xffffff, alpha: emphasized ? 0.5 : 0.75 });
+                            g.stroke({ width: emphasized ? 2 : 1, color: 0x000000, alpha: emphasized ? 1.0 : 0.75 });
                         }
                     }
 
@@ -3032,6 +3274,13 @@
                     const named = new Set(state.museum.selectedSkeletons);
                     if (state.museum.hoveredSkeleton) {
                         named.add(state.museum.hoveredSkeleton);
+                    }
+                    if (showAll) {
+                        for (const item of state.museum.skeletons) {
+                            if (item.visible && state.skeletons[item.skeletonName]) {
+                                named.add(item.skeletonName);
+                            }
+                        }
                     }
 
                     for (const name of Object.keys(state.museum.hoverLabelObjects)) {
@@ -3059,9 +3308,11 @@
                             state.museum.hoverLabelObjects[name] = label;
                             state.app.stage.addChild(label);
                         }
+                        const emphasized = state.museum.selectedSkeletons.includes(name) || state.museum.hoveredSkeleton === name;
                         label.text = name;
                         label.x = sk.x;
                         label.y = sk.y - 24;
+                        label.alpha = emphasized ? 1.0 : 0.75;
                         label.visible = true;
                         state.app.stage.addChild(label);
                     }
@@ -3179,6 +3430,66 @@
                     document.addEventListener('mouseleave', () => this.endVisibilityPaint());
                 },
 
+                initAddToSceneButton() {
+                    const btn = document.getElementById('museumAddToSceneBtn');
+                    if (!btn) return;
+                    btn.addEventListener('click', () => this.addSelectedToCurrentScene(btn));
+                },
+
+                addSelectedToCurrentScene(btn) {
+                    const scene = sceneManager.getCurrentScene();
+                    if (!scene) {
+                        this.flashAddSceneButton(btn, 'add-error');
+                        return;
+                    }
+
+                    let names = (state.museum.selectedSkeletons || []).slice();
+                    if (names.length === 0) {
+                        names = state.museum.skeletons
+                            .filter(s => s.visible)
+                            .map(s => s.skeletonName);
+                    }
+
+                    const created = [];
+                    for (const name of names) {
+                        if (!state.loadedSkeletons.has(name)) continue;
+                        const item = state.museum.skeletons.find(s => s.skeletonName === name);
+                        if (!item) continue;
+
+                        const inst = sceneManager.buildInstance(name, Math.round(item.worldX), Math.round(item.worldY));
+                        if (item.animation && sceneManager.hasAnimation(name, item.animation)) {
+                            const dur = sceneManager.getDuration(name, item.animation);
+                            inst.strips = [{
+                                id: sceneManager.newId('strip'),
+                                animation: item.animation,
+                                start: 0,
+                                length: Math.max(1 / sceneManager.FPS, sceneManager.snapToFrame(dur > 0 ? dur : 1)),
+                                loop: true
+                            }];
+                        }
+                        created.push(inst);
+                    }
+
+                    if (created.length === 0) {
+                        this.flashAddSceneButton(btn, 'add-error');
+                        return;
+                    }
+
+                    scene.instances = created.concat(scene.instances);
+                    sceneManager.save();
+                    sceneManager.renderInstanceList();
+                    sceneManager.renderTimeline();
+                    this.flashAddSceneButton(btn, 'add-success');
+                },
+
+                flashAddSceneButton(btn, cls) {
+                    if (!btn) return;
+                    btn.classList.remove('add-error', 'add-success');
+                    void btn.offsetWidth;
+                    btn.classList.add(cls);
+                    btn.addEventListener('animationend', () => btn.classList.remove(cls), { once: true });
+                },
+
                 drawSelectionRect(x1, y1, x2, y2) {
                     if (!state.museum.selectionGraphics) {
                         state.museum.selectionGraphics = new PIXI.Graphics();
@@ -3271,7 +3582,7 @@
 
                     const skeletonNames = Array.from(state.loadedSkeletons).sort((a, b) => this.sortSkeletonsForLayering(a, b));
                     const layout = this.computeLayout();
-                    const savedState = {};
+                    const savedState = this.loadState() || {};
                     const isFirstBuild = state.museum.skeletons.length === 0;
 
                     if (isFirstBuild) {
@@ -3452,6 +3763,7 @@
                     skeleton.x = screenX;
                     skeleton.y = screenY;
                     skeleton.scale.set(state.museum.cameraScale);
+                    this.saveState();
                 },
 
                 setCameraScale(scale) {
@@ -3599,6 +3911,7 @@
                     if (track && track.animation && track.animation.duration <= 0) {
                         skeleton.skeleton.setToSetupPose();
                     }
+                    this.saveState();
                 },
 
                 onResolutionChange() {
@@ -3653,6 +3966,7 @@
 
                     item.isPlaying = !item.isPlaying;
                     skeleton.state.timeScale = item.isPlaying ? 1 : 0;
+                    this.saveState();
                 },
 
                 toggleVisibility(skeletonName) {
@@ -3766,6 +4080,7 @@
 
                     this.updateDiamondPosition();
                     this.updateSelectedInfo();
+                    this.saveState();
                     return true;
                 },
 
@@ -3882,6 +4197,7 @@
                         sk.state.timeScale = 1;
                     }
                     this.updateSelectedPlaybackButtons();
+                    this.saveState();
                 },
 
                 pauseSelected() {
@@ -3893,6 +4209,7 @@
                         sk.state.timeScale = 0;
                     }
                     this.updateSelectedPlaybackButtons();
+                    this.saveState();
                 },
 
                 stopSelected() {
@@ -3906,6 +4223,7 @@
                         sk.state.timeScale = 0;
                     }
                     this.updateSelectedPlaybackButtons();
+                    this.saveState();
                 },
 
                 togglePlayPauseSelected() {
@@ -3954,6 +4272,7 @@
                     item.playAllIndex = 0;
                     item.isPlaying = true;
                     this._playAllStep(skeletonName);
+                    this.saveState();
                 },
 
                 _playAllStep(skeletonName) {
@@ -3980,6 +4299,7 @@
                     if (state.museum.selectedSkeletons.includes(skeletonName)) {
                         this.buildSelectedAnimationDropdown();
                     }
+                    this.saveState();
                 },
 
                 stopPlayAll(skeletonName) {
@@ -3995,6 +4315,7 @@
                             track.loop = true;
                         }
                     }
+                    this.saveState();
                 },
 
                 updateSelectedPlaybackButtons() {
@@ -4037,6 +4358,7 @@
                         if (dur <= 0) continue;
                         track.trackTime = ratio * dur;
                     }
+                    this.saveState();
                 },
 
                 updateSelectedPositionSlider() {
@@ -4115,6 +4437,7 @@
 
                         this.renderSkeletonList();
                         this.applyRenderOrder();
+                        this.saveState();
                     });
                 },
 
@@ -4128,12 +4451,46 @@
 
                 getCurrentTrackTime(skeletonName) {
                     const sk = state.skeletons[skeletonName];
-                    if (!sk || !sk.state) return 0;
+                    const item = state.museum.skeletons.find(s => s.skeletonName === skeletonName);
+                    const cached = (item && item._pausedTrackTime != null) ? item._pausedTrackTime : null;
+                    if (!sk || !sk.state) return cached != null ? cached : 0;
                     const track = sk.state.getCurrent(0);
-                    if (!track || !track.animation) return 0;
+                    if (!track || !track.animation) return cached != null ? cached : 0;
                     const dur = track.animation.duration || 0;
                     if (dur > 0) return track.trackTime % dur;
                     return track.trackTime;
+                },
+
+                saveState() {
+                    if (state.activeMode !== 'museum') return;
+                    if (this._stateSaveTimer) clearTimeout(this._stateSaveTimer);
+                    this._stateSaveTimer = setTimeout(() => {
+                        this._stateSaveTimer = null;
+                        this._saveStateNow();
+                    }, 300);
+                },
+
+                _saveStateNow() {
+                    if (state.activeMode !== 'museum') return;
+                    if (!state.museum || state.museum.skeletons.length === 0) return;
+                    try {
+                        localStorage.setItem(this.STORAGE_KEY, this.serializeState());
+                    } catch (e) {}
+                },
+
+                loadState() {
+                    let raw = null;
+                    try { raw = localStorage.getItem(this.STORAGE_KEY); } catch (e) {}
+                    if (!raw) return null;
+                    try {
+                        const parsed = this.parseStateText(raw);
+                        if (!parsed || !parsed.skeletonStates || Object.keys(parsed.skeletonStates).length === 0) {
+                            return null;
+                        }
+                        return parsed;
+                    } catch (e) {
+                        return null;
+                    }
                 },
 
                 serializeState() {
@@ -4305,11 +4662,13 @@
 
                     this.updateDiamondPosition();
                     this.updateSelectedInfo();
+                    this.saveState();
                 },
 
                 resetMuseumState() {
                     state.museum.skeletons = [];
                     state.museum.selectedSkeletons = [];
+                    try { localStorage.removeItem(this.STORAGE_KEY); } catch (e) {}
                     this.setupMuseumView();
                 },
 
@@ -4346,6 +4705,8 @@
 
                 exitMuseum() {
                     if (state.activeMode !== 'museum') return;
+
+                    this._saveStateNow();
 
                     state.museum.skeletons.forEach(item => {
                         const skeleton = state.skeletons[item.skeletonName];
@@ -4388,7 +4749,10 @@
 
             const sceneManager = {
                 STORAGE_KEY: 'spineViewerScenes',
+                LABEL_WIDTH_KEY: 'spineViewerSceneLabelWidth',
+                GRID_KEY: 'spineViewerSceneGrid',
                 PPS: 100,
+                FPS: 30,
                 MIN_LEN: 0.1,
                 FIT_PADDING: 400,
 
@@ -4495,20 +4859,33 @@
                         scale: isFinite(inst.scale) ? Number(inst.scale) : 1,
                         rotation: isFinite(inst.rotation) ? Number(inst.rotation) : 0,
                         visible: inst.visible !== false,
+                        timelineVisible: inst.timelineVisible !== false,
+                        visibilityKeys: [],
                         strips: []
                     };
                     const strips = Array.isArray(inst.strips) ? inst.strips : [];
                     out.strips = strips.map(st => this.normalizeStrip(st)).filter(Boolean);
+                    const keys = Array.isArray(inst.visibilityKeys) ? inst.visibilityKeys : [];
+                    out.visibilityKeys = keys
+                        .filter(k => k && isFinite(k.time))
+                        .map(k => ({
+                            id: k.id || this.newId('vkey'),
+                            time: this.snapToFrame(k.time),
+                            visible: k.visible !== false
+                        }))
+                        .sort((a, b) => a.time - b.time);
                     return out;
                 },
 
                 normalizeStrip(st) {
                     if (!st || typeof st !== 'object') return null;
+                    const start = isFinite(st.start) ? Math.max(0, Number(st.start)) : 0;
+                    const length = isFinite(st.length) ? Math.max(this.MIN_LEN, Number(st.length)) : 1;
                     return {
                         id: st.id || this.newId('strip'),
                         animation: String(st.animation || ''),
-                        start: isFinite(st.start) ? Math.max(0, Number(st.start)) : 0,
-                        length: isFinite(st.length) ? Math.max(this.MIN_LEN, Number(st.length)) : 1,
+                        start: this.snapToFrame(start),
+                        length: Math.max(1 / this.FPS, this.snapToFrame(length)),
                         loop: st.loop !== false
                     };
                 },
@@ -4567,7 +4944,10 @@
                     const arr = ids ? ids.slice() : [];
                     state.scenes.selectedIds = arr;
                     state.scenes.selectedInstanceId = arr.length === 1 ? arr[0] : null;
-                    if (arr.length !== 1) state.scenes.selectedStripId = null;
+                    if (arr.length !== 1) {
+                        state.scenes.selectedStripId = null;
+                        state.scenes.selectedVisibilityKeyId = null;
+                    }
                     this.renderInstanceList();
                     this.renderInstanceControls();
                     this.renderTimeline();
@@ -4710,12 +5090,20 @@
 
                     this.initCanvasInteraction();
                     this.initPaletteDrop();
+                    this.initLabelSplitter();
+
+                    document.addEventListener('mouseup', () => this.endInstancePaint());
 
                     document.addEventListener('keydown', (e) => {
                         if (state.activeMode !== 'scene') return;
                         const t = e.target;
                         if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
                         if (e.key === 'Delete') {
+                            if (state.scenes.selectedVisibilityKeyId) {
+                                e.preventDefault();
+                                this.deleteSelectedVisibilityKey();
+                                return;
+                            }
                             if (!state.scenes.selectedStripId) return;
                             const inst = this.findInstance(state.scenes.selectedInstanceId);
                             if (!inst) return;
@@ -4758,8 +5146,11 @@
                         }
                     });
 
+                    this.loadLabelWidth();
+                    this.loadGrid();
                     this.load();
                     this.renderSceneList();
+                    this.initSceneGridControls();
                 },
 
                 activateScenes() {
@@ -4872,6 +5263,7 @@
                     state.scenes.selectedIds = [];
                     state.scenes.instanceAnchorId = null;
                     state.scenes.selectedStripId = null;
+                    state.scenes.selectedVisibilityKeyId = null;
                     state.scenes.selection.isSelecting = false;
                     this.clearMarquee();
                     this.save();
@@ -4887,6 +5279,7 @@
                     state.scenes.selectedIds = [];
                     state.scenes.instanceAnchorId = null;
                     state.scenes.selectedStripId = null;
+                    state.scenes.selectedVisibilityKeyId = null;
                     state.scenes.selection.isSelecting = false;
                     state.scenes.ptr.time = 0;
                     state.scenes.ptr.playing = false;
@@ -4928,6 +5321,7 @@
                     if (!g.missing) g.missing = new PIXI.Graphics();
                     if (!g.selection) g.selection = new PIXI.Graphics();
                     if (!g.marquee) g.marquee = new PIXI.Graphics();
+                    if (!g.grid) g.grid = new PIXI.Graphics();
                 },
 
                 clearStage() {
@@ -4937,7 +5331,7 @@
                         if (rt && rt.parent) rt.parent.removeChild(rt);
                     }
                     const g = state.scenes.graphics;
-                    ['workspace', 'missing', 'selection', 'marquee'].forEach(k => {
+                    ['workspace', 'missing', 'selection', 'marquee', 'grid'].forEach(k => {
                         if (g[k] && g[k].parent) g[k].parent.removeChild(g[k]);
                     });
                     for (const key of Object.keys(state.scenes.labels)) {
@@ -5028,10 +5422,12 @@
                 applyAllTransforms() {
                     const scene = this.getCurrentScene();
                     if (!scene) return;
+                    const t = state.scenes.ptr ? state.scenes.ptr.time : 0;
                     scene.instances.forEach(inst => {
                         const rt = state.scenes.instances[inst.id];
                         if (rt) {
-                            rt.visible = inst.visible;
+                            rt.visible = inst.visible !== false;
+                            rt.alpha = this.isKeyVisibleAt(inst, t) ? 1 : 0;
                             this.applyCameraTransform(rt, inst);
                         }
                     });
@@ -5058,6 +5454,7 @@
                             state.app.stage.addChild(label);
                         }
                     }
+                    if (g.grid) state.app.stage.addChild(g.grid);
                     this.applyRenderGroupIsolation();
                 },
 
@@ -5079,8 +5476,11 @@
                     if (!g || !state.app) return;
                     const scene = this.getCurrentScene();
                     if (!scene) return;
-                    graphicsManager.drawAxesAndGrid(g, scene.camera.scale, scene.camera.ox, scene.camera.oy);
+                    graphicsManager.drawAxesAndGrid(g, scene.camera.scale, scene.camera.ox, scene.camera.oy, true);
+                    this.drawSceneGridPoints(scene);
                     frameManager.draw();
+                    const gridG = state.scenes.graphics.grid;
+                    if (gridG) state.app.stage.addChild(gridG);
                 },
 
                 drawMarkers() {
@@ -5236,19 +5636,18 @@
                         dragHandle.draggable = true;
 
                         const visibilityBtn = document.createElement('button');
-                        visibilityBtn.className = 'museum-visibility-btn' + (inst.visible ? ' visible' : '');
+                        visibilityBtn.className = 'museum-visibility-btn scene-inst-vis' + (inst.visible ? ' visible' : '');
+                        visibilityBtn.dataset.instanceId = inst.id;
                         visibilityBtn.textContent = inst.visible ? '\u25CF' : '\u25CB';
-                        visibilityBtn.addEventListener('click', (e) => {
+                        visibilityBtn.title = 'Toggle visibility (drag to paint)';
+                        visibilityBtn.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            inst.visible = !inst.visible;
-                            const rt = state.scenes.instances[inst.id];
-                            if (rt) rt.visible = inst.visible;
-                            this.save();
-                            this.renderInstanceList();
-                            this.renderTimeline();
-                            this.applyRenderOrder();
-                            this.updateSelectedControlsVisibility();
+                            this.startInstancePaint('visible', !inst.visible, e);
+                            this.paintInstance(inst, 'visible');
                         });
+                        visibilityBtn.addEventListener('mouseenter', () => this.paintInstance(inst, 'visible'));
+                        visibilityBtn.addEventListener('click', (e) => e.stopPropagation());
 
                         const addBtn = document.createElement('button');
                         addBtn.className = 'museum-visibility-btn scene-tl-add';
@@ -5259,45 +5658,76 @@
                             this.addStrip(inst.id);
                         });
 
+                        const timelineBtn = document.createElement('button');
+                        const tlActive = inst.timelineVisible !== false;
+                        timelineBtn.className = 'museum-visibility-btn scene-tl-toggle' + (tlActive ? ' visible' : '');
+                        timelineBtn.dataset.instanceId = inst.id;
+                        timelineBtn.textContent = 'T';
+                        timelineBtn.title = tlActive ? 'Hide strip on timeline (drag to paint)' : 'Show strip on timeline (drag to paint)';
+                        timelineBtn.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            this.startInstancePaint('timeline', !(inst.timelineVisible !== false), e);
+                            this.paintInstance(inst, 'timeline');
+                        });
+                        timelineBtn.addEventListener('mouseenter', () => this.paintInstance(inst, 'timeline'));
+                        timelineBtn.addEventListener('click', (e) => e.stopPropagation());
+
                         const nameSpan = document.createElement('div');
                         nameSpan.className = 'museum-name';
                         if (!this.isSkeletonAvailable(inst.skeletonName)) nameSpan.classList.add('missing');
                         nameSpan.textContent = this.getInstanceLabel(inst);
+                        nameSpan.draggable = true;
+                        nameSpan.style.cursor = 'grab';
 
                         div.appendChild(dragHandle);
                         div.appendChild(visibilityBtn);
+                        div.appendChild(timelineBtn);
                         div.appendChild(addBtn);
                         div.appendChild(nameSpan);
                         container.appendChild(div);
 
                         div.addEventListener('click', (e) => this.selectInstance(inst.id, e));
 
-                        this.setupInstanceDragAndDrop(div, index);
+                        this.setupInstanceDragAndDrop(div, index, [dragHandle, nameSpan]);
                     });
                 },
 
-                setupInstanceDragAndDrop(element, index) {
-                    const dragHandle = element.querySelector('.museum-drag-handle');
-                    if (!dragHandle) return;
+                setupInstanceDragAndDrop(element, index, dragSources) {
+                    const sources = (dragSources && dragSources.length)
+                        ? dragSources
+                        : [element.querySelector('.museum-drag-handle')].filter(Boolean);
+                    if (sources.length === 0) return;
 
-                    dragHandle.addEventListener('dragstart', (e) => {
-                        e.dataTransfer.setData('text/plain', String(index));
-                        e.dataTransfer.effectAllowed = 'move';
-                        const inst = this.getCurrentScene() ? this.getCurrentScene().instances[index] : null;
-                        const groupIds = inst && state.scenes.selectedIds.indexOf(inst.id) >= 0
-                            ? state.scenes.selectedIds.slice()
-                            : (inst ? [inst.id] : []);
-                        document.querySelectorAll('#sceneInstanceList .museum-item').forEach(el => {
-                            el.classList.remove('dragging');
-                            if (groupIds.indexOf(el.dataset.instanceId) >= 0) el.classList.add('dragging');
-                        });
-                    });
+                    const container = element.parentElement;
 
-                    dragHandle.addEventListener('dragend', () => {
-                        document.querySelectorAll('#sceneInstanceList .museum-item').forEach(el => {
+                    const clearDragMarks = () => {
+                        if (!container) return;
+                        Array.from(container.children).forEach(el => {
                             el.classList.remove('dragging');
                             el.classList.remove('drag-over');
                         });
+                    };
+
+                    sources.forEach(src => {
+                        src.addEventListener('dragstart', (e) => {
+                            e.dataTransfer.setData('text/plain', String(index));
+                            e.dataTransfer.effectAllowed = 'move';
+                            const scene = this.getCurrentScene();
+                            const inst = scene ? scene.instances[index] : null;
+                            const groupIds = inst && state.scenes.selectedIds.indexOf(inst.id) >= 0
+                                ? state.scenes.selectedIds.slice()
+                                : (inst ? [inst.id] : []);
+                            if (container) {
+                                Array.from(container.children).forEach(el => {
+                                    el.classList.remove('dragging');
+                                    if (el.dataset && groupIds.indexOf(el.dataset.instanceId) >= 0) {
+                                        el.classList.add('dragging');
+                                    }
+                                });
+                            }
+                        });
+                        src.addEventListener('dragend', clearDragMarks);
                     });
 
                     element.addEventListener('dragover', (e) => {
@@ -5315,34 +5745,37 @@
                         e.preventDefault();
                         element.classList.remove('drag-over');
                         const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
-                        if (isNaN(fromIndex) || fromIndex === index) return;
-                        const scene = this.getCurrentScene();
-                        if (!scene) return;
-                        const list = scene.instances;
-                        const dragged = list[fromIndex];
-                        if (!dragged) return;
-                        const target = list[index];
-                        if (!target) return;
-
-                        let movingIds = state.scenes.selectedIds.slice();
-                        if (movingIds.indexOf(dragged.id) < 0) movingIds = [dragged.id];
-                        if (movingIds.indexOf(target.id) >= 0) return;
-
-                        const moving = list.filter(i => movingIds.indexOf(i.id) >= 0);
-                        const rest = list.filter(i => movingIds.indexOf(i.id) < 0);
-                        const targetPos = rest.indexOf(target);
-                        if (targetPos < 0) return;
-                        const insertAt = fromIndex < index ? targetPos + 1 : targetPos;
-                        const newList = rest.slice();
-                        newList.splice(insertAt, 0, ...moving);
-                        scene.instances = newList;
-
-                        state.scenes.instanceAnchorId = dragged.id;
-                        this.save();
-                        this.renderInstanceList();
-                        this.renderTimeline();
-                        this.applyRenderOrder();
+                        this.moveInstancesDrop(fromIndex, index);
                     });
+                },
+
+                moveInstancesDrop(fromIndex, index) {
+                    if (isNaN(fromIndex) || fromIndex === index) return;
+                    const scene = this.getCurrentScene();
+                    if (!scene) return;
+                    const list = scene.instances;
+                    const dragged = list[fromIndex];
+                    const target = list[index];
+                    if (!dragged || !target) return;
+
+                    let movingIds = state.scenes.selectedIds.slice();
+                    if (movingIds.indexOf(dragged.id) < 0) movingIds = [dragged.id];
+                    if (movingIds.indexOf(target.id) >= 0) return;
+
+                    const moving = list.filter(i => movingIds.indexOf(i.id) >= 0);
+                    const rest = list.filter(i => movingIds.indexOf(i.id) < 0);
+                    const targetPos = rest.indexOf(target);
+                    if (targetPos < 0) return;
+                    const insertAt = fromIndex < index ? targetPos + 1 : targetPos;
+                    const newList = rest.slice();
+                    newList.splice(insertAt, 0, ...moving);
+                    scene.instances = newList;
+
+                    state.scenes.instanceAnchorId = dragged.id;
+                    this.save();
+                    this.renderInstanceList();
+                    this.renderTimeline();
+                    this.applyRenderOrder();
                 },
 
                 selectInstance(id, e) {
@@ -5379,11 +5812,56 @@
 
                     state.scenes.newAnimationName = this.getDefaultAnimation(inst.skeletonName);
                     state.scenes.selectedStripId = null;
+                    state.scenes.selectedVisibilityKeyId = null;
                     this.setSelection(ids);
                 },
 
                 updateSelectedControlsVisibility() {
                     this.renderInstanceList();
+                },
+
+                startInstancePaint(field, value, e) {
+                    if (e) { e.preventDefault(); e.stopPropagation(); }
+                    state.scenes.painting = { active: true, field: field, value: !!value };
+                },
+
+                paintInstance(inst, field) {
+                    const p = state.scenes.painting;
+                    if (!p || !p.active || p.field !== field) return;
+                    if (field === 'timeline') {
+                        inst.timelineVisible = p.value;
+                    } else {
+                        inst.visible = p.value;
+                        const rt = state.scenes.instances[inst.id];
+                        if (rt) rt.visible = inst.visible;
+                    }
+                    this.refreshInstancePaintUI();
+                },
+
+                refreshInstancePaintUI() {
+                    document.querySelectorAll('.scene-inst-vis').forEach(btn => {
+                        const inst = this.findInstance(btn.dataset.instanceId);
+                        if (!inst) return;
+                        btn.textContent = inst.visible ? '\u25CF' : '\u25CB';
+                        btn.classList.toggle('visible', inst.visible);
+                    });
+                    document.querySelectorAll('.scene-tl-toggle').forEach(btn => {
+                        const inst = this.findInstance(btn.dataset.instanceId);
+                        if (!inst) return;
+                        const on = inst.timelineVisible !== false;
+                        btn.classList.toggle('visible', on);
+                        btn.title = on ? 'Hide strip on timeline (drag to paint)' : 'Show strip on timeline (drag to paint)';
+                    });
+                },
+
+                endInstancePaint() {
+                    const p = state.scenes.painting;
+                    state.scenes.painting = null;
+                    if (!p || !p.active) return;
+                    this.save();
+                    this.renderInstanceList();
+                    this.renderTimeline();
+                    this.applyRenderOrder();
                 },
 
                 renderInstanceControls() {
@@ -5523,7 +6001,14 @@
                         animSelect.value = state.scenes.newAnimationName || this.getDefaultAnimation(inst.skeletonName);
                     }
                     animSelect.addEventListener('change', () => {
-                        state.scenes.newAnimationName = animSelect.value;
+                        const anim = animSelect.value;
+                        state.scenes.newAnimationName = anim;
+                        if (!anim) return;
+                        if (targets.length > 1) {
+                            this.addStripToAll(anim);
+                        } else {
+                            this.addStrip(inst.id, anim);
+                        }
                     });
                     const addAnimBtn = document.createElement('button');
                     addAnimBtn.className = 'scene-btn';
@@ -5540,6 +6025,40 @@
                     animRow.appendChild(animSelect);
                     animRow.appendChild(addAnimBtn);
                     container.appendChild(animRow);
+
+                    const vkeyRow = document.createElement('div');
+                    vkeyRow.className = 'scene-field-row';
+                    const vkeyLabel = document.createElement('label');
+                    vkeyLabel.textContent = 'Visibility keys';
+                    const showKeyBtn = document.createElement('button');
+                    showKeyBtn.className = 'scene-btn';
+                    showKeyBtn.textContent = '\u25CF';
+                    showKeyBtn.title = 'Add visible key at playhead';
+                    showKeyBtn.addEventListener('click', () => this.addVisibilityKeys(targets, true));
+                    const hideKeyBtn = document.createElement('button');
+                    hideKeyBtn.className = 'scene-btn';
+                    hideKeyBtn.textContent = '\u25CB';
+                    hideKeyBtn.title = 'Add hidden key at playhead';
+                    hideKeyBtn.addEventListener('click', () => this.addVisibilityKeys(targets, false));
+                    const clearOneBtn = document.createElement('button');
+                    clearOneBtn.className = 'scene-btn';
+                    clearOneBtn.textContent = 'Clear';
+                    clearOneBtn.title = 'Delete selected visibility key';
+                    const hasSelectedKey = !!state.scenes.selectedVisibilityKeyId
+                        && targets.some(t => (t.visibilityKeys || []).some(k => k.id === state.scenes.selectedVisibilityKeyId));
+                    clearOneBtn.disabled = !hasSelectedKey;
+                    clearOneBtn.addEventListener('click', () => this.deleteSelectedVisibilityKey());
+                    const clearKeysBtn = document.createElement('button');
+                    clearKeysBtn.className = 'scene-btn';
+                    clearKeysBtn.textContent = 'Clear all';
+                    clearKeysBtn.title = 'Remove all visibility keys';
+                    clearKeysBtn.addEventListener('click', () => this.clearVisibilityKeys(targets));
+                    vkeyRow.appendChild(vkeyLabel);
+                    vkeyRow.appendChild(showKeyBtn);
+                    vkeyRow.appendChild(hideKeyBtn);
+                    vkeyRow.appendChild(clearOneBtn);
+                    vkeyRow.appendChild(clearKeysBtn);
+                    container.appendChild(vkeyRow);
 
                     if (!multi) {
                     const strip = inst.strips.find(st => st.id === state.scenes.selectedStripId);
@@ -5753,7 +6272,10 @@
                     });
                     state.scenes.selectedIds = ids;
                     state.scenes.selectedInstanceId = ids.length === 1 ? ids[0] : null;
-                    if (ids.length !== 1) state.scenes.selectedStripId = null;
+                    if (ids.length !== 1) {
+                        state.scenes.selectedStripId = null;
+                        state.scenes.selectedVisibilityKeyId = null;
+                    }
                     this.renderInstanceList();
                     this.renderInstanceControls();
                     this.renderTimeline();
@@ -5808,6 +6330,8 @@
                         scale: 1,
                         rotation: 0,
                         visible: true,
+                        timelineVisible: true,
+                        visibilityKeys: [],
                         strips: []
                     };
                     const def = this.getDefaultAnimation(skeletonName);
@@ -5817,7 +6341,7 @@
                             id: this.newId('strip'),
                             animation: def,
                             start: 0,
-                            length: dur > 0 ? dur : 1,
+                            length: Math.max(1 / this.FPS, this.snapToFrame(dur > 0 ? dur : 1)),
                             loop: true
                         });
                     }
@@ -5961,12 +6485,13 @@
                         if (!anim) return;
                         let start = 0;
                         inst.strips.forEach(st => { start = Math.max(start, st.start + st.length); });
+                        start = this.snapToFrame(start);
                         const dur = this.getDuration(inst.skeletonName, anim);
                         inst.strips.push({
                             id: this.newId('strip'),
                             animation: anim,
                             start: start,
-                            length: dur > 0 ? dur : 1,
+                            length: Math.max(1 / this.FPS, this.snapToFrame(dur > 0 ? dur : 1)),
                             loop: true
                         });
                     });
@@ -5984,18 +6509,20 @@
                     if (!anim) return;
                     let start = 0;
                     inst.strips.forEach(st => { start = Math.max(start, st.start + st.length); });
+                    start = this.snapToFrame(start);
                     const dur = this.getDuration(inst.skeletonName, anim);
                     const strip = {
                         id: this.newId('strip'),
                         animation: anim,
                         start: start,
-                        length: dur > 0 ? dur : 1,
+                        length: Math.max(1 / this.FPS, this.snapToFrame(dur > 0 ? dur : 1)),
                         loop: true
                     };
                     inst.strips.push(strip);
                     state.scenes.selectedIds = [instanceId];
                     state.scenes.selectedInstanceId = instanceId;
                     state.scenes.selectedStripId = strip.id;
+                    state.scenes.selectedVisibilityKeyId = null;
                     this.save();
                     this.renderInstanceList();
                     this.renderInstanceControls();
@@ -6034,6 +6561,282 @@
                     return (v && v.pps) ? v.pps : this.PPS;
                 },
 
+                getLabelWidth() {
+                    const v = state.scenes.view && state.scenes.view.labelWidth;
+                    return (isFinite(v) && v > 0) ? v : 132;
+                },
+
+                loadLabelWidth() {
+                    let raw = null;
+                    try { raw = localStorage.getItem(this.LABEL_WIDTH_KEY); } catch (e) {}
+                    const v = parseInt(raw, 10);
+                    if (!isNaN(v)) state.scenes.view.labelWidth = Math.max(60, Math.min(400, v));
+                },
+
+                saveLabelWidth() {
+                    try { localStorage.setItem(this.LABEL_WIDTH_KEY, String(Math.round(this.getLabelWidth()))); } catch (e) {}
+                },
+
+                loadGrid() {
+                    let raw = null;
+                    try { raw = localStorage.getItem(this.GRID_KEY); } catch (e) {}
+                    if (!raw) return;
+                    try {
+                        const g = JSON.parse(raw);
+                        const grid = state.scenes.grid;
+                        if (isFinite(g.stepX)) grid.stepX = Math.max(1, Number(g.stepX));
+                        if (isFinite(g.stepY)) grid.stepY = Math.max(1, Number(g.stepY));
+                        if (isFinite(g.cols)) grid.cols = Math.max(1, Math.round(Number(g.cols)));
+                        if (isFinite(g.rows)) grid.rows = Math.max(1, Math.round(Number(g.rows)));
+                        if (g.snap !== undefined) grid.snap = !!g.snap;
+                        grid.snapHalfs = !!g.snapHalfs;
+                        grid.fromReelsBox = !!g.fromReelsBox;
+                        if (g.show !== undefined) grid.show = !!g.show;
+                    } catch (e) {}
+                },
+
+                saveGrid() {
+                    try { localStorage.setItem(this.GRID_KEY, JSON.stringify(state.scenes.grid)); } catch (e) {}
+                },
+
+                updateSceneGridInputs() {
+                    const grid = state.scenes.grid;
+                    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = String(val); };
+                    setVal('gridStepX', grid.stepX);
+                    setVal('gridStepY', grid.stepY);
+                    setVal('gridCols', grid.cols);
+                    setVal('gridRows', grid.rows);
+                    const setCb = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+                    setCb('gridSnap', grid.snap);
+                    setCb('gridSnapHalfs', grid.snapHalfs);
+                    setCb('gridFromReelsBox', grid.fromReelsBox);
+                    setCb('gridShow', grid.show);
+                },
+
+                initSceneGridControls() {
+                    const grid = state.scenes.grid;
+                    const bindNum = (id, key, round) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.addEventListener('change', () => {
+                            let v = parseFloat(el.value);
+                            if (isNaN(v)) v = grid[key];
+                            v = Math.max(1, round ? Math.round(v) : v);
+                            grid[key] = v;
+                            el.value = String(v);
+                            this.saveGrid();
+                            this.drawWorkspace();
+                        });
+                        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') el.blur(); });
+                    };
+                    bindNum('gridStepX', 'stepX', false);
+                    bindNum('gridStepY', 'stepY', false);
+                    bindNum('gridCols', 'cols', true);
+                    bindNum('gridRows', 'rows', true);
+
+                    const addScrub = (inputId, key, step, round) => {
+                        const el = document.getElementById(inputId);
+                        if (!el || !el.parentElement) return;
+                        const label = el.parentElement.querySelector('label');
+                        if (!label) return;
+                        label.classList.add('scene-scrub-label');
+                        label.title = 'Drag to change';
+                        label.addEventListener('mousedown', (e) => {
+                            this.startValueScrub(e, state.scenes.grid[key], (v) => {
+                                const nv = Math.max(1, round ? Math.round(v) : v);
+                                state.scenes.grid[key] = nv;
+                                el.value = String(nv);
+                                this.saveGrid();
+                                this.drawWorkspace();
+                            }, step);
+                        });
+                    };
+                    addScrub('gridStepX', 'stepX', 1, false);
+                    addScrub('gridStepY', 'stepY', 1, false);
+                    addScrub('gridCols', 'cols', 1, true);
+                    addScrub('gridRows', 'rows', 1, true);
+
+                    const bindCb = (id, key) => {
+                        const el = document.getElementById(id);
+                        if (!el) return;
+                        el.addEventListener('change', () => {
+                            grid[key] = el.checked;
+                            this.saveGrid();
+                            this.drawWorkspace();
+                        });
+                    };
+                    bindCb('gridSnap', 'snap');
+                    bindCb('gridSnapHalfs', 'snapHalfs');
+                    bindCb('gridFromReelsBox', 'fromReelsBox');
+                    bindCb('gridShow', 'show');
+
+                    const resetBtn = document.getElementById('sceneGridResetBtn');
+                    if (resetBtn) resetBtn.addEventListener('click', () => this.resetSceneGrid());
+
+                    this.updateSceneGridInputs();
+                },
+
+                resetSceneGrid() {
+                    const grid = state.scenes.grid;
+                    grid.stepX = 100;
+                    grid.stepY = 100;
+                    grid.cols = 10;
+                    grid.rows = 10;
+                    grid.snap = true;
+                    grid.snapHalfs = false;
+                    grid.fromReelsBox = false;
+                    grid.show = true;
+                    this.updateSceneGridInputs();
+                    this.saveGrid();
+                    this.drawWorkspace();
+                },
+
+                getReelsBoxInstance(scene) {
+                    if (!scene) return null;
+                    return scene.instances.find(i => i.skeletonName === 'reels-box') || null;
+                },
+
+                getGridCenter(scene) {
+                    const grid = state.scenes.grid;
+                    if (grid && grid.fromReelsBox && scene) {
+                        const c = this.getReelsBoxCenter(scene);
+                        if (c) return c;
+                    }
+                    return { x: 0, y: 0 };
+                },
+
+                getReelsBoxCenter(scene) {
+                    const box = this.getReelsBoxInstance(scene);
+                    if (!box) return null;
+                    const rt = state.scenes.instances[box.id];
+                    if (rt && rt.skeleton) {
+                        try {
+                            if (typeof rt.skeleton.updateWorldTransform === 'function') {
+                                rt.skeleton.updateWorldTransform();
+                            }
+                            const slot = typeof rt.skeleton.findSlot === 'function'
+                                ? rt.skeleton.findSlot('placeholder-reels')
+                                : null;
+                            const bone = slot && slot.bone;
+                            if (bone) {
+                                const s = box.scale || 1;
+                                return { x: box.x + bone.worldX * s, y: box.y + bone.worldY * s };
+                            }
+                        } catch (e) {}
+                    }
+                    return { x: box.x, y: box.y };
+                },
+
+                getGridLayout(scene) {
+                    const grid = state.scenes.grid;
+                    const stepX = Math.max(1, grid.stepX);
+                    const stepY = Math.max(1, grid.stepY);
+                    const cols = Math.max(1, Math.round(grid.cols));
+                    const rows = Math.max(1, Math.round(grid.rows));
+                    const center = this.getGridCenter(scene);
+                    return {
+                        stepX: stepX,
+                        stepY: stepY,
+                        cols: cols,
+                        rows: rows,
+                        center: center,
+                        startX: center.x - (cols - 1) / 2 * stepX,
+                        startY: center.y - (rows - 1) / 2 * stepY
+                    };
+                },
+
+                snapToSceneGrid(x, y, scene, skipSnap) {
+                    const grid = state.scenes.grid;
+                    if (!grid || !grid.snap || skipSnap) return { x: x, y: y };
+                    const layout = this.getGridLayout(scene);
+                    const sx = layout.stepX * (grid.snapHalfs ? 0.5 : 1);
+                    const sy = layout.stepY * (grid.snapHalfs ? 0.5 : 1);
+                    return {
+                        x: layout.startX + Math.round((x - layout.startX) / sx) * sx,
+                        y: layout.startY + Math.round((y - layout.startY) / sy) * sy
+                    };
+                },
+
+                drawSceneGridPoints(scene) {
+                    const g = state.scenes.graphics.grid;
+                    if (!g) return;
+                    g.clear();
+                    const grid = state.scenes.grid;
+                    if (!grid || !grid.show || !state.app || !scene) return;
+                    const cam = scene.camera;
+                    const layout = this.getGridLayout(scene);
+                    const color = graphicsManager.getLineColor();
+                    const screenW = state.app.screen.width;
+                    const screenH = state.app.screen.height;
+                    const r = Math.max(1, Math.min(3, 1.5 * cam.scale));
+                    for (let i = 0; i < layout.cols; i++) {
+                        for (let j = 0; j < layout.rows; j++) {
+                            const sx = (layout.startX + i * layout.stepX) * cam.scale + cam.ox;
+                            const sy = (layout.startY + j * layout.stepY) * cam.scale + cam.oy;
+                            if (sx < -10 || sx > screenW + 10 || sy < -10 || sy > screenH + 10) continue;
+                            g.circle(sx, sy, r);
+                        }
+                    }
+                    g.fill({ color: color, alpha: 0.35 });
+                },
+
+                applyTimelineLabelWidth() {
+                    const rows = document.getElementById('sceneTimelineRows');
+                    if (rows) {
+                        rows.style.setProperty('--scene-label-w', this.getLabelWidth() + 'px');
+                        if (this._lastTrackWidth) {
+                            rows.style.width = (this.getLabelWidth() + this._lastTrackWidth) + 'px';
+                        }
+                    }
+                    this.updateSplitterPosition();
+                },
+
+                updateSplitterPosition() {
+                    const scroll = document.getElementById('sceneTimelineScroll');
+                    const splitter = document.getElementById('sceneLabelSplitter');
+                    if (!scroll || !splitter) return;
+                    splitter.style.left = Math.max(0, this.getLabelWidth() - 5) + 'px';
+                    splitter.style.top = scroll.offsetTop + 'px';
+                    splitter.style.height = scroll.clientHeight + 'px';
+                },
+
+                initLabelSplitter() {
+                    const splitter = document.getElementById('sceneLabelSplitter');
+                    if (splitter) {
+                        splitter.addEventListener('mousedown', (e) => this.beginLabelSplitterDrag(e));
+                    }
+                    const scroll = document.getElementById('sceneTimelineScroll');
+                    if (scroll && window.ResizeObserver) {
+                        const ro = new ResizeObserver(() => this.updateSplitterPosition());
+                        ro.observe(scroll);
+                    }
+                    window.addEventListener('resize', () => this.updateSplitterPosition());
+                },
+
+                beginLabelSplitterDrag(e) {
+                    e.preventDefault();
+                    const splitter = document.getElementById('sceneLabelSplitter');
+                    if (splitter) splitter.classList.add('dragging');
+                    const startX = e.clientX;
+                    const startW = this.getLabelWidth();
+
+                    const onMove = (ev) => {
+                        let w = startW + (ev.clientX - startX);
+                        w = Math.max(60, Math.min(400, w));
+                        state.scenes.view.labelWidth = w;
+                        this.applyTimelineLabelWidth();
+                    };
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        if (splitter) splitter.classList.remove('dragging');
+                        this.saveLabelWidth();
+                        this.applyTimelineLabelWidth();
+                    };
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                },
+
                 renderTimeline() {
                     const rows = document.getElementById('sceneTimelineRows');
                     if (!rows) return;
@@ -6044,40 +6847,46 @@
                     const pps = this.getPps();
                     const totalSec = Math.max(this.getSceneDuration(scene), 4);
                     const trackWidth = Math.ceil(totalSec * pps) + 300;
-                    rows.style.width = (132 + trackWidth) + 'px';
+                    this._lastTrackWidth = trackWidth;
+                    rows.style.setProperty('--scene-label-w', this.getLabelWidth() + 'px');
+                    rows.style.width = (this.getLabelWidth() + trackWidth) + 'px';
 
                     rows.appendChild(this.buildRulerRow(trackWidth, pps));
 
-                    scene.instances.forEach(inst => {
+                    scene.instances.forEach((inst, index) => {
+                        if (inst.timelineVisible === false) return;
+
                         const row = document.createElement('div');
                         row.className = 'scene-tl-row';
+                        row.dataset.instanceId = inst.id;
 
                         const label = document.createElement('div');
                         label.className = 'scene-tl-label' + (this.isSelected(inst.id) ? ' selected' : '');
 
                         const visBtn = document.createElement('button');
-                        visBtn.className = 'museum-visibility-btn' + (inst.visible ? ' visible' : '');
+                        visBtn.className = 'museum-visibility-btn scene-inst-vis' + (inst.visible ? ' visible' : '');
+                        visBtn.dataset.instanceId = inst.id;
                         visBtn.textContent = inst.visible ? '\u25CF' : '\u25CB';
-                        visBtn.addEventListener('click', (e) => {
+                        visBtn.title = 'Toggle visibility (drag to paint)';
+                        visBtn.addEventListener('mousedown', (e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            inst.visible = !inst.visible;
-                            const rt = state.scenes.instances[inst.id];
-                            if (rt) rt.visible = inst.visible;
-                            this.save();
-                            this.renderInstanceList();
-                            this.renderTimeline();
-                            this.applyRenderOrder();
+                            this.startInstancePaint('visible', !inst.visible, e);
+                            this.paintInstance(inst, 'visible');
                         });
+                        visBtn.addEventListener('mouseenter', () => this.paintInstance(inst, 'visible'));
+                        visBtn.addEventListener('click', (e) => e.stopPropagation());
 
                         const name = document.createElement('div');
                         name.className = 'scene-tl-name' + (this.isSelected(inst.id) ? ' selected' : '');
                         if (!this.isSkeletonAvailable(inst.skeletonName)) name.classList.add('missing');
                         else if (inst.strips.some(st => !this.hasAnimation(inst.skeletonName, st.animation))) name.classList.add('anim-missing');
                         name.textContent = this.getInstanceLabel(inst);
-                        name.addEventListener('click', () => this.selectInstance(inst.id));
+                        name.draggable = true;
 
                         label.appendChild(visBtn);
                         label.appendChild(name);
+                        label.addEventListener('click', (e) => this.selectInstance(inst.id, e));
 
                         const track = document.createElement('div');
                         track.className = 'scene-tl-track';
@@ -6094,10 +6903,39 @@
                             track.appendChild(this.buildStripElement(inst, strip, pps));
                         });
 
+                        (inst.visibilityKeys || []).forEach(k => {
+                            const marker = document.createElement('div');
+                            marker.className = 'scene-tl-vkey' + (k.visible ? ' visible' : '')
+                                + (state.scenes.selectedVisibilityKeyId === k.id && this.isSelected(inst.id) ? ' selected' : '');
+                            marker.style.left = Math.round(k.time * pps) + 'px';
+                            marker.title = (k.visible ? 'Visible' : 'Hidden') + ' @ ' + this.formatTime(k.time);
+                            marker.dataset.keyId = k.id;
+                            marker.addEventListener('mousedown', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                state.scenes.selectedIds = [inst.id];
+                                state.scenes.selectedInstanceId = inst.id;
+                                state.scenes.instanceAnchorId = inst.id;
+                                state.scenes.selectedStripId = null;
+                                state.scenes.selectedVisibilityKeyId = k.id;
+                                this.renderInstanceList();
+                                this.renderInstanceControls();
+                                this.renderTimeline();
+                                this.drawSelection();
+                                const fresh = document.querySelector('#sceneTimelineRows .scene-tl-vkey[data-key-id="' + k.id + '"]');
+                                this.beginVisibilityKeyDrag(e, inst, k, fresh || marker, pps);
+                            });
+                            track.appendChild(marker);
+                        });
+
                         row.appendChild(label);
                         row.appendChild(track);
                         rows.appendChild(row);
+
+                        this.setupInstanceDragAndDrop(row, index, [name]);
                     });
+
+                    this.updateSplitterPosition();
                 },
 
                 buildRulerRow(trackWidth, pps) {
@@ -6116,6 +6954,21 @@
 
                     const step = this.pickTickStep(pps);
                     const maxTime = trackWidth / pps;
+
+                    const frameStep = 1 / this.FPS;
+                    const frameSpacing = frameStep * pps;
+                    if (frameSpacing >= 1) {
+                        const totalFrames = Math.floor(maxTime / frameStep + 1e-6);
+                        const mult = Math.max(1, Math.ceil((totalFrames + 1) / 2000));
+                        for (let f = 0; f <= totalFrames; f += mult) {
+                            const t = f * frameStep;
+                            const tick = document.createElement('div');
+                            tick.className = 'scene-tl-frame-tick' + (f % this.FPS === 0 ? ' second' : '');
+                            tick.style.left = Math.round(t * pps) + 'px';
+                            ruler.appendChild(tick);
+                        }
+                    }
+
                     for (let t = 0; t <= maxTime + 1e-6; t += step) {
                         const tick = document.createElement('div');
                         tick.className = 'scene-tl-tick';
@@ -6174,6 +7027,7 @@
                         document.removeEventListener('mousemove', onMove);
                         document.removeEventListener('mouseup', onUp);
                         document.body.style.userSelect = '';
+                        this.setTime(this.snapToFrame(state.scenes.ptr.time));
                     };
                     document.addEventListener('mousemove', onMove);
                     document.addEventListener('mouseup', onUp);
@@ -6190,12 +7044,12 @@
                     const scrollRect = scroll.getBoundingClientRect();
                     const viewX = clientX - scrollRect.left;
                     const contentX = viewX + scroll.scrollLeft;
-                    const timeAtCursor = (contentX - 132) / oldPps;
+                    const timeAtCursor = (contentX - this.getLabelWidth()) / oldPps;
 
                     state.scenes.view.pps = newPps;
                     this.renderTimeline();
 
-                    const newScrollLeft = 132 + timeAtCursor * newPps - viewX;
+                    const newScrollLeft = this.getLabelWidth() + timeAtCursor * newPps - viewX;
                     scroll.scrollLeft = Math.max(0, newScrollLeft);
                     this.updatePlayheads();
                 },
@@ -6203,6 +7057,7 @@
                 buildStripElement(inst, strip, pps) {
                     const el = document.createElement('div');
                     el.className = 'scene-tl-strip';
+                    if (this.isSelected(inst.id)) el.classList.add('inst-selected');
                     if (strip.loop) el.classList.add('loop');
                     if (this.isSelected(inst.id) && strip.id === state.scenes.selectedStripId) el.classList.add('selected');
 
@@ -6241,6 +7096,7 @@
                         state.scenes.selectedIds = [inst.id];
                         state.scenes.selectedInstanceId = inst.id;
                         state.scenes.selectedStripId = strip.id;
+                        state.scenes.selectedVisibilityKeyId = null;
                         if (e.target === resize) {
                             this.beginStripDrag(e, inst.id, strip.id, 'resize');
                         } else {
@@ -6290,11 +7146,11 @@
                         const delta = (ev.clientX - startClientX) / pps;
                         if (mode === 'move') {
                             const raw = Math.max(0, origStart + delta);
-                            strip.start = this.snapTime(raw, targets, snapTol);
+                            strip.start = this.snapToFrame(this.snapTime(raw, targets, snapTol));
                         } else {
                             const rawEnd = origStart + Math.max(this.MIN_LEN, origLength + delta);
-                            const snappedEnd = this.snapTime(rawEnd, targets, snapTol);
-                            strip.length = Math.max(this.MIN_LEN, snappedEnd - origStart);
+                            const snappedEnd = this.snapToFrame(this.snapTime(rawEnd, targets, snapTol));
+                            strip.length = Math.max(1 / this.FPS, snappedEnd - origStart);
                         }
                         this.renderTimeline();
                     };
@@ -6311,6 +7167,13 @@
                     document.addEventListener('mousemove', onMove);
                     document.addEventListener('mouseup', onUp);
                     this.renderTimeline();
+                },
+
+                snapToFrame(t) {
+                    const f = this.FPS || 30;
+                    const num = Number(t);
+                    if (!isFinite(num)) return 0;
+                    return Math.max(0, Math.round(num * f) / f);
                 },
 
                 snapTime(value, targets, tolerance) {
@@ -6465,14 +7328,104 @@
                     } catch (e) {}
                 },
 
+                isInstanceVisibleAt(inst, t) {
+                    if (!inst || inst.visible === false) return false;
+                    return this.isKeyVisibleAt(inst, t);
+                },
+
+                isKeyVisibleAt(inst, t) {
+                    const keys = inst && inst.visibilityKeys;
+                    if (!keys || keys.length === 0) return true;
+                    let best = null;
+                    for (const k of keys) {
+                        if (k.time <= t + 1e-9 && (!best || k.time > best.time)) best = k;
+                    }
+                    return best ? best.visible !== false : true;
+                },
+
+                beginVisibilityKeyDrag(e, inst, key, markerEl, pps) {
+                    const startClientX = e.clientX;
+                    const origTime = key.time;
+                    document.body.style.userSelect = 'none';
+
+                    const onMove = (ev) => {
+                        const t = Math.max(0, origTime + (ev.clientX - startClientX) / pps);
+                        key.time = t;
+                        markerEl.style.left = Math.round(t * pps) + 'px';
+                    };
+
+                    const onUp = () => {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        document.body.style.userSelect = '';
+                        key.time = this.snapToFrame(key.time);
+                        if (Array.isArray(inst.visibilityKeys)) {
+                            const frame = Math.round(key.time * this.FPS);
+                            inst.visibilityKeys = inst.visibilityKeys.filter(k =>
+                                k.id === key.id || Math.round(k.time * this.FPS) !== frame
+                            );
+                            inst.visibilityKeys.sort((a, b) => a.time - b.time);
+                        }
+                        this.save();
+                        this.renderTimeline();
+                        this.applyAtTime(state.scenes.ptr.time);
+                        this.renderInstanceControls();
+                    };
+
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                },
+
+                addVisibilityKeys(targets, visible) {
+                    const frame = Math.round(state.scenes.ptr.time * this.FPS);
+                    const t = frame / this.FPS;
+                    targets.forEach(inst => {
+                        if (!Array.isArray(inst.visibilityKeys)) inst.visibilityKeys = [];
+                        inst.visibilityKeys = inst.visibilityKeys.filter(k => Math.round(k.time * this.FPS) !== frame);
+                        inst.visibilityKeys.push({ id: this.newId('vkey'), time: t, visible: !!visible });
+                        inst.visibilityKeys.sort((a, b) => a.time - b.time);
+                    });
+                    this.save();
+                    this.renderTimeline();
+                    this.applyAtTime(state.scenes.ptr.time);
+                    this.renderInstanceControls();
+                },
+
+                clearVisibilityKeys(targets) {
+                    targets.forEach(inst => { inst.visibilityKeys = []; });
+                    state.scenes.selectedVisibilityKeyId = null;
+                    this.save();
+                    this.renderTimeline();
+                    this.applyAtTime(state.scenes.ptr.time);
+                    this.renderInstanceControls();
+                },
+
+                deleteSelectedVisibilityKey() {
+                    const keyId = state.scenes.selectedVisibilityKeyId;
+                    if (!keyId) return;
+                    const scene = this.getCurrentScene();
+                    if (!scene) return;
+                    scene.instances.forEach(inst => {
+                        if (Array.isArray(inst.visibilityKeys)) {
+                            inst.visibilityKeys = inst.visibilityKeys.filter(k => k.id !== keyId);
+                        }
+                    });
+                    state.scenes.selectedVisibilityKeyId = null;
+                    this.save();
+                    this.renderTimeline();
+                    this.applyAtTime(state.scenes.ptr.time);
+                    this.renderInstanceControls();
+                },
+
                 applyAtTime(t) {
                     const scene = this.getCurrentScene();
                     if (!scene) return;
                     scene.instances.forEach(inst => {
                         const rt = state.scenes.instances[inst.id];
                         if (!rt) return;
-                        rt.visible = inst.visible;
-                        if (!inst.visible) return;
+                        rt.visible = inst.visible !== false;
+                        rt.alpha = this.isKeyVisibleAt(inst, t) ? 1 : 0;
+                        if (!rt.visible) return;
 
                         if (rt._sceneKey && rt._sceneKey !== 'setup' && !rt.state.getCurrent(0)) {
                             rt._sceneKey = null;
@@ -6801,8 +7754,11 @@
                             state.scenes.dragging.items.forEach(item => {
                                 const inst = this.findInstance(item.id);
                                 if (!inst) return;
-                                inst.x = item.origX + dx;
-                                inst.y = item.origY + dy;
+                                const grid = state.scenes.grid;
+                                const skip = !!(grid && grid.fromReelsBox && inst.skeletonName === 'reels-box');
+                                const snapped = this.snapToSceneGrid(item.origX + dx, item.origY + dy, scene, skip);
+                                inst.x = snapped.x;
+                                inst.y = snapped.y;
                                 this.applyInstanceTransform(inst);
                             });
                             if (state.scenes.selectedInstanceId) {
@@ -6840,6 +7796,7 @@
                         if (state.scenes.dragging) {
                             state.scenes.dragging = null;
                             this.save();
+                            this.drawWorkspace();
                         }
                         if (state.scenes.panning) {
                             state.scenes.panning = null;
@@ -7192,7 +8149,7 @@
                     graphics.stroke();
                 },
 
-                drawAxesAndGrid(graphics, scale, offsetX, offsetY) {
+                drawAxesAndGrid(graphics, scale, offsetX, offsetY, skipGrid) {
                     if (!graphics || !state.app) return;
                     graphics.clear();
 
@@ -7200,8 +8157,10 @@
                     const screenW = state.app.screen.width;
                     const screenH = state.app.screen.height;
 
-                    this.drawGridLayer(graphics, lineColor, this.GRID_FINE_ALPHA, this.GRID_FINE, scale, offsetX, offsetY, screenW, screenH);
-                    this.drawGridLayer(graphics, lineColor, this.GRID_COARSE_ALPHA, this.GRID_COARSE, scale, offsetX, offsetY, screenW, screenH);
+                    if (!skipGrid) {
+                        this.drawGridLayer(graphics, lineColor, this.GRID_FINE_ALPHA, this.GRID_FINE, scale, offsetX, offsetY, screenW, screenH);
+                        this.drawGridLayer(graphics, lineColor, this.GRID_COARSE_ALPHA, this.GRID_COARSE, scale, offsetX, offsetY, screenW, screenH);
+                    }
 
                     graphics.setStrokeStyle({ width: this.AXES_WIDTH, color: lineColor, alpha: this.AXES_ALPHA });
 
@@ -8742,6 +9701,11 @@
                     const scenarioOnlyChecks = document.getElementById('scenarioOnlyChecks');
                     if (scenarioOnlyChecks) {
                         scenarioOnlyChecks.classList.toggle('visible', state.activeMode === 'scenario');
+                    }
+
+                    const sceneGridSection = document.getElementById('sceneGridSection');
+                    if (sceneGridSection) {
+                        sceneGridSection.classList.toggle('visible', state.activeMode === 'scene');
                     }
 
                     const items = document.querySelectorAll('#animationsList .animation-item');
