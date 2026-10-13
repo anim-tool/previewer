@@ -138,6 +138,20 @@
             color: var(--n-text-dim);
         }
 
+        .tabs-all-link {
+            align-self: center;
+            font-size: 13px;
+            color: var(--n-text-dim);
+            opacity: 0.55;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .tabs-all-link:hover {
+            color: var(--n-text);
+            opacity: 0.85;
+        }
+
         .tab-content-container {
             flex: 1;
             display: flex;
@@ -2061,6 +2075,7 @@
                 <div id="animationsHeader" class="tab inactive">Animations</div>
                 <div id="museumHeader" class="tab inactive">Museum</div>
                 <div id="scenesHeader" class="tab inactive">Scenes</div>
+                <a href="./all-tools.html" class="tabs-all-link">All</a>
             </div>
             <div class="tab-content-container">
                 <div id="scenarioContent" class="tab-content">
