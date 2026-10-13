@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Все инструменты</title>
+<style>
+:root {
+  --bg: 64;
+  --fg-r: 255;
+  --fg-g: 255;
+  --fg-b: 255;
+  --font-size: 16;
+  --contrast: 1;
+  --fg: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc: rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width: 168px;
+  --menu-padding: calc(var(--font-size) * 0.75px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)) transparent;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 10%), var(--bgc)); }
+
+body {
+  background-color: var(--bgc);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 100%), var(--bgc));
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+}
+
+.theme-control {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  opacity: 0.1;
+  background: rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.05);
+  color: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  font-size: 12px;
+  z-index: 10;
+}
+.theme-control:hover { opacity: 1; }
+.theme-control > div { display: flex; align-items: center; gap: 4px; }
+.theme-control label { font-size: inherit; }
+.theme-control input[type="range"] { width: 60px; }
+
+.page {
+  max-width: 900px;
+  padding: var(--menu-padding);
+  padding-top: calc(var(--menu-padding) + 40px);
+}
+
+.page-title {
+  font-size: calc(1.25 * var(--font-size) * 1px);
+  font-weight: 700;
+  margin: 0 0 12px;
+}
+
+a { color: inherit; text-underline-offset: 2px; }
+label { font-size: calc(0.875 * var(--font-size) * 1px); }
+
+.cells { display: block; font-size: 0; line-height: 1.6; user-select: none; -webkit-user-select: none; }
+.cells hr {
+  border: none;
+  border-top: 1px solid var(--bgc);
+  margin: 3px 0;
+  padding: 0;
+  clear: both;
+}
+.hide-dividers .cells hr { display: none; }
+
+.cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: var(--slider-width);
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  color: inherit;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cell > .label {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell.cell-head { cursor: default; font-weight: 600; background: none; }
+.cell.cell-head > .label { color: color-mix(in srgb, color-mix(in srgb, #e6c35c 35%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc)); }
+
+.cell-btn {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  border: none;
+  outline: none;
+  border-radius: 999px;
+  text-decoration: none;
+}
+.cell-btn:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 20%), var(--bgc)); }
+.cell-btn:active { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc)); }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  color: inherit;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: currentColor; opacity: 0.75; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track { height: 2px; background: currentColor; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: currentColor; border: none; cursor: pointer; }
+input[type="range"]:disabled { opacity: 0.35; cursor: default; }
+
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 5px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+</style>
+<script>
+(function () {
+  try {
+    var root = document.documentElement;
+    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var th = s('ui.theme');
+    var theme = th !== null ? parseInt(th, 10) : 25;
+    if (isFinite(theme)) {
+      var b = Math.round((theme / 100) * 255);
+      root.style.setProperty('--bg', b);
+      var d = b <= 127;
+      root.style.setProperty('--fg-r', d ? 255 : 0);
+      root.style.setProperty('--fg-g', d ? 255 : 0);
+      root.style.setProperty('--fg-b', d ? 255 : 0);
+    }
+    var c = s('ui.contrast');
+    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = s('ui.fontsize');
+    if (f !== null) root.style.setProperty('--font-size', f);
+    var w = s('ui.slider-width');
+    if (w !== null) root.style.setProperty('--slider-width', w + 'px');
+    var mp = s('ui.menupadding');
+    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
+    if (s('ui.dividers') === '0') root.classList.add('hide-dividers');
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+  <div class="theme-control">
+    <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
+    <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="16"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+    <div><label for="menupadding">Отступы</label><input type="range" id="menupadding" min="0" max="64" value="12"></div>
+    <div><label for="dividers"><input type="checkbox" id="dividers" checked> <span>Разделители</span></label></div>
+  </div>
+
+  <div class="page">
+    <h1 class="page-title">Все инструменты</h1>
+    <div class="cells">
+      <a class="cell cell-btn" href="3d-object-editor.html"><span class="label">3D Object Editor</span></a>
+      <a class="cell cell-btn" href="coin-editor.html"><span class="label">Coin Editor</span></a>
+      <a class="cell cell-btn" href="extract-from-har.html"><span class="label">Extract from HAR</span></a>
+      <a class="cell cell-btn" href="fire-generator-cartoon-spot.html"><span class="label">Fire Generator (Cartoon Spot)</span></a>
+      <a class="cell cell-btn" href="fire-generator-cartoon.html"><span class="label">Fire Generator (Cartoon)</span></a>
+      <a class="cell cell-btn" href="particles-generator.html"><span class="label">Particles Generator</span></a>
+    </div>
+  </div>
+
+<script>
+const root = document.documentElement;
+
+const THEME_KEY = 'ui.theme';
+const CONTRAST_KEY = 'ui.contrast';
+const FONTSIZE_KEY = 'ui.fontsize';
+const SLIDERWIDTH_KEY = 'ui.slider-width';
+const MENUPADDING_KEY = 'ui.menupadding';
+const DIVIDERS_KEY = 'ui.dividers';
+
+const themeEl = document.getElementById('theme');
+const contrastEl = document.getElementById('contrast');
+const fontsizeEl = document.getElementById('fontsize');
+const sliderwidthEl = document.getElementById('sliderwidth');
+const menupaddingEl = document.getElementById('menupadding');
+const dividersEl = document.getElementById('dividers');
+
+function applyTheme(value) {
+  const brightness = Math.round((value / 100) * 255);
+  root.style.setProperty('--bg', brightness);
+  const dark = brightness <= 127;
+  root.style.setProperty('--fg-r', dark ? 255 : 0);
+  root.style.setProperty('--fg-g', dark ? 255 : 0);
+  root.style.setProperty('--fg-b', dark ? 255 : 0);
+}
+function applyContrast(v) { root.style.setProperty('--contrast', v / 100); }
+function applyFontsize(v) { root.style.setProperty('--font-size', v); }
+function applySliderWidth(v) { root.style.setProperty('--slider-width', v + 'px'); }
+function applyMenuPadding(v) { root.style.setProperty('--menu-padding', v + 'px'); }
+function applyDividers(on) { root.classList.toggle('hide-dividers', !on); }
+
+function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+const savedTheme = get(THEME_KEY);
+themeEl.value = savedTheme !== null ? savedTheme : 25;
+const savedContrast = get(CONTRAST_KEY);
+contrastEl.value = savedContrast !== null ? savedContrast : 100;
+const savedFont = get(FONTSIZE_KEY);
+fontsizeEl.value = savedFont !== null ? savedFont : 16;
+const savedWidth = get(SLIDERWIDTH_KEY);
+sliderwidthEl.value = savedWidth !== null ? savedWidth : 168;
+const savedMenuPadding = get(MENUPADDING_KEY);
+const savedDividers = get(DIVIDERS_KEY);
+dividersEl.checked = savedDividers !== null ? savedDividers === '1' : true;
+
+if (savedMenuPadding !== null) {
+  menupaddingEl.value = savedMenuPadding;
+} else {
+  const fs = parseFloat(getComputedStyle(root).getPropertyValue('--font-size')) || 16;
+  menupaddingEl.value = Math.round(fs * 0.75);
+}
+
+themeEl.addEventListener('input', () => { applyTheme(themeEl.value); set(THEME_KEY, themeEl.value); });
+contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); set(CONTRAST_KEY, contrastEl.value); });
+fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); set(FONTSIZE_KEY, fontsizeEl.value); });
+sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); set(SLIDERWIDTH_KEY, sliderwidthEl.value); });
+menupaddingEl.addEventListener('input', () => { applyMenuPadding(menupaddingEl.value); set(MENUPADDING_KEY, menupaddingEl.value); });
+dividersEl.addEventListener('change', () => { applyDividers(dividersEl.checked); set(DIVIDERS_KEY, dividersEl.checked ? '1' : '0'); });
+
+applyTheme(themeEl.value);
+applyContrast(contrastEl.value);
+applyFontsize(fontsizeEl.value);
+applySliderWidth(sliderwidthEl.value);
+if (savedMenuPadding !== null) applyMenuPadding(savedMenuPadding);
+applyDividers(dividersEl.checked);
+</script>
+</body>
+</html>
