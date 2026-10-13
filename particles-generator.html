@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Particles Generator</title>
+<style>
+:root {
+  --bg: 64;
+  --fg-r: 255;
+  --fg-g: 255;
+  --fg-b: 255;
+  --font-size: 16;
+  --contrast: 1;
+  --fg: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc: rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width: 168px;
+  --menu-padding: calc(var(--font-size) * 0.75px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)) transparent;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 10%), var(--bgc)); }
+
+body {
+  background-color: var(--bgc);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 100%), var(--bgc));
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.theme-control {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  opacity: 0.1;
+  background: rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.05);
+  color: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  font-size: 12px;
+  z-index: 10;
+}
+.theme-control:hover { opacity: 1; }
+.theme-control > div { display: flex; align-items: center; gap: 4px; }
+.theme-control label { font-size: inherit; }
+.theme-control input[type="range"] { width: 60px; }
+
+.wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.layout { display: flex; height: 100vh; overflow: hidden; }
+.panel-left { flex: 0 0 auto; width: 50%; min-width: 0; overflow: auto; padding: var(--menu-padding); }
+.panel-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.resizer { flex: 0 0 20px; cursor: col-resize; position: relative; touch-action: none; }
+.resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 25%), var(--bgc));
+}
+
+label { font-size: calc(0.875 * var(--font-size) * 1px); }
+
+.cells { display: block; font-size: 0; line-height: 1.6; user-select: none; -webkit-user-select: none; }
+.cells hr {
+  border: none;
+  border-top: 1px solid var(--bgc);
+  margin: 3px 0;
+  padding: 0;
+  clear: both;
+}
+.hide-dividers .cells hr { display: none; }
+
+.cell,
+.adv-slider {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: var(--slider-width);
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  color: inherit;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cell > .label,
+.adv-label {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell > .value,
+.adv-value {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell.cell-head { cursor: default; font-weight: 600; background: none; }
+.cell.cell-head > .label { color: color-mix(in srgb, color-mix(in srgb, #e6c35c 35%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc)); }
+
+.cell-note {
+  position: relative;
+  display: inline-block;
+  width: var(--slider-width);
+  max-width: 100%;
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: none;
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc));
+  line-height: calc(var(--font-size) * 1.5 * 1px);
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cell-btn {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  border: none;
+  outline: none;
+  border-radius: 999px;
+}
+.cell-btn:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 20%), var(--bgc)); }
+.cell-btn:active { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc)); }
+.cell-danger { color: color-mix(in srgb, color-mix(in srgb, #e05555 45%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc)); }
+
+.cell-check { cursor: pointer; }
+.cell-check:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+.cell-check .mark { position: relative; flex: 0 0 auto; width: 14px; height: 14px; border: 1px solid currentColor; }
+.cell-check[aria-checked="true"] .mark::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 4px;
+  height: 7px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.cell-color { cursor: pointer; width: calc(var(--slider-width) * 2 + 3px); }
+.cell-color > .label { flex: 0 0 auto; width: var(--slider-width); }
+.cell-color:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+.cell-color input[type="color"] {
+  flex: 0 0 auto;
+  width: 32px;
+  height: calc(var(--font-size) * 1.1 * 1px);
+  padding: 0;
+  border: 1px solid currentColor;
+  background: none;
+  cursor: pointer;
+}
+.cell-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.cell-color input[type="color"]::-webkit-color-swatch { border: none; }
+.cell-color input[type="color"]::-moz-color-swatch { border: none; }
+.cell-color .cell-hex {
+  flex: 0 0 auto;
+  width: 8ch;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 75%), var(--bgc));
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-transform: lowercase;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cell-text {
+  cursor: pointer;
+  background: none;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 65%), var(--bgc));
+  text-align: left;
+}
+.cell-text:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 10%), var(--bgc)); }
+.cell-text .cell-body {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cell-toggle {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  align-self: center;
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.expand-panel {
+  margin: 6px 0 10px;
+  max-width: 72ch;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.expand-panel[hidden] { display: none; }
+.expand-panel p { margin: 0 0 8px; }
+.expand-panel p:last-child { margin-bottom: 0; }
+.expand-panel h2, .expand-panel h3 { font-weight: 700; margin: 10px 0 4px; }
+.expand-panel h2 { font-size: calc(1.2 * var(--font-size) * 1px); }
+.expand-panel h3 { font-size: calc(1.05 * var(--font-size) * 1px); }
+.expand-panel h2:first-child, .expand-panel h3:first-child { margin-top: 0; }
+.expand-panel ul { margin: 0 0 8px; padding-left: 18px; }
+.expand-panel li { margin: 0 0 2px; }
+.expand-panel code { font-family: monospace; }
+
+.cell[aria-disabled="true"] { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 30%), var(--bgc)); cursor: default; pointer-events: none; }
+.cell[aria-disabled="true"]:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc)); }
+
+.adv-slider { --pct: 0; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; }
+.adv-slider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--pct) * 1%);
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 22%), var(--bgc));
+  pointer-events: none;
+}
+.adv-slider:focus-visible { outline: 1px solid currentColor; outline-offset: -1px; }
+.adv-slider[aria-disabled="true"] { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 30%), var(--bgc)); cursor: default; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  color: inherit;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: currentColor; opacity: 0.75; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track { height: 2px; background: currentColor; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: currentColor; border: none; cursor: pointer; }
+
+canvas {
+  display: block;
+  background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 4%), var(--bgc));
+  border: 1px solid color-mix(in srgb, var(--fg) calc(var(--contrast) * 35%), var(--bgc));
+}
+.hidden-canvas { display: none; position: absolute; left: -9999px; top: -9999px; }
+.hidden-file-input { display: none; }
+</style>
+<script>
+(function () {
+  try {
+    var root = document.documentElement;
+    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var th = s('ui.theme');
+    var theme = th !== null ? parseInt(th, 10) : 25;
+    if (isFinite(theme)) {
+      var b = Math.round((theme / 100) * 255);
+      root.style.setProperty('--bg', b);
+      var d = b <= 127;
+      root.style.setProperty('--fg-r', d ? 255 : 0);
+      root.style.setProperty('--fg-g', d ? 255 : 0);
+      root.style.setProperty('--fg-b', d ? 255 : 0);
+    }
+    var c = s('ui.contrast');
+    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = s('ui.fontsize');
+    if (f !== null) root.style.setProperty('--font-size', f);
+    var w = s('ui.slider-width');
+    if (w !== null) root.style.setProperty('--slider-width', w + 'px');
+    var mp = s('ui.menupadding');
+    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
+    if (s('ui.dividers') === '0') root.classList.add('hide-dividers');
+    var sp = s('ui-split');
+    var pct = sp !== null ? parseFloat(sp) : 50;
+    if (isFinite(pct)) {
+      var st = document.createElement('style');
+      st.textContent = '.panel-left{width:calc((100vw - 20px) * ' + (pct / 100) + ')}';
+      document.head.appendChild(st);
+    }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+  <div class="theme-control">
+    <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
+    <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="16"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+    <div><label for="menupadding">Отступы</label><input type="range" id="menupadding" min="0" max="64" value="12"></div>
+    <div><label for="dividers"><input type="checkbox" id="dividers" checked> <span>Разделители</span></label></div>
+  </div>
+
+  <div class="layout">
+    <div class="panel panel-left">
+      <div class="wrap">
+        <div class="cells" id="flow">
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Настройка частицы</span></div>
+          <div class="adv-slider" id="singleSize" data-min="32" data-max="512" data-step="1"><span class="adv-label">Размер текстуры</span><span class="adv-value" id="singleSizeVal">256</span></div>
+          <div class="adv-slider" id="power" data-min="0.1" data-max="8" data-step="0.1"><span class="adv-label">Нелинейность</span><span class="adv-value" id="powerVal">2.0</span></div>
+          <div class="adv-slider" id="star" data-min="0.2" data-max="4" data-step="0.01"><span class="adv-label">Форма звезды</span><span class="adv-value" id="starVal">1.00</span></div>
+          <div class="cell cell-btn" id="downloadSingle"><span class="label">Скачать particle.png</span></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Настройка облака</span></div>
+          <div class="adv-slider" id="widthSlider" data-min="10" data-max="1200" data-step="1"><span class="adv-label">Ширина</span><span class="adv-value" id="widthSliderVal">600</span></div>
+          <div class="adv-slider" id="heightSlider" data-min="10" data-max="1200" data-step="1"><span class="adv-label">Высота</span><span class="adv-value" id="heightSliderVal">600</span></div>
+          <div class="cell cell-check" role="checkbox" id="lockAspectRatio" aria-checked="false"><span class="mark"></span><span class="label">Высота равна ширине</span></div>
+          <div class="adv-slider" id="seed" data-min="0" data-max="100" data-step="1"><span class="adv-label">Seed (Вариант)</span><span class="adv-value" id="seedVal">0</span></div>
+          <div class="cell cell-check" role="checkbox" id="inCircle" aria-checked="false"><span class="mark"></span><span class="label">Генерировать в круге</span></div>
+          <div class="adv-slider" id="padding" data-min="0" data-max="50" data-step="1"><span class="adv-label">Отступ</span><span class="adv-value" id="paddingVal">0</span></div>
+          <div class="adv-slider" id="minScale" data-min="0.01" data-max="1" data-step="0.01"><span class="adv-label">Мин. масштаб</span><span class="adv-value" id="minScaleVal">0.05</span></div>
+          <div class="adv-slider" id="maxScale" data-min="0.01" data-max="1" data-step="0.01"><span class="adv-label">Макс. масштаб</span><span class="adv-value" id="maxScaleVal">0.20</span></div>
+          <div class="adv-slider" id="count" data-min="10" data-max="1000" data-step="1"><span class="adv-label">Количество</span><span class="adv-value" id="countVal">50</span></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Нижний слой</span></div>
+          <div class="adv-slider" id="bottomScale" data-min="1" data-max="3" data-step="0.05"><span class="adv-label">Увеличение размера</span><span class="adv-value" id="bottomScaleVal">1.50</span></div>
+          <div class="adv-slider" id="bottomBlur" data-min="0" data-max="40" data-step="1"><span class="adv-label">Блюр</span><span class="adv-value" id="bottomBlurVal">8</span></div>
+          <div class="adv-slider" id="bottomColorScale" data-min="1" data-max="4" data-step="0.25"><span class="adv-label">Уменьшение нижнего слоя</span><span class="adv-value" id="bottomColorScaleVal">1.00</span></div>
+          <div class="cell cell-color"><span class="label">Цвет нижнего слоя</span><input type="color" id="bottomTint" value="#ff7a1a"></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Экспорт изображений</span></div>
+          <div class="adv-slider" id="exportScale" data-min="1" data-max="10" data-step="0.25"><span class="adv-label">Уменьшить в N раз</span><span class="adv-value" id="exportScaleVal">1.00</span></div>
+          <div class="cell cell-btn" id="downloadColored"><span class="label">Скачать оба слоя (цветные)</span></div>
+          <div class="cell cell-btn" id="downloadTop"><span class="label">Скачать верхний слой</span></div>
+          <div class="cell cell-btn" id="downloadBottom"><span class="label">Скачать нижний слой (белым)</span></div>
+          <div class="cell cell-btn" id="downloadBottomColor"><span class="label">Скачать нижний слой (цветным)</span></div>
+          <div class="cell cell-btn" id="downloadZip"><span class="label">Скачать оба слоя в ZIP (белыми)</span></div>
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Экспорт/Импорт настроек</span></div>
+          <div class="cell cell-btn" id="exportSettings"><span class="label">Экспорт настроек</span></div>
+          <div class="cell cell-btn" id="importSettings"><span class="label">Импорт настроек</span></div>
+          <input type="file" id="importFileInput" class="hidden-file-input" accept=".txt,.json">
+
+          <hr>
+          <div class="cell cell-head"><span class="label">Система</span></div>
+          <div class="cell cell-btn cell-danger" id="resetSettings"><span class="label">Сбросить настройки</span></div>
+
+          <hr>
+          <div class="cell cell-text" id="aboutToggle" role="button" aria-expanded="false">
+            <span class="cell-body">Описание и инструкция</span>
+            <button class="cell-toggle" type="button">&gt;</button>
+          </div>
+          <div class="expand-panel" id="aboutPanel" hidden>
+            <h2>Генератор частиц</h2>
+            <p>Инструмент делает текстуру одиночной частицы и собирает из неё облако частиц (карту спрайтов). Облако состоит из двух слоёв одного и того же рисунка: верхнего и нижнего. Все настройки сохраняются в браузере и восстанавливаются при следующем открытии.</p>
+
+            <h3>Настройка частицы</h3>
+            <ul>
+              <li><b>Размер текстуры</b> — разрешение текстуры одиночной частицы.</li>
+              <li><b>Нелинейность</b> — степень затухания свечения от центра к краю.</li>
+              <li><b>Форма звезды</b> — форма частицы: 1 — круг, больше — «звезда» с лучами.</li>
+              <li><b>Скачать particle.png</b> — сохранить текстуру частицы.</li>
+            </ul>
+
+            <h3>Настройка облака</h3>
+            <ul>
+              <li><b>Ширина / Высота</b> — размер карты облака. «Высота равна ширине» держит их равными.</li>
+              <li><b>Seed</b> — вариант раскладки: одно и то же число даёт один и тот же рисунок.</li>
+              <li><b>Генерировать в круге</b> — раскладка внутри круга вместо прямоугольника.</li>
+              <li><b>Отступ</b> — считается от центров частиц. Если радиус частицы больше отступа, отступ автоматически увеличивается до радиуса, чтобы частицы не обрезались.</li>
+              <li><b>Мин./Макс. масштаб</b> — разброс размеров частиц.</li>
+              <li><b>Количество</b> — число частиц в облаке.</li>
+            </ul>
+
+            <h3>Нижний слой</h3>
+            <ul>
+              <li><b>Увеличение размера</b> — во сколько раз частицы нижнего слоя крупнее верхних (рисунок и центры совпадают).</li>
+              <li><b>Блюр</b> — размытие нижнего слоя.</li>
+              <li><b>Параметры нижнего слоя</b> — уменьшение файла при экспорте (см. ниже) и цвет тинта, которым нижний слой красится в предпросмотре и в цветных экспортах.</li>
+            </ul>
+
+            <h3>Экспорт изображений</h3>
+            <ul>
+              <li><b>Уменьшить в N раз</b> — делит разрешение всех сохраняемых картинок (1 — без уменьшения).</li>
+              <li><b>Оба слоя (цветные)</b> — общий композит: нижний слой цветной, верхний белый.</li>
+              <li><b>Верхний слой</b> / <b>нижний слой</b> — слои по отдельности (белым).</li>
+              <li><b>Нижний слой (цветным)</b> — отдельный файл нижнего слоя в цвете.</li>
+              <li><b>Уменьшение нижнего слоя</b> — дополнительно уменьшает файлы нижнего слоя: итог = «Уменьшить в N раз» × это значение. Пример: 2 × 2 = файл в 4 раза меньше.</li>
+              <li><b>ZIP</b> — верхний и нижний слои отдельными белыми PNG в одном архиве.</li>
+            </ul>
+
+            <h3>Настройки и интерфейс</h3>
+            <ul>
+              <li><b>Экспорт/импорт настроек</b> — сохранить или загрузить все параметры в текстовый файл.</li>
+              <li><b>Сбросить настройки</b> — вернуть значения по умолчанию.</li>
+              <li>Панель в правом верхнем углу меняет тему, контраст, размер шрифта, ширину ячеек и отступы. Перетаскивание разделителя между меню и холстом меняет ширину меню; позиция сохраняется.</li>
+            </ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="resizer" id="resizer"></div>
+
+    <div class="panel panel-right">
+      <canvas id="cloudCanvas"></canvas>
+    </div>
+  </div>
+
+  <canvas id="glCanvas" class="hidden-canvas"></canvas>
+
+  <script id="vs" type="x-shader/x-vertex">
+    attribute vec2 a_position;
+    varying vec2 v_uv;
+    void main() { v_uv = a_position; gl_Position = vec4(a_position, 0.0, 1.0); }
+  </script>
+  <script id="fs" type="x-shader/x-fragment">
+    precision highp float;
+    varying vec2 v_uv;
+    uniform float u_power;
+    uniform float u_star;
+    void main() {
+      vec2 p = v_uv;
+      float angle = atan(p.y, p.x);
+      float starR = pow(pow(abs(cos(angle)), u_star) + pow(abs(sin(angle)), u_star), -1.0 / u_star);
+      float distF = length(p) / starR;
+      float alpha = pow(max(0.0, 1.0 - distF), u_power) * smoothstep(1.0, 0.98, distF);
+      gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
+    }
+  </script>
+
+  <script>
+  const root = document.documentElement;
+
+  const glCanvas = document.getElementById('glCanvas');
+  const gl = glCanvas.getContext('webgl', { preserveDrawingBuffer: true, alpha: true, antialias: true });
+  const cloudCanvas = document.getElementById('cloudCanvas');
+  const ctx = cloudCanvas.getContext('2d');
+
+  const THEME_KEY = 'ui.theme';
+  const CONTRAST_KEY = 'ui.contrast';
+  const FONTSIZE_KEY = 'ui.fontsize';
+  const SLIDERWIDTH_KEY = 'ui.slider-width';
+  const MENUPADDING_KEY = 'ui.menupadding';
+  const DIVIDERS_KEY = 'ui.dividers';
+  const SPLIT_KEY = 'ui-split';
+  const STORAGE_KEY = 'particleCloudGeneratorSettings';
+
+  const defaultSettings = {
+    singleSize: 256,
+    power: 2.0,
+    star: 1.0,
+    seed: 0,
+    inCircle: false,
+    lockAspectRatio: false,
+    widthSlider: 600,
+    heightSlider: 600,
+    padding: 0,
+    minScale: 0.05,
+    maxScale: 0.2,
+    count: 50,
+    bottomScale: 1.5,
+    bottomBlur: 8,
+    bottomColorScale: 1,
+    bottomTint: '#ff7a1a',
+    exportScale: 1
+  };
+
+  const state = Object.assign({}, defaultSettings);
+
+  /* ---------------- label fitting ---------------- */
+
+  const VOWELS = 'аеёиоуыэюяaeiouy';
+  const LETTER_RE = /[а-яёa-z]/i;
+  const ABBREV_MAX_WORDS = 3;
+  const FIT_ENTRIES = [];
+
+  const measureCanvas = document.createElement('canvas');
+  const measureCtx = measureCanvas.getContext('2d');
+
+  function textWidth(text, font) {
+    measureCtx.font = font;
+    return measureCtx.measureText(text).width;
+  }
+  function computedFont(span) {
+    const style = getComputedStyle(span);
+    return style.fontStyle + ' ' + style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+  }
+  function wordStem(word) {
+    const chars = Array.from(word);
+    if (chars.length === 0) return [];
+    const stem = [chars[0].toUpperCase()];
+    for (let i = 1; i < chars.length; i++) {
+      const ch = chars[i];
+      if (LETTER_RE.test(ch) && VOWELS.indexOf(ch.toLowerCase()) === -1) stem.push(ch.toLowerCase());
+    }
+    return stem;
+  }
+  function buildVariants(full) {
+    const stems = full.trim().split(/\s+/).slice(0, ABBREV_MAX_WORDS).map(wordStem);
+    const maxDepth = stems.reduce((m, s) => Math.max(m, s.length), 0);
+    const variants = [];
+    for (let depth = 1; depth <= maxDepth; depth++) {
+      variants.push(stems.map((s) => s.slice(0, depth).join('')).join(''));
+    }
+    return variants;
+  }
+  function registerFit(container, labelSpan, fullText, reserved) {
+    FIT_ENTRIES.push({ container, labelSpan, fullText, reserved: reserved || [] });
+  }
+  function contentSpace(entry) {
+    const style = getComputedStyle(entry.container);
+    const padL = parseFloat(style.paddingLeft) || 0;
+    const padR = parseFloat(style.paddingRight) || 0;
+    const gap = parseFloat(style.columnGap || style.gap) || 0;
+    let reservedWidth = 0;
+    entry.reserved.forEach((el) => { reservedWidth += el.offsetWidth; });
+    return entry.container.clientWidth - padL - padR - gap * entry.reserved.length - reservedWidth;
+  }
+  function fitEntry(entry) {
+    const space = contentSpace(entry);
+    if (space <= 0) return;
+    const full = entry.fullText;
+    const variants = buildVariants(full);
+    const font = computedFont(entry.labelSpan);
+    if (textWidth(full, font) <= space) {
+      entry.labelSpan.textContent = full;
+      if (entry.container.title === full) entry.container.removeAttribute('title');
+      return;
+    }
+    let chosen = variants[0] || full;
+    for (const variant of variants) {
+      if (textWidth(variant, font) <= space) chosen = variant;
+      else break;
+    }
+    entry.labelSpan.textContent = chosen;
+    if (chosen === full) entry.container.removeAttribute('title');
+    else entry.container.title = full;
+  }
+  function syncNoteTitle(el) {
+    if (!el) return;
+    if (el.scrollWidth > el.clientWidth + 1 && el.textContent) el.title = el.textContent;
+    else el.removeAttribute('title');
+  }
+
+  let refreshScheduled = false;
+  function scheduleRefreshLabels() {
+    if (refreshScheduled) return;
+    refreshScheduled = true;
+    requestAnimationFrame(() => {
+      refreshScheduled = false;
+      FIT_ENTRIES.forEach(fitEntry);
+      document.querySelectorAll('.cell-note').forEach(syncNoteTitle);
+    });
+  }
+
+  const syncers = [];
+  const sliderCtl = {};
+  const rangeSetters = {};
+  const checkSetters = {};
+  const colorSetters = {};
+
+  function range(id, get, set, fmt, after) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const out = document.getElementById(id + 'Val');
+    const min = parseFloat(el.dataset.min);
+    const max = parseFloat(el.dataset.max);
+    const step = parseFloat(el.dataset.step || '1');
+    let current = min;
+    let disabled = false;
+
+    function clampVal(raw) {
+      const snapped = Math.round((raw - min) / step) * step + min;
+      return parseFloat(Math.max(min, Math.min(max, snapped)).toFixed(10));
+    }
+    function render() {
+      if (out) out.textContent = fmt ? fmt(current) : String(current);
+      el.style.setProperty('--pct', max === min ? 0 : ((current - min) / (max - min)) * 100);
+      el.setAttribute('aria-valuenow', current);
+    }
+    function setDisplay(v) { current = clampVal(v); render(); }
+    function commit(raw) {
+      if (disabled) return;
+      current = clampVal(raw);
+      render();
+      set(current);
+      if (after) after();
+    }
+    function valueFromX(clientX) {
+      const r = el.getBoundingClientRect();
+      const ratio = r.width === 0 ? 0 : (clientX - r.left) / r.width;
+      return min + ratio * (max - min);
+    }
+
+    el.tabIndex = 0;
+    el.setAttribute('role', 'slider');
+    el.setAttribute('aria-valuemin', min);
+    el.setAttribute('aria-valuemax', max);
+
+    el.addEventListener('pointerdown', (e) => {
+      if (disabled) return;
+      e.preventDefault();
+      el.focus();
+      try { el.setPointerCapture(e.pointerId); } catch (_) {}
+      el.dataset.dragging = '1';
+      commit(valueFromX(e.clientX));
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (disabled || el.dataset.dragging !== '1') return;
+      commit(valueFromX(e.clientX));
+    });
+    const endDrag = () => { delete el.dataset.dragging; };
+    el.addEventListener('pointerup', endDrag);
+    el.addEventListener('pointercancel', endDrag);
+    el.addEventListener('wheel', (e) => {
+      if (disabled) return;
+      e.preventDefault();
+      commit(current + (e.deltaY < 0 ? -1 : 1) * step);
+    }, { passive: false });
+    el.addEventListener('keydown', (e) => {
+      if (disabled) return;
+      let next = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowUp') next = current + step;
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') next = current - step;
+      else if (e.key === 'Home') next = min;
+      else if (e.key === 'End') next = max;
+      if (next !== null) { e.preventDefault(); commit(next); }
+    });
+
+    function sync() { setDisplay(get()); }
+    sync();
+    syncers.push(sync);
+    rangeSetters[id] = set;
+
+    const labelSpan = el.querySelector('.adv-label');
+    if (labelSpan) registerFit(el, labelSpan, labelSpan.textContent.trim(), out ? [out] : []);
+
+    sliderCtl[id] = {
+      setDisplay,
+      setDisabled(on) { disabled = on; el.setAttribute('aria-disabled', on ? 'true' : 'false'); }
+    };
+    return el;
+  }
+
+  function check(id, get, set, after) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    el.tabIndex = 0;
+    function sync() { el.setAttribute('aria-checked', get() ? 'true' : 'false'); }
+    el.addEventListener('click', () => {
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      set(el.getAttribute('aria-checked') !== 'true');
+      sync();
+      if (after) after();
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.click(); }
+    });
+    sync();
+    syncers.push(sync);
+    checkSetters[id] = set;
+    return el;
+  }
+
+  function color(id, get, set, after) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    function sync() {
+      el.value = get();
+      const h = el.parentElement.querySelector('.cell-hex');
+      if (h) h.value = get();
+    }
+    el.addEventListener('input', () => { set(el.value); if (after) after(); });
+    sync();
+    syncers.push(sync);
+    colorSetters[id] = set;
+    return el;
+  }
+
+  function normalizeHex(raw) {
+    let s = String(raw).trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(s)) s = s.split('').map((ch) => ch + ch).join('');
+    if (/^[0-9a-f]{6}$/i.test(s)) return '#' + s.toLowerCase();
+    return null;
+  }
+
+  document.querySelectorAll('.cell-color input[type="color"]').forEach((colorEl) => {
+    const hex = document.createElement('input');
+    hex.type = 'text';
+    hex.className = 'cell-hex';
+    hex.spellcheck = false;
+    hex.value = colorEl.value;
+    colorEl.after(hex);
+
+    hex.addEventListener('input', () => {
+      const v = normalizeHex(hex.value);
+      if (!v) return;
+      colorEl.value = v;
+      colorEl.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    hex.addEventListener('change', () => {
+      const v = normalizeHex(hex.value);
+      hex.value = v || colorEl.value;
+    });
+    colorEl.addEventListener('input', () => { hex.value = colorEl.value; });
+  });
+
+  const f2 = (v) => Number(v).toFixed(2);
+  const f0 = (v) => String(Math.round(v));
+
+  /* ---------------- generator logic ---------------- */
+
+  let currentSeed = 0;
+  function seededRandom() {
+    currentSeed = (currentSeed * 1664525 + 1013904223) % 4294967296;
+    return currentSeed / 4294967296;
+  }
+
+  function createShader(gl, type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    return s;
+  }
+  const prog = gl.createProgram();
+  gl.attachShader(prog, createShader(gl, gl.VERTEX_SHADER, document.getElementById('vs').text));
+  gl.attachShader(prog, createShader(gl, gl.FRAGMENT_SHADER, document.getElementById('fs').text));
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+
+  const vertices = new Float32Array([-1,-1, 1,-1, -1,1, -1,1, 1,-1, 1,1]);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+  const pos = gl.getAttribLocation(prog, 'a_position');
+  gl.enableVertexAttribArray(pos);
+  gl.vertexAttribPointer(pos, 2, gl.FLOAT, false, 0, 0);
+
+  const uPower = gl.getUniformLocation(prog, 'u_power');
+  const uStar = gl.getUniformLocation(prog, 'u_star');
+
+  const particleImg = new Image();
+
+  function adjustCanvasDisplaySize() {
+    const container = document.querySelector('.panel-right');
+    const style = getComputedStyle(container);
+    const availW = container.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+    const availH = container.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0);
+
+    const canvasWidth = cloudCanvas.width;
+    const canvasHeight = cloudCanvas.height;
+
+    if (canvasWidth <= availW && canvasHeight <= availH) {
+      cloudCanvas.style.width = canvasWidth + 'px';
+      cloudCanvas.style.height = canvasHeight + 'px';
+      return;
+    }
+    const scale = Math.min(availW / canvasWidth, availH / canvasHeight);
+    cloudCanvas.style.width = (canvasWidth * scale) + 'px';
+    cloudCanvas.style.height = (canvasHeight * scale) + 'px';
+  }
+
+  function updateCloudDimensions() {
+    cloudCanvas.width = state.widthSlider;
+    cloudCanvas.height = state.heightSlider;
+    adjustCanvasDisplaySize();
+    renderPreview();
+  }
+
+  // Отступ считается от центров партиклов; если радиус частиц больше
+  // заданного отступа, он автоматически увеличивается до радиуса.
+  function effectivePadding() {
+    const maxRadius = particleImg.width * state.maxScale * state.bottomScale / 2;
+    return Math.max(state.padding, maxRadius);
+  }
+
+  // Общий список частиц (центр + базовый масштаб) — один и тот же рисунок
+  // для обоих слоёв и независимый от размера текстуры.
+  function generatePlacements() {
+    currentSeed = state.seed;
+
+    const count = state.count;
+    const minS = state.minScale;
+    const maxS = state.maxScale;
+    const inCircle = state.inCircle;
+    const effPad = effectivePadding();
+    const cw = cloudCanvas.width;
+    const ch = cloudCanvas.height;
+    const centerX = cw / 2;
+    const centerY = ch / 2;
+    const radiusX = Math.max(0, cw / 2 - effPad);
+    const radiusY = Math.max(0, ch / 2 - effPad);
+    const spanX = Math.max(0, cw - 2 * effPad);
+    const spanY = Math.max(0, ch - 2 * effPad);
+
+    const list = [];
+    for (let i = 0; i < count; i++) {
+      const s = seededRandom() * (maxS - minS) + minS;
+      let x, y;
+      if (inCircle) {
+        const angle = seededRandom() * Math.PI * 2;
+        const r = Math.sqrt(seededRandom());
+        x = centerX + r * radiusX * Math.cos(angle);
+        y = centerY + r * radiusY * Math.sin(angle);
+      } else {
+        x = effPad + seededRandom() * spanX;
+        y = effPad + seededRandom() * spanY;
+      }
+      list.push({ x, y, s });
+    }
+    return list;
+  }
+
+  function drawLayer(g, list, layer) {
+    if (!layer.img) return;
+    const baseW = particleImg.width;
+    const baseH = particleImg.height;
+    const mul = layer.mul;
+    g.save();
+    if (layer.blur > 0) g.filter = 'blur(' + layer.blur + 'px)';
+    for (const p of list) {
+      const sc = p.s * mul;
+      const w = baseW * sc;
+      const h = baseH * sc;
+      g.drawImage(layer.img, p.x - w / 2, p.y - h / 2, w, h);
+    }
+    g.restore();
+  }
+
+  // Цветной (тинтованный) вариант текстуры частицы
+  let tintCache = { color: null, src: null, canvas: null };
+  function getTintedImage(color) {
+    if (tintCache.color === color && tintCache.src === particleImg.src && tintCache.canvas) {
+      return tintCache.canvas;
+    }
+    const c = document.createElement('canvas');
+    c.width = particleImg.width;
+    c.height = particleImg.height;
+    const g = c.getContext('2d');
+    g.drawImage(particleImg, 0, 0);
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = color;
+    g.fillRect(0, 0, c.width, c.height);
+    tintCache = { color, src: particleImg.src, canvas: c };
+    return c;
+  }
+
+  const coloredBottom = () => ({
+    img: getTintedImage(state.bottomTint),
+    mul: state.bottomScale,
+    blur: state.bottomBlur
+  });
+  const whiteBottom = () => ({ img: particleImg, mul: state.bottomScale, blur: state.bottomBlur });
+  const whiteTop = () => ({ img: particleImg, mul: 1, blur: 0 });
+
+  function renderPreview() {
+    if (!particleImg.src) return;
+    ctx.clearRect(0, 0, cloudCanvas.width, cloudCanvas.height);
+    const list = generatePlacements();
+    drawLayer(ctx, list, coloredBottom());
+    drawLayer(ctx, list, whiteTop());
+  }
+
+  function renderLayers(spec, factor) {
+    const full = document.createElement('canvas');
+    full.width = cloudCanvas.width;
+    full.height = cloudCanvas.height;
+    const g = full.getContext('2d');
+    const list = generatePlacements();
+    if (spec.bottom) drawLayer(g, list, spec.bottom);
+    if (spec.top) drawLayer(g, list, spec.top);
+    return downscaleCanvas(full, factor);
+  }
+
+  function downscaleCanvas(full, factor) {
+    const n = factor || 1;
+    if (n <= 1) return full;
+    const w = Math.max(1, Math.round(full.width / n));
+    const h = Math.max(1, Math.round(full.height / n));
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    const g = out.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(full, 0, 0, w, h);
+    return out;
+  }
+
+  function downloadCanvas(canvas, name) {
+    const a = document.createElement('a');
+    a.download = name;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  /* ---------------- minimal ZIP writer (store) ---------------- */
+
+  function crc32(buf) {
+    let c = ~0;
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i];
+      for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xEDB88320 & -(c & 1));
+    }
+    return (~c) >>> 0;
+  }
+
+  function dataURLToBytes(dataURL) {
+    const bin = atob(dataURL.split(',')[1]);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return arr;
+  }
+
+  function buildZip(files) {
+    const enc = new TextEncoder();
+    const u16 = (n) => [n & 255, (n >> 8) & 255];
+    const u32 = (n) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255];
+    const parts = [];
+    const central = [];
+    let offset = 0;
+
+    for (const f of files) {
+      const nameBytes = enc.encode(f.name);
+      const crc = crc32(f.data);
+      const local = new Uint8Array([
+        ...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+        ...u32(crc), ...u32(f.data.length), ...u32(f.data.length),
+        ...u16(nameBytes.length), ...u16(0)
+      ]);
+      parts.push(local, nameBytes, f.data);
+      central.push({ nameBytes, crc, size: f.data.length, offset });
+      offset += local.length + nameBytes.length + f.data.length;
+    }
+
+    let centralSize = 0;
+    for (const c of central) {
+      const h = new Uint8Array([
+        ...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0),
+        ...u32(c.crc), ...u32(c.size), ...u32(c.size),
+        ...u16(c.nameBytes.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0),
+        ...u32(c.offset)
+      ]);
+      parts.push(h, c.nameBytes);
+      centralSize += h.length + c.nameBytes.length;
+    }
+
+    const end = new Uint8Array([
+      ...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length),
+      ...u32(centralSize), ...u32(offset), ...u16(0)
+    ]);
+    parts.push(end);
+    return new Blob(parts, { type: 'application/zip' });
+  }
+
+  function downloadBlob(blob, name) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function updateParticle() {
+    const sSize = state.singleSize;
+    glCanvas.width = glCanvas.height = sSize;
+    gl.viewport(0, 0, sSize, sSize);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    gl.uniform1f(uPower, state.power);
+    gl.uniform1f(uStar, state.star);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
+    particleImg.onload = renderPreview;
+    particleImg.src = glCanvas.toDataURL();
+  }
+
+  /* ---------------- settings persistence ---------------- */
+
+  function saveSettings() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function loadSettings() {
+    let saved = null;
+    try { saved = localStorage.getItem(STORAGE_KEY); } catch (e) {}
+    if (!saved) return false;
+    try {
+      const s = JSON.parse(saved);
+      Object.keys(defaultSettings).forEach((k) => {
+        if (s[k] !== undefined) state[k] = s[k];
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function applyStateToControls() { syncers.forEach((s) => s()); }
+
+  function resetSettings() {
+    if (!confirm('Вы уверены, что хотите сбросить все настройки к значениям по умолчанию?')) return;
+    Object.assign(state, defaultSettings);
+    applyStateToControls();
+    updateCloudDimensions();
+    updateParticle();
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    saveSettings();
+  }
+
+  function exportSettings() {
+    const data = Object.assign({}, state, { exportDate: new Date().toISOString(), version: '1.0' });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'particles-settings.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importSettings() {
+    document.getElementById('importFileInput').click();
+  }
+
+  document.getElementById('importFileInput').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (event) {
+      try {
+        const s = JSON.parse(event.target.result);
+        const required = Object.keys(defaultSettings);
+        let valid = true;
+        for (const field of required) {
+          if (s[field] === undefined) { valid = false; break; }
+        }
+        if (!valid) {
+          alert('Ошибка импорта: Файл настроек поврежден или имеет неверный формат');
+          return;
+        }
+        required.forEach((k) => { state[k] = s[k]; });
+        applyStateToControls();
+        updateCloudDimensions();
+        updateParticle();
+        saveSettings();
+      } catch (error) {
+        alert('Ошибка импорта: Файл настроек поврежден или имеет неверный формат');
+      }
+      e.target.value = '';
+    };
+    reader.onerror = function () {
+      alert('Ошибка чтения файла');
+      e.target.value = '';
+    };
+    reader.readAsText(file);
+  });
+
+  /* ---------------- bind controls ---------------- */
+
+  function afterParticle() { updateParticle(); saveSettings(); }
+  function afterCloud() { renderPreview(); saveSettings(); }
+
+  range('singleSize', () => state.singleSize, (v) => { state.singleSize = Math.round(v); }, f0, afterParticle);
+  range('power', () => state.power, (v) => { state.power = v; }, f2, afterParticle);
+  range('star', () => state.star, (v) => { state.star = v; }, f2, afterParticle);
+  range('seed', () => state.seed, (v) => { state.seed = Math.round(v); }, f0, afterCloud);
+  range('padding', () => state.padding, (v) => { state.padding = Math.round(v); }, f0, afterCloud);
+  range('minScale', () => state.minScale, (v) => { state.minScale = v; }, f2, afterCloud);
+  range('maxScale', () => state.maxScale, (v) => { state.maxScale = v; }, f2, afterCloud);
+  range('count', () => state.count, (v) => { state.count = Math.round(v); }, f0, afterCloud);
+
+  range('bottomScale', () => state.bottomScale, (v) => { state.bottomScale = v; }, f2, afterCloud);
+  range('bottomBlur', () => state.bottomBlur, (v) => { state.bottomBlur = Math.round(v); }, f0, afterCloud);
+  range('bottomColorScale', () => state.bottomColorScale, (v) => { state.bottomColorScale = v; }, f2, () => saveSettings());
+  range('exportScale', () => state.exportScale, (v) => { state.exportScale = v; }, f2, () => saveSettings());
+  color('bottomTint', () => state.bottomTint, (v) => { state.bottomTint = v; }, afterCloud);
+
+  function onWidth() {
+    if (state.lockAspectRatio) {
+      state.heightSlider = state.widthSlider;
+      sliderCtl.heightSlider.setDisplay(state.heightSlider);
+    }
+    updateCloudDimensions();
+    saveSettings();
+  }
+  function onHeight() {
+    if (state.lockAspectRatio) {
+      state.widthSlider = state.heightSlider;
+      sliderCtl.widthSlider.setDisplay(state.widthSlider);
+    }
+    updateCloudDimensions();
+    saveSettings();
+  }
+  range('widthSlider', () => state.widthSlider, (v) => { state.widthSlider = Math.round(v); }, f0, onWidth);
+  range('heightSlider', () => state.heightSlider, (v) => { state.heightSlider = Math.round(v); }, f0, onHeight);
+
+  check('lockAspectRatio', () => state.lockAspectRatio, (v) => { state.lockAspectRatio = v; }, () => {
+    if (state.lockAspectRatio) {
+      state.heightSlider = state.widthSlider;
+      sliderCtl.heightSlider.setDisplay(state.heightSlider);
+      updateCloudDimensions();
+    }
+    saveSettings();
+  });
+  check('inCircle', () => state.inCircle, (v) => { state.inCircle = v; }, afterCloud);
+
+  document.getElementById('downloadSingle').addEventListener('click', () => {
+    const a = document.createElement('a');
+    a.download = 'particle.png';
+    a.href = glCanvas.toDataURL();
+    a.click();
+  });
+
+  document.getElementById('downloadColored').addEventListener('click', () => {
+    downloadCanvas(renderLayers({ bottom: coloredBottom(), top: whiteTop() }, state.exportScale), 'particles-colored.png');
+  });
+  document.getElementById('downloadTop').addEventListener('click', () => {
+    downloadCanvas(renderLayers({ top: whiteTop() }, state.exportScale), 'particles-top.png');
+  });
+  document.getElementById('downloadBottom').addEventListener('click', () => {
+    // Нижний слой дополнительно уменьшен в bottomColorScale раз относительно верхнего.
+    const factor = state.exportScale * state.bottomColorScale;
+    downloadCanvas(renderLayers({ bottom: whiteBottom() }, factor), 'particles-bottom.png');
+  });
+  document.getElementById('downloadBottomColor').addEventListener('click', () => {
+    const factor = state.exportScale * state.bottomColorScale;
+    downloadCanvas(renderLayers({ bottom: coloredBottom() }, factor), 'particles-bottom-colored.png');
+  });
+  document.getElementById('downloadZip').addEventListener('click', () => {
+    const bottomFactor = state.exportScale * state.bottomColorScale;
+    const top = renderLayers({ top: whiteTop() }, state.exportScale);
+    const bottom = renderLayers({ bottom: whiteBottom() }, bottomFactor);
+    const zip = buildZip([
+      { name: 'particles-top.png', data: dataURLToBytes(top.toDataURL('image/png')) },
+      { name: 'particles-bottom.png', data: dataURLToBytes(bottom.toDataURL('image/png')) }
+    ]);
+    downloadBlob(zip, 'particles-layers.zip');
+  });
+
+  document.getElementById('exportSettings').addEventListener('click', exportSettings);
+  document.getElementById('importSettings').addEventListener('click', importSettings);
+  document.getElementById('resetSettings').addEventListener('click', resetSettings);
+
+  const aboutToggle = document.getElementById('aboutToggle');
+  const aboutPanel = document.getElementById('aboutPanel');
+  function toggleAbout() {
+    const expanded = aboutToggle.getAttribute('aria-expanded') !== 'true';
+    aboutToggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const t = aboutToggle.querySelector('.cell-toggle');
+    if (t) t.textContent = expanded ? 'v' : '>';
+    aboutPanel.hidden = !expanded;
+  }
+  aboutToggle.addEventListener('click', toggleAbout);
+  aboutToggle.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleAbout(); }
+  });
+
+  /* ---------------- theme control ---------------- */
+
+  const themeEl = document.getElementById('theme');
+  const contrastEl = document.getElementById('contrast');
+  const fontsizeEl = document.getElementById('fontsize');
+  const sliderwidthEl = document.getElementById('sliderwidth');
+  const menupaddingEl = document.getElementById('menupadding');
+  const dividersEl = document.getElementById('dividers');
+
+  function applyTheme(value) {
+    const brightness = Math.round((value / 100) * 255);
+    root.style.setProperty('--bg', brightness);
+    const dark = brightness <= 127;
+    root.style.setProperty('--fg-r', dark ? 255 : 0);
+    root.style.setProperty('--fg-g', dark ? 255 : 0);
+    root.style.setProperty('--fg-b', dark ? 255 : 0);
+  }
+  function applyContrast(v) { root.style.setProperty('--contrast', v / 100); }
+  function applyFontsize(v) { root.style.setProperty('--font-size', v); scheduleRefreshLabels(); }
+  function applySliderWidth(v) { root.style.setProperty('--slider-width', v + 'px'); scheduleRefreshLabels(); }
+  function applyMenuPadding(v) { root.style.setProperty('--menu-padding', v + 'px'); }
+  function applyDividers(on) { root.classList.toggle('hide-dividers', !on); }
+
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  themeEl.value = savedTheme !== null ? savedTheme : 25;
+  const savedContrast = localStorage.getItem(CONTRAST_KEY);
+  contrastEl.value = savedContrast !== null ? savedContrast : 100;
+  const savedFont = localStorage.getItem(FONTSIZE_KEY);
+  fontsizeEl.value = savedFont !== null ? savedFont : 16;
+  const savedWidth = localStorage.getItem(SLIDERWIDTH_KEY);
+  sliderwidthEl.value = savedWidth !== null ? savedWidth : 168;
+  const savedMenuPadding = localStorage.getItem(MENUPADDING_KEY);
+  const savedDividers = localStorage.getItem(DIVIDERS_KEY);
+  dividersEl.checked = savedDividers !== null ? savedDividers === '1' : true;
+
+  if (savedMenuPadding !== null) {
+    menupaddingEl.value = savedMenuPadding;
+  } else {
+    const fs = parseFloat(getComputedStyle(root).getPropertyValue('--font-size')) || 16;
+    menupaddingEl.value = Math.round(fs * 0.75);
+  }
+
+  themeEl.addEventListener('input', () => { applyTheme(themeEl.value); localStorage.setItem(THEME_KEY, themeEl.value); });
+  contrastEl.addEventListener('input', () => { applyContrast(contrastEl.value); localStorage.setItem(CONTRAST_KEY, contrastEl.value); });
+  fontsizeEl.addEventListener('input', () => { applyFontsize(fontsizeEl.value); localStorage.setItem(FONTSIZE_KEY, fontsizeEl.value); });
+  sliderwidthEl.addEventListener('input', () => { applySliderWidth(sliderwidthEl.value); localStorage.setItem(SLIDERWIDTH_KEY, sliderwidthEl.value); });
+  menupaddingEl.addEventListener('input', () => { applyMenuPadding(menupaddingEl.value); localStorage.setItem(MENUPADDING_KEY, menupaddingEl.value); });
+  dividersEl.addEventListener('change', () => { applyDividers(dividersEl.checked); localStorage.setItem(DIVIDERS_KEY, dividersEl.checked ? '1' : '0'); });
+
+  applyTheme(themeEl.value);
+  applyContrast(contrastEl.value);
+  applyFontsize(fontsizeEl.value);
+  applySliderWidth(sliderwidthEl.value);
+  if (savedMenuPadding !== null) applyMenuPadding(savedMenuPadding);
+  applyDividers(dividersEl.checked);
+
+  /* ---------------- resizer ---------------- */
+
+  const resizer = document.getElementById('resizer');
+  const panelLeft = document.querySelector('.panel-left');
+  const layout = document.querySelector('.layout');
+
+  function getMaxLeft() { return layout.getBoundingClientRect().width - resizer.offsetWidth; }
+  function setLeft(px) {
+    const max = getMaxLeft();
+    px = Math.max(0, Math.min(max, px));
+    panelLeft.style.width = px + 'px';
+  }
+  function applySplitPercent(p) { setLeft(getMaxLeft() * p / 100); }
+
+  const savedSplit = localStorage.getItem(SPLIT_KEY);
+  applySplitPercent(savedSplit !== null ? parseFloat(savedSplit) : 50);
+
+  let draggingSplit = false;
+  let dragOffset = 0;
+  function stopDrag(e) {
+    if (!draggingSplit) return;
+    draggingSplit = false;
+    try { resizer.releasePointerCapture(e.pointerId); } catch (_) {}
+    document.body.style.userSelect = '';
+    const max = getMaxLeft();
+    const pct = ((parseFloat(panelLeft.style.width) || 0) / max) * 100;
+    localStorage.setItem(SPLIT_KEY, pct);
+    scheduleRefreshLabels();
+    adjustCanvasDisplaySize();
+  }
+  resizer.addEventListener('pointerdown', (e) => {
+    draggingSplit = true;
+    resizer.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = 'none';
+    dragOffset = e.clientX - resizer.getBoundingClientRect().left;
+  });
+  resizer.addEventListener('pointermove', (e) => {
+    if (!draggingSplit) return;
+    setLeft(e.clientX - dragOffset - layout.getBoundingClientRect().left);
+    adjustCanvasDisplaySize();
+  });
+  resizer.addEventListener('pointerup', stopDrag);
+  resizer.addEventListener('pointercancel', stopDrag);
+  window.addEventListener('resize', () => {
+    setLeft(parseFloat(panelLeft.style.width) || 0);
+    scheduleRefreshLabels();
+    adjustCanvasDisplaySize();
+  });
+
+  /* ---------------- init ---------------- */
+
+  loadSettings();
+  applyStateToControls();
+  updateCloudDimensions();
+  updateParticle();
+  scheduleRefreshLabels();
+
+  window.addEventListener('beforeunload', saveSettings);
+  </script>
+</body>
+</html>
