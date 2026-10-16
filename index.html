@@ -8742,19 +8742,22 @@
                 validatePlaylist(playlist) {
                     const errors = [];
                     const seen = new Set();
+                    const reportedMissing = new Set();
                     playlist.forEach((item, idx) => {
+                        if (!state.loadedSkeletons.has(item.skeletonName)) {
+                            if (reportedMissing.has(item.skeletonName)) return;
+                            reportedMissing.add(item.skeletonName);
+                            errors.push('Line ' + (idx + 1) + ': skeleton "' + item.skeletonName + '" not loaded');
+                            return;
+                        }
                         const key = item.skeletonName + '|' + item.animationName;
                         if (seen.has(key)) return;
                         seen.add(key);
-                        if (!state.loadedSkeletons.has(item.skeletonName)) {
-                            errors.push('Line ' + (idx + 1) + ': skeleton "' + item.skeletonName + '" not loaded');
-                        } else {
-                            const anims = state.availableAnimations
-                                .filter(a => a.skeletonName === item.skeletonName)
-                                .map(a => a.animationName);
-                            if (!anims.includes(item.animationName)) {
-                                errors.push('Line ' + (idx + 1) + ': animation "' + item.animationName + '" not found in "' + item.skeletonName + '"');
-                            }
+                        const anims = state.availableAnimations
+                            .filter(a => a.skeletonName === item.skeletonName)
+                            .map(a => a.animationName);
+                        if (!anims.includes(item.animationName)) {
+                            errors.push('Line ' + (idx + 1) + ': animation "' + item.animationName + '" not found in "' + item.skeletonName + '"');
                         }
                     });
                     return errors;
