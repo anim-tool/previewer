@@ -1,0 +1,1802 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fonts Alignment — BMFont</title>
+<style>
+:root {
+  --bg: 18;
+  --fg-r: 255;
+  --fg-g: 255;
+  --fg-b: 255;
+  --font-size: 14;
+  --contrast: 1;
+  --fg: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc: rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width: 341px;
+  --menu-padding: 14px;
+
+  --text: color-mix(in srgb, var(--fg) calc(var(--contrast) * 100%), var(--bgc));
+  --muted: color-mix(in srgb, var(--fg) calc(var(--contrast) * 52%), var(--bgc));
+  --panel: color-mix(in srgb, var(--fg) calc(var(--contrast) * 4%), var(--bgc));
+  --line: color-mix(in srgb, var(--fg) calc(var(--contrast) * 8%), var(--bgc));
+  --line-strong: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  --accent: color-mix(in srgb, color-mix(in srgb, #77c4ff 65%, var(--fg)) calc(var(--contrast) * 100%), var(--bgc));
+  --green: color-mix(in srgb, #63d471 65%, var(--fg));
+  --gold: color-mix(in srgb, #e6c35c 65%, var(--fg));
+  --danger: color-mix(in srgb, #e05555 55%, var(--fg));
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 8%), var(--bgc)) transparent;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 8%), var(--bgc)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc)); }
+
+html, body { height: 100%; }
+
+body {
+  background: var(--bgc);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+button { font: inherit; }
+
+.hide-dividers .divider { display: none; }
+
+.theme-control {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px 12px;
+  max-width: calc(100vw - var(--theme-reserve, 400px));
+  padding: 8px 12px;
+  opacity: 0.45;
+  background: rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.05);
+  color: var(--fg);
+  font-size: calc(0.86 * var(--font-size) * 1px);
+}
+.theme-control:hover,
+.theme-control:focus-within { opacity: 1; }
+.theme-control > div { display: flex; align-items: center; gap: 4px; }
+.theme-control label { font-size: inherit; white-space: nowrap; }
+.theme-control input[type="range"] { width: 60px; }
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  color: inherit;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: currentColor; opacity: 0.75; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track { height: 2px; background: currentColor; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: currentColor; border: none; cursor: pointer; }
+input[type="range"]:disabled { opacity: 0.35; cursor: default; }
+
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 5px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.panel-left {
+  flex: 0 0 auto;
+  width: 380px;
+  min-width: 280px;
+  max-width: calc(100vw - 240px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--menu-padding);
+  padding-bottom: calc(var(--menu-padding) + 22px);
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+}
+
+.resizer {
+  flex: 0 0 11px;
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--bgc);
+}
+.resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--line);
+}
+.resizer:hover::before,
+.resizer:active::before { background: var(--line-strong); }
+
+.panel-right {
+  flex: 1 1 0;
+  min-width: 240px;
+  position: relative;
+  overflow: hidden;
+  background: var(--bgc);
+}
+
+#pixiHost {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+#pixiHost canvas { display: block; }
+
+.brand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.brand-title {
+  font-size: calc(1.36 * var(--font-size) * 1px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.brand-sub {
+  font-size: calc(0.72 * var(--font-size) * 1px);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.toolbar { display: flex; gap: 6px; }
+.toolbar .btn { flex: 1 1 0; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: calc(var(--font-size) * 2.28px);
+  padding: calc(var(--font-size) * 0.43px) calc(var(--font-size) * 0.86px);
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 11%), transparent);
+  color: var(--text);
+  font-size: calc(0.93 * var(--font-size) * 1px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 17%), transparent); }
+.btn:active { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 22%), transparent); }
+.btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+.btn.primary {
+  background: color-mix(in srgb, var(--green) 20%, transparent);
+  color: var(--text);
+}
+.btn.primary:hover { background: color-mix(in srgb, var(--green) 28%, transparent); }
+.btn:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
+.btn.mini {
+  min-height: calc(var(--font-size) * 2px);
+  padding: calc(var(--font-size) * 0.29px) calc(var(--font-size) * 0.43px);
+  font-size: calc(0.86 * var(--font-size) * 1px);
+  flex: 1 1 0;
+}
+
+.note {
+  width: min(100%, var(--slider-width));
+  margin-top: calc(var(--font-size) * 0.5px);
+  color: var(--muted);
+  font-size: calc(0.86 * var(--font-size) * 1px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.note.ok { color: var(--green); }
+.note.error { color: var(--danger); }
+
+.divider {
+  height: 1px;
+  background: var(--line);
+  margin: calc(var(--font-size) * 1.14px) 0;
+}
+
+.group-title {
+  color: var(--gold);
+  font-size: calc(0.72 * var(--font-size) * 1px);
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: calc(var(--font-size) * 0.5px);
+}
+
+.toolbar,
+.sample-row,
+.actions,
+.slider-list,
+.text-input {
+  width: min(100%, var(--slider-width));
+}
+
+.slider-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.adv-slider {
+  --pct: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(100%, var(--slider-width));
+  min-height: calc(var(--font-size) * 2.14px);
+  padding: calc(var(--font-size) * 0.21px) calc(var(--font-size) * 0.64px);
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), transparent);
+  color: var(--text);
+  font-size: calc(0.93 * var(--font-size) * 1px);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: hidden;
+}
+.adv-slider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--pct) * 1%);
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 13%), transparent);
+  pointer-events: none;
+}
+.adv-slider:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+.adv-label {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adv-value {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.adv-label.pair {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: calc(0.86 * var(--font-size) * 1px);
+  letter-spacing: 0.02em;
+}
+
+.text-input {
+  width: min(100%, var(--slider-width));
+  margin-top: 1px;
+  padding: calc(var(--font-size) * 0.57px) calc(var(--font-size) * 0.71px);
+  border: 1px solid color-mix(in srgb, var(--green) 24%, transparent);
+  border-radius: 0;
+  outline: none;
+  background: color-mix(in srgb, var(--green) 7%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: calc(1.21 * var(--font-size) * 1px);
+  font-variant-numeric: tabular-nums;
+}
+.text-input:focus { border-color: color-mix(in srgb, var(--green) 60%, transparent); }
+
+.sample-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.actions .btn { flex: 1 1 0; }
+
+.drop-overlay {
+  position: absolute;
+  inset: 18px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed color-mix(in srgb, var(--fg) calc(var(--contrast) * 22%), transparent);
+  background: color-mix(in srgb, var(--bgc) 84%, transparent);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  text-align: center;
+}
+.drop-overlay.show { opacity: 1; visibility: visible; }
+.drop-card { max-width: 480px; padding: 28px; }
+.drop-title {
+  font-size: calc(1.5 * var(--font-size) * 1px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.drop-sub {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: calc(0.93 * var(--font-size) * 1px);
+  line-height: 1.55;
+}
+.drop-hint {
+  margin-top: 16px;
+  color: var(--gold);
+  font-size: calc(0.79 * var(--font-size) * 1px);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.stage-info {
+  position: absolute;
+  left: 16px;
+  bottom: 12px;
+  z-index: 2;
+  max-width: calc(100% - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 32%), transparent);
+  font-size: calc(0.72 * var(--font-size) * 1px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 720px) {
+  body { overflow: auto; }
+  .theme-control {
+    position: static;
+    max-width: none;
+    opacity: 1;
+    justify-content: flex-start;
+  }
+  .layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+  .panel-left {
+    width: 100% !important;
+    max-width: none;
+    min-width: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .resizer { display: none; }
+  .panel-right {
+    height: 62vh;
+    min-height: 380px;
+  }
+}
+</style>
+<script>
+(function () {
+  try {
+    var root = document.documentElement;
+    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var th = s('ui.theme');
+    var theme = th !== null ? parseInt(th, 10) : 7;
+    if (isFinite(theme)) {
+      var b = Math.round((theme / 100) * 255);
+      root.style.setProperty('--bg', b);
+      var d = b <= 127;
+      root.style.setProperty('--fg-r', d ? 255 : 0);
+      root.style.setProperty('--fg-g', d ? 255 : 0);
+      root.style.setProperty('--fg-b', d ? 255 : 0);
+    }
+    var c = s('ui.contrast');
+    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = s('ui.fontsize');
+    if (f !== null) root.style.setProperty('--font-size', f);
+    var w = s('ui.slider-width');
+    if (w !== null) root.style.setProperty('--slider-width', w + 'px');
+    var mp = s('ui.menupadding');
+    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
+    if (s('ui.dividers') === '0') root.classList.add('hide-dividers');
+    var sp = s('ui-split');
+    var pct = sp !== null ? parseFloat(sp) : null;
+    if (pct !== null && isFinite(pct)) {
+      var st = document.createElement('style');
+      st.textContent = '.panel-left{width:calc((100vw - 11px) * ' + (pct / 100) + ')}';
+      document.head.appendChild(st);
+    }
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+  <div class="theme-control" role="group" aria-label="Настройки темы">
+    <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="7"></div>
+    <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="14"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="120" max="420" value="341"></div>
+    <div><label for="menupadding">Отступы</label><input type="range" id="menupadding" min="0" max="64" value="14"></div>
+    <div><label for="dividers"><input type="checkbox" id="dividers" checked> <span>Разделители</span></label></div>
+  </div>
+
+  <div class="layout">
+    <aside class="panel-left" id="panelLeft">
+      <div class="brand">
+        <div class="brand-title">Fonts alignment</div>
+        <div class="brand-sub">Bitmap font</div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn" type="button" id="pickFiles">Выбрать файлы</button>
+        <button class="btn" type="button" id="loadExample">Пример</button>
+      </div>
+      <div class="note" id="fontInfo">Шрифт не загружен</div>
+
+      <div class="divider"></div>
+      <div class="group-title">Рамка</div>
+      <div class="slider-list" id="frameSliders"></div>
+
+      <div class="divider"></div>
+      <div class="group-title">Шрифт</div>
+      <div class="slider-list" id="fontSliders"></div>
+      <div class="note">Смещения задаются в единицах шрифта и вместе с кернингом сохраняются в XML. Масштаб меняет только предпросмотр.</div>
+
+      <div class="divider"></div>
+      <div class="group-title">Текст</div>
+      <input class="text-input" id="sampleText" type="text" value="x1 x2 x3" spellcheck="false" autocomplete="off">
+      <div class="sample-row">
+        <button class="btn mini" type="button" data-sample="0.00">0.00</button>
+        <button class="btn mini" type="button" data-sample="1234567890">1234567890</button>
+        <button class="btn mini" type="button" data-sample="x1 x2 x3">x1 x2 x3</button>
+      </div>
+      <div class="note" id="textInfo">Загрузите шрифт, чтобы увидеть пары символов.</div>
+
+      <div class="divider"></div>
+      <div class="group-title">Кернинг пар</div>
+      <div class="slider-list" id="kernSliders"></div>
+      <div class="note" id="kernInfo">—</div>
+
+      <div class="divider"></div>
+      <div class="actions">
+        <button class="btn" type="button" id="resetAll">Сбросить</button>
+        <button class="btn primary" type="button" id="downloadXml" disabled>Скачать XML</button>
+      </div>
+      <div class="note" id="status">—</div>
+    </aside>
+
+    <div class="resizer" id="resizer"></div>
+
+    <main class="panel-right" id="stageWrap">
+      <div id="pixiHost"></div>
+
+      <div class="drop-overlay show" id="dropOverlay">
+        <div class="drop-card">
+          <div class="drop-title" id="dropTitle">Перетащите файлы шрифта</div>
+          <div class="drop-sub" id="dropSub">Нужны два файла: BMFont XML и PNG-атлас. Можно перетащить сразу оба или выбрать через кнопку.</div>
+          <div class="drop-hint" id="dropHint">XML + PNG · например, из папки examples</div>
+        </div>
+      </div>
+
+      <div class="stage-info" id="stageInfo">—</div>
+    </main>
+  </div>
+
+  <input type="file" id="fileInput" accept=".xml,.png,image/png,application/xml,text/xml" multiple hidden>
+
+  <script src="lib/pixi.js"></script>
+  <script>
+  (() => {
+    'use strict';
+
+    const $ = (id) => document.getElementById(id);
+    const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+    const num = (v, fallback) => {
+      const n = Number.parseFloat(v);
+      return Number.isFinite(n) ? n : fallback;
+    };
+    const signed = (v) => (v > 0 ? '+' : '') + Math.round(v);
+    const pairKey = (first, second) => first + ',' + second;
+    const escapeXml = (s) => String(s).replace(/[&<>"']/g, (ch) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&apos;',
+    }[ch]));
+
+    const THEME_KEY = 'ui.theme';
+    const CONTRAST_KEY = 'ui.contrast';
+    const FONTSIZE_KEY = 'ui.fontsize';
+    const SLIDERWIDTH_KEY = 'ui.slider-width';
+    const MENUPADDING_KEY = 'ui.menupadding';
+    const DIVIDERS_KEY = 'ui.dividers';
+    const SPLIT_KEY = 'ui-split';
+
+    const rootEl = document.documentElement;
+    const store = (key, value) => {
+      try { localStorage.setItem(key, value); } catch (e) {}
+    };
+    const read = (key) => {
+      try { return localStorage.getItem(key); } catch (e) { return null; }
+    };
+
+    const DEFAULT_TEXT = 'x1 x2 x3';
+    const DEFAULTS = {
+      frameWidth: 700,
+      frameHeight: 400,
+      offsetX: 0,
+      offsetY: 0,
+      scale: 100,
+    };
+
+    const state = {
+      frameWidth: DEFAULTS.frameWidth,
+      frameHeight: DEFAULTS.frameHeight,
+      offsetX: DEFAULTS.offsetX,
+      offsetY: DEFAULTS.offsetY,
+      scale: DEFAULTS.scale,
+      text: DEFAULT_TEXT,
+    };
+
+    const frameSlidersEl = $('frameSliders');
+    const fontSlidersEl = $('fontSliders');
+    const kernSlidersEl = $('kernSliders');
+    const sampleTextEl = $('sampleText');
+    const textInfoEl = $('textInfo');
+    const kernInfoEl = $('kernInfo');
+    const fontInfoEl = $('fontInfo');
+    const statusEl = $('status');
+    const stageInfoEl = $('stageInfo');
+    const dropOverlay = $('dropOverlay');
+    const dropTitle = $('dropTitle');
+    const dropSub = $('dropSub');
+    const dropHint = $('dropHint');
+    const fileInput = $('fileInput');
+    const pickFilesBtn = $('pickFiles');
+    const loadExampleBtn = $('loadExample');
+    const resetBtn = $('resetAll');
+    const downloadBtn = $('downloadXml');
+    const stageWrap = $('stageWrap');
+    const pixiHost = $('pixiHost');
+    const panelLeft = $('panelLeft');
+    const layoutEl = document.querySelector('.layout');
+    const resizerEl = $('resizer');
+
+    const themeEl = $('theme');
+    const contrastEl = $('contrast');
+    const fontsizeEl = $('fontsize');
+    const sliderwidthEl = $('sliderwidth');
+    const menupaddingEl = $('menupadding');
+    const dividersEl = $('dividers');
+
+    let font = null;
+    let kernValues = new Map();
+    let busy = false;
+    let draggingFiles = false;
+    let dragDepth = 0;
+
+    let app = null;
+    let bgGfx = null;
+    let decorGfx = null;
+    let frameGfx = null;
+    let textRoot = null;
+    let renderRaf = 0;
+
+    /* ---------------- sliders ---------------- */
+
+    function createSlider(parent, opts) {
+      const min = opts.min;
+      const max = opts.max;
+      const step = opts.step != null ? opts.step : 1;
+      const format = opts.format || ((v) => String(v));
+      let current = clamp(opts.value, min, max);
+      let disabled = false;
+      let dragging = false;
+
+      const el = document.createElement('div');
+      el.className = 'adv-slider';
+      el.id = opts.id;
+      el.tabIndex = 0;
+      el.setAttribute('role', 'slider');
+      el.setAttribute('aria-label', opts.label);
+      el.setAttribute('aria-valuemin', String(min));
+      el.setAttribute('aria-valuemax', String(max));
+      if (opts.title) el.title = opts.title;
+
+      const labelEl = document.createElement('span');
+      labelEl.className = 'adv-label' + (opts.labelClass ? ' ' + opts.labelClass : '');
+      labelEl.textContent = opts.label;
+
+      const valueEl = document.createElement('span');
+      valueEl.className = 'adv-value';
+      valueEl.id = opts.id + 'Val';
+
+      el.append(labelEl, valueEl);
+      parent.appendChild(el);
+
+      const snap = (v) => {
+        const snapped = Math.round((v - min) / step) * step + min;
+        return Number(clamp(snapped, min, max).toFixed(6));
+      };
+
+      function render() {
+        valueEl.textContent = format(current);
+        const pct = max === min ? 0 : ((current - min) / (max - min)) * 100;
+        el.style.setProperty('--pct', pct.toFixed(2));
+        el.setAttribute('aria-valuenow', String(current));
+        el.setAttribute('aria-valuetext', format(current));
+      }
+
+      function commit(raw) {
+        if (disabled) return;
+        const next = snap(raw);
+        if (next === current) {
+          render();
+          return;
+        }
+        current = next;
+        render();
+        if (opts.onInput) opts.onInput(current);
+      }
+
+      function valueFromX(clientX) {
+        const rect = el.getBoundingClientRect();
+        if (!rect.width) return min;
+        const ratio = clamp((clientX - rect.left) / rect.width, 0, 1);
+        return min + ratio * (max - min);
+      }
+
+      el.addEventListener('pointerdown', (event) => {
+        if (disabled) return;
+        event.preventDefault();
+        el.focus();
+        dragging = true;
+        try { el.setPointerCapture(event.pointerId); } catch (e) {}
+        commit(valueFromX(event.clientX));
+      });
+      el.addEventListener('pointermove', (event) => {
+        if (!dragging || disabled) return;
+        commit(valueFromX(event.clientX));
+      });
+      const endDrag = () => { dragging = false; };
+      el.addEventListener('pointerup', endDrag);
+      el.addEventListener('pointercancel', endDrag);
+      el.addEventListener('lostpointercapture', endDrag);
+
+      el.addEventListener('keydown', (event) => {
+        if (disabled) return;
+        let next = null;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowUp') next = current + step;
+        else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') next = current - step;
+        else if (event.key === 'PageUp') next = current + step * 10;
+        else if (event.key === 'PageDown') next = current - step * 10;
+        else if (event.key === 'Home') next = min;
+        else if (event.key === 'End') next = max;
+        if (next !== null) {
+          event.preventDefault();
+          commit(next);
+        }
+      });
+
+      render();
+
+      return {
+        el,
+        get value() { return current; },
+        set(value, silent) {
+          current = snap(value);
+          render();
+          if (!silent && opts.onInput) opts.onInput(current);
+        },
+        setDisabled(on) {
+          disabled = !!on;
+          el.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+        },
+      };
+    }
+
+    const frameWidthCtl = createSlider(frameSlidersEl, {
+      id: 'frameWidth',
+      label: 'Ширина рамки',
+      min: 100,
+      max: 2000,
+      step: 10,
+      value: state.frameWidth,
+      format: (v) => Math.round(v) + ' px',
+      onInput: (v) => {
+        state.frameWidth = v;
+        scheduleRender();
+      },
+    });
+
+    const frameHeightCtl = createSlider(frameSlidersEl, {
+      id: 'frameHeight',
+      label: 'Высота рамки',
+      min: 80,
+      max: 1600,
+      step: 10,
+      value: state.frameHeight,
+      format: (v) => Math.round(v) + ' px',
+      onInput: (v) => {
+        state.frameHeight = v;
+        scheduleRender();
+      },
+    });
+
+    const offsetXCtl = createSlider(fontSlidersEl, {
+      id: 'offsetX',
+      label: 'Смещение X',
+      min: -500,
+      max: 500,
+      step: 1,
+      value: state.offsetX,
+      format: (v) => signed(v) + ' px',
+      onInput: (v) => {
+        state.offsetX = v;
+        scheduleRender();
+      },
+    });
+
+    const offsetYCtl = createSlider(fontSlidersEl, {
+      id: 'offsetY',
+      label: 'Смещение Y',
+      min: -500,
+      max: 500,
+      step: 1,
+      value: state.offsetY,
+      format: (v) => signed(v) + ' px',
+      onInput: (v) => {
+        state.offsetY = v;
+        scheduleRender();
+      },
+    });
+
+    const scaleCtl = createSlider(fontSlidersEl, {
+      id: 'fontScale',
+      label: 'Масштаб шрифта',
+      min: 10,
+      max: 400,
+      step: 1,
+      value: state.scale,
+      format: (v) => Math.round(v) + '%',
+      onInput: (v) => {
+        state.scale = v;
+        scheduleRender();
+      },
+    });
+
+    /* ---------------- pixi stage ---------------- */
+
+    function stageTheme() {
+      const cs = getComputedStyle(rootEl);
+      const fgR = parseInt(cs.getPropertyValue('--fg-r'), 10);
+      const fgG = parseInt(cs.getPropertyValue('--fg-g'), 10);
+      const fgB = parseInt(cs.getPropertyValue('--fg-b'), 10);
+      const bgLevel = parseInt(cs.getPropertyValue('--bg'), 10);
+      const contrast = parseFloat(cs.getPropertyValue('--contrast'));
+
+      const r = Number.isFinite(fgR) ? fgR : 255;
+      const g = Number.isFinite(fgG) ? fgG : 255;
+      const b = Number.isFinite(fgB) ? fgB : 255;
+      const level = Number.isFinite(bgLevel) ? bgLevel : 0;
+      const c = Number.isFinite(contrast) ? clamp(contrast, 0.1, 1) : 1;
+
+      return {
+        fg: (r << 16) | (g << 8) | b,
+        bg: (level << 16) | (level << 8) | level,
+        contrast: c,
+        dark: level <= 127,
+        accent: level <= 127 ? 0x77c4ff : 0x1f6fb2,
+      };
+    }
+
+    async function initPixi() {
+      if (!window.PIXI) throw new Error('PixiJS не найден: lib/pixi.js');
+
+      app = new PIXI.Application();
+      await app.init({
+        resizeTo: pixiHost,
+        backgroundAlpha: 0,
+        antialias: true,
+        autoDensity: true,
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
+        preference: 'webgl',
+      });
+
+      pixiHost.appendChild(app.canvas);
+      try { app.renderer.background.alpha = 0; } catch (e) {}
+
+      const stage = new PIXI.Container();
+      app.stage.addChild(stage);
+
+      bgGfx = new PIXI.Graphics();
+      decorGfx = new PIXI.Graphics();
+      frameGfx = new PIXI.Graphics();
+      textRoot = new PIXI.Container();
+      stage.addChild(bgGfx, decorGfx, frameGfx, textRoot);
+
+      drawStageDecor();
+      layoutText();
+
+      let resizeRaf = 0;
+      const ro = new ResizeObserver(() => {
+        cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => {
+          if (!app) return;
+          try { app.resize(); } catch (e) {}
+          drawStageDecor();
+          layoutText();
+        });
+      });
+      ro.observe(pixiHost);
+    }
+
+    function drawStageDecor() {
+      if (!app || !bgGfx || !decorGfx || !frameGfx) return;
+
+      const theme = stageTheme();
+      const w = app.screen.width;
+      const h = app.screen.height;
+      const cx = Math.round(w / 2);
+      const cy = Math.round(h / 2);
+      const contrast = theme.contrast;
+
+      bgGfx.clear();
+      bgGfx.rect(0, 0, w, h).fill({ color: theme.bg, alpha: 1 });
+
+      decorGfx.clear();
+
+      const step = 50;
+      for (let x = cx % step; x <= w; x += step) {
+        if (x === cx) continue;
+        decorGfx.moveTo(x + 0.5, 0).lineTo(x + 0.5, h);
+      }
+      for (let y = cy % step; y <= h; y += step) {
+        if (y === cy) continue;
+        decorGfx.moveTo(0, y + 0.5).lineTo(w, y + 0.5);
+      }
+      decorGfx.stroke({ width: 1, color: theme.fg, alpha: 0.032 * contrast });
+
+      decorGfx.moveTo(cx + 0.5, 0).lineTo(cx + 0.5, h);
+      decorGfx.moveTo(0, cy + 0.5).lineTo(w, cy + 0.5);
+      decorGfx.stroke({ width: 1, color: theme.fg, alpha: 0.075 * contrast });
+
+      const fw = state.frameWidth;
+      const fh = state.frameHeight;
+      const x0 = Math.round(cx - fw / 2) + 0.5;
+      const y0 = Math.round(cy - fh / 2) + 0.5;
+
+      frameGfx.clear();
+      frameGfx.rect(x0, y0, fw, fh).fill({ color: theme.fg, alpha: 0.018 * contrast });
+      frameGfx.rect(x0, y0, fw, fh).stroke({ width: 1, color: theme.fg, alpha: 0.28 * contrast });
+
+      const tick = 22;
+      frameGfx.moveTo(x0, y0 + tick).lineTo(x0, y0).lineTo(x0 + tick, y0);
+      frameGfx.moveTo(x0 + fw - tick, y0).lineTo(x0 + fw, y0).lineTo(x0 + fw, y0 + tick);
+      frameGfx.moveTo(x0, y0 + fh - tick).lineTo(x0, y0 + fh).lineTo(x0 + tick, y0 + fh);
+      frameGfx.moveTo(x0 + fw - tick, y0 + fh).lineTo(x0 + fw, y0 + fh).lineTo(x0 + fw, y0 + fh - tick);
+      frameGfx.stroke({ width: 2, color: theme.accent, alpha: 0.8 * contrast });
+
+      frameGfx.moveTo(cx - 12, cy + 0.5).lineTo(cx + 12, cy + 0.5);
+      frameGfx.moveTo(cx + 0.5, cy - 12).lineTo(cx + 0.5, cy + 12);
+      frameGfx.stroke({ width: 1, color: theme.accent, alpha: 0.75 * contrast });
+    }
+
+    function charTexture(glyph) {
+      if (!font || !glyph.width || !glyph.height) return null;
+      if (glyph.x < 0 || glyph.y < 0 ||
+          glyph.x + glyph.width > font.imageWidth ||
+          glyph.y + glyph.height > font.imageHeight) return null;
+
+      let texture = font.textures.get(glyph.id);
+      if (texture) return texture;
+
+      texture = new PIXI.Texture({
+        source: font.baseTexture.source,
+        frame: new PIXI.Rectangle(glyph.x, glyph.y, glyph.width, glyph.height),
+      });
+      font.textures.set(glyph.id, texture);
+      return texture;
+    }
+
+    function kerning(first, second) {
+      const value = kernValues.get(pairKey(first, second));
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function layoutText() {
+      if (!app || !textRoot) return;
+
+      const old = textRoot.removeChildren();
+      for (const child of old) child.destroy();
+      textRoot.position.set(app.screen.width / 2, app.screen.height / 2);
+      textRoot.scale.set(1);
+
+      if (!font) return;
+
+      const scale = state.scale / 100;
+      const lineHeight = font.lineHeight > 0 ? font.lineHeight : (font.size > 0 ? font.size : 100);
+      const lines = (state.text || '').split(/\r?\n/);
+      const placements = [];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+
+      for (let li = 0; li < lines.length; li++) {
+        const cps = Array.from(lines[li]);
+
+        let width = 0;
+        let prev = null;
+        for (const ch of cps) {
+          const cp = ch.codePointAt(0);
+          const glyph = font.chars.get(cp);
+          if (!glyph) {
+            prev = null;
+            continue;
+          }
+          if (prev !== null) width += kerning(prev, cp);
+          width += glyph.xadvance;
+          prev = cp;
+        }
+
+        let pen = -width / 2;
+        const lineTop = -(lineHeight * lines.length) / 2 + li * lineHeight;
+        prev = null;
+
+        for (const ch of cps) {
+          const cp = ch.codePointAt(0);
+          const glyph = font.chars.get(cp);
+          if (!glyph) {
+            prev = null;
+            continue;
+          }
+
+          if (prev !== null) pen += kerning(prev, cp);
+
+          if (glyph.width > 0 && glyph.height > 0) {
+            const x = pen + glyph.xoffset;
+            const y = lineTop + glyph.yoffset;
+            placements.push({ glyph, x, y });
+            if (x < minX) minX = x;
+            if (y < minY) minY = y;
+            if (x + glyph.width > maxX) maxX = x + glyph.width;
+            if (y + glyph.height > maxY) maxY = y + glyph.height;
+          }
+
+          pen += glyph.xadvance;
+          prev = cp;
+        }
+      }
+
+      const centerX = Number.isFinite(minX) ? (minX + maxX) / 2 : 0;
+      const centerY = Number.isFinite(minY) ? (minY + maxY) / 2 : 0;
+
+      textRoot.position.set(
+        app.screen.width / 2 + state.offsetX * scale,
+        app.screen.height / 2 + state.offsetY * scale
+      );
+      textRoot.scale.set(scale);
+
+      for (const item of placements) {
+        const texture = charTexture(item.glyph);
+        if (!texture) continue;
+        const sprite = new PIXI.Sprite(texture);
+        sprite.position.set(item.x - centerX, item.y - centerY);
+        textRoot.addChild(sprite);
+      }
+    }
+
+    function scheduleRender() {
+      if (renderRaf) return;
+      renderRaf = requestAnimationFrame(() => {
+        renderRaf = 0;
+        drawStageDecor();
+        layoutText();
+      });
+    }
+
+    /* ---------------- font parsing ---------------- */
+
+    function parseFontXml(text) {
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      if (doc.getElementsByTagName('parsererror').length) {
+        throw new Error('XML не удалось разобрать.');
+      }
+
+      const root = doc.documentElement;
+      if (!root || root.nodeName.toLowerCase() !== 'font') {
+        throw new Error('Ожидается корневой тег <font> (BMFont XML).');
+      }
+
+      const info = root.getElementsByTagName('info')[0] || null;
+      const common = root.getElementsByTagName('common')[0] || null;
+      const charsEl = root.getElementsByTagName('chars')[0] || null;
+      if (!charsEl) throw new Error('В XML нет секции <chars>.');
+
+      const size = info ? num(info.getAttribute('size'), 100) : 100;
+      const lineHeight = common ? num(common.getAttribute('lineHeight'), size) : size;
+      const base = common ? num(common.getAttribute('base'), lineHeight) : lineHeight;
+      const scaleW = common ? num(common.getAttribute('scaleW'), 0) : 0;
+      const scaleH = common ? num(common.getAttribute('scaleH'), 0) : 0;
+
+      const chars = new Map();
+      for (const el of Array.from(charsEl.getElementsByTagName('char'))) {
+        const id = num(el.getAttribute('id'), NaN);
+        if (!Number.isFinite(id)) continue;
+        chars.set(id, {
+          id,
+          x: num(el.getAttribute('x'), 0),
+          y: num(el.getAttribute('y'), 0),
+          width: num(el.getAttribute('width'), 0),
+          height: num(el.getAttribute('height'), 0),
+          xoffset: num(el.getAttribute('xoffset'), 0),
+          yoffset: num(el.getAttribute('yoffset'), 0),
+          xadvance: num(el.getAttribute('xadvance'), 0),
+        });
+      }
+      if (!chars.size) throw new Error('В XML нет ни одного глифа.');
+
+      const kernings = new Map();
+      const kernEl = root.getElementsByTagName('kernings')[0] || null;
+      if (kernEl) {
+        for (const el of Array.from(kernEl.getElementsByTagName('kerning'))) {
+          const first = num(el.getAttribute('first'), NaN);
+          const second = num(el.getAttribute('second'), NaN);
+          if (!Number.isFinite(first) || !Number.isFinite(second)) continue;
+          kernings.set(pairKey(first, second), num(el.getAttribute('amount'), 0));
+        }
+      }
+
+      const pagesEl = root.getElementsByTagName('pages')[0] || null;
+      const pageFiles = pagesEl
+        ? Array.from(pagesEl.getElementsByTagName('page'))
+            .map((p) => p.getAttribute('file') || '')
+            .filter(Boolean)
+        : [];
+
+      return {
+        doc,
+        face: info ? (info.getAttribute('face') || 'font') : 'font',
+        size,
+        lineHeight,
+        base,
+        scaleW,
+        scaleH,
+        chars,
+        kernings,
+        pageFiles,
+      };
+    }
+
+    function baseName(path) {
+      return String(path).split(/[\\/]/).pop().toLowerCase();
+    }
+
+    function chooseImageFile(images, pageFiles) {
+      if (images.length === 1) return images[0];
+      const wanted = new Set(pageFiles.map(baseName));
+      const match = images.find((file) => wanted.has(file.name.toLowerCase()));
+      return match || images[0];
+    }
+
+    function loadImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Не удалось открыть PNG: ' + file.name));
+        };
+        img.src = url;
+      });
+    }
+
+    function disposeCurrentFont() {
+      if (textRoot) {
+        const children = textRoot.removeChildren();
+        for (const child of children) child.destroy();
+      }
+      if (!font) return;
+      for (const texture of font.textures.values()) texture.destroy(false);
+      font.textures.clear();
+      if (font.baseTexture) font.baseTexture.destroy(true);
+      font = null;
+    }
+
+    async function loadFontFromFiles(fileList) {
+      if (busy) return false;
+
+      const files = Array.from(fileList || []);
+      busy = true;
+      updateOverlay();
+      setStatus('Загрузка шрифта…');
+
+      try {
+        const xmlFile = files.find((file) => /\.xml$/i.test(file.name) || /xml/i.test(file.type));
+        const images = files.filter((file) => /\.png$/i.test(file.name) || /^image\//i.test(file.type));
+
+        if (!xmlFile) throw new Error('Нужен XML-файл BMFont.');
+        if (!images.length) throw new Error('Нужен PNG-файл атласа.');
+
+        const xmlText = await xmlFile.text();
+        const parsed = parseFontXml(xmlText);
+        const imageFile = chooseImageFile(images, parsed.pageFiles);
+        const image = await loadImageFile(imageFile);
+
+        let maxX = 0;
+        let maxY = 0;
+        for (const glyph of parsed.chars.values()) {
+          maxX = Math.max(maxX, glyph.x + glyph.width);
+          maxY = Math.max(maxY, glyph.y + glyph.height);
+        }
+        if (maxX > image.naturalWidth || maxY > image.naturalHeight) {
+          throw new Error(
+            'PNG ' + image.naturalWidth + '×' + image.naturalHeight +
+            ' меньше атласа из XML (' + maxX + '×' + maxY + '). Похоже, выбран не тот атлас.'
+          );
+        }
+
+        const baseTexture = PIXI.Texture.from(image);
+        try { baseTexture.source.style.scaleMode = 'linear'; } catch (e) {}
+
+        const nextFont = {
+          ...parsed,
+          baseTexture,
+          textures: new Map(),
+          imageWidth: image.naturalWidth,
+          imageHeight: image.naturalHeight,
+          xmlName: xmlFile.name,
+          pngName: imageFile.name,
+        };
+
+        disposeCurrentFont();
+        font = nextFont;
+        kernValues = new Map(font.kernings);
+
+        rebuildKernSliders();
+        updateFontInfo();
+        downloadBtn.disabled = false;
+        scheduleRender();
+
+        setStatus('Шрифт загружен: ' + font.face, 'ok');
+        return true;
+      } catch (err) {
+        setStatus('Ошибка: ' + (err.message || err), 'error');
+        return false;
+      } finally {
+        busy = false;
+        updateOverlay();
+      }
+    }
+
+    /* ---------------- kerning / text ---------------- */
+
+    function isSpace(ch) {
+      return /\s/.test(ch);
+    }
+
+    function collectPairs(text) {
+      if (!font) return [];
+      const pairs = [];
+      const seen = new Set();
+      const lines = String(text).split(/\r?\n/);
+
+      for (const line of lines) {
+        const cps = Array.from(line);
+        for (let i = 0; i < cps.length - 1; i++) {
+          const firstChar = cps[i];
+          const secondChar = cps[i + 1];
+          if (isSpace(firstChar) || isSpace(secondChar)) continue;
+
+          const first = firstChar.codePointAt(0);
+          const second = secondChar.codePointAt(0);
+          if (!font.chars.has(first) || !font.chars.has(second)) continue;
+
+          const key = pairKey(first, second);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          pairs.push({ key, first, second, text: firstChar + secondChar });
+        }
+      }
+
+      return pairs;
+    }
+
+    function missingChars(text) {
+      const missing = new Set();
+      if (!font) return missing;
+      for (const ch of Array.from(String(text))) {
+        if (isSpace(ch)) continue;
+        if (!font.chars.has(ch.codePointAt(0))) missing.add(ch);
+      }
+      return missing;
+    }
+
+    function updateTextInfo(pairs) {
+      if (!font) {
+        textInfoEl.textContent = 'Загрузите шрифт, чтобы увидеть пары символов.';
+        kernInfoEl.textContent = '—';
+        return;
+      }
+
+      const missing = missingChars(state.text);
+      const count = pairs ? pairs.length : collectPairs(state.text).length;
+      let text = 'Пар: ' + count + '. Пары с пробелами и переносами не учитываются.';
+      if (missing.size) {
+        text += ' Нет в шрифте: ' + Array.from(missing).join(' ') + '.';
+      }
+      textInfoEl.textContent = text;
+
+      kernInfoEl.textContent = count
+        ? 'Значения из XML можно менять слайдерами.'
+        : 'Пар нет — добавьте текст с символами из шрифта.';
+    }
+
+    function rebuildKernSliders() {
+      kernSlidersEl.replaceChildren();
+
+      if (!font) {
+        updateTextInfo([]);
+        return;
+      }
+
+      const pairs = collectPairs(state.text);
+      const limit = Math.max(40, Math.round((font.size || 100) * 1.5));
+
+      for (const pair of pairs) {
+        const initial = kernValues.get(pair.key);
+        createSlider(kernSlidersEl, {
+          id: 'kern_' + pair.first + '_' + pair.second,
+          label: String.fromCodePoint(pair.first) + ' → ' + String.fromCodePoint(pair.second),
+          labelClass: 'pair',
+          title: 'Кернинг «' + pair.text + '»',
+          min: -limit,
+          max: limit,
+          step: 1,
+          value: Number.isFinite(initial) ? initial : 0,
+          format: signed,
+          onInput: (value) => {
+            kernValues.set(pair.key, value);
+            scheduleRender();
+          },
+        });
+      }
+
+      updateTextInfo(pairs);
+    }
+
+    /* ---------------- info / overlay / status ---------------- */
+
+    function setStatus(text, kind) {
+      statusEl.textContent = text || '—';
+      statusEl.className = 'note' + (kind ? ' ' + kind : '');
+    }
+
+    function updateFontInfo() {
+      if (!font) {
+        fontInfoEl.textContent = 'Шрифт не загружен';
+        fontInfoEl.className = 'note';
+        stageInfoEl.textContent = '—';
+        return;
+      }
+
+      fontInfoEl.textContent =
+        font.face + ' · ' + font.chars.size + ' глифов · ' +
+        font.xmlName + ' + ' + font.pngName +
+        ' (' + font.imageWidth + '×' + font.imageHeight + ')';
+      fontInfoEl.className = 'note';
+
+      stageInfoEl.textContent =
+        font.face + ' · ' + font.chars.size + ' глифов · ' +
+        font.imageWidth + '×' + font.imageHeight;
+    }
+
+    function hasFileDrag(event) {
+      const dt = event.dataTransfer;
+      if (!dt || !dt.types) return false;
+      return Array.from(dt.types).includes('Files');
+    }
+
+    function updateOverlay() {
+      const show = busy || draggingFiles || !font;
+      dropOverlay.classList.toggle('show', show);
+
+      if (busy) {
+        dropTitle.textContent = 'Загрузка шрифта…';
+        dropSub.textContent = 'Читаю XML и PNG-атлас.';
+        dropHint.textContent = 'Подождите';
+        return;
+      }
+
+      const replacing = !!font && draggingFiles;
+      dropTitle.textContent = replacing
+        ? 'Отпустите, чтобы заменить шрифт'
+        : 'Перетащите файлы шрифта';
+      dropSub.textContent = 'Нужны два файла: BMFont XML и PNG-атлас. Можно перетащить сразу оба или выбрать через кнопку.';
+      dropHint.textContent = replacing
+        ? 'Текущий шрифт будет заменён'
+        : 'XML + PNG · например, из папки examples';
+    }
+
+    /* ---------------- XML export ---------------- */
+
+    function prettyXml(node, depth) {
+      const level = depth || 0;
+      const pad = '\t'.repeat(level);
+      if (!node) return '';
+
+      if (node.nodeType === 9) {
+        return Array.from(node.childNodes)
+          .map((child) => prettyXml(child, level))
+          .filter(Boolean)
+          .join('\n');
+      }
+
+      if (node.nodeType === 1) {
+        const name = node.nodeName;
+        const attrs = Array.from(node.attributes)
+          .map((attr) => ' ' + attr.name + '="' + escapeXml(attr.value) + '"')
+          .join('');
+        const children = Array.from(node.childNodes).filter((child) =>
+          child.nodeType === 1 ||
+          child.nodeType === 8 ||
+          (child.nodeType === 3 && child.nodeValue.trim())
+        );
+
+        if (!children.length) return pad + '<' + name + attrs + '/>';
+        if (children.length === 1 && children[0].nodeType === 3) {
+          return pad + '<' + name + attrs + '>' +
+            escapeXml(children[0].nodeValue.trim()) +
+            '</' + name + '>';
+        }
+
+        const inner = children
+          .map((child) => prettyXml(child, level + 1))
+          .filter(Boolean)
+          .join('\n');
+        return pad + '<' + name + attrs + '>\n' + inner + '\n' + pad + '</' + name + '>';
+      }
+
+      if (node.nodeType === 3) {
+        const text = node.nodeValue.trim();
+        return text ? pad + escapeXml(text) : '';
+      }
+
+      if (node.nodeType === 8) return pad + '<!--' + node.nodeValue + '-->';
+      return '';
+    }
+
+    function buildAlignedXml() {
+      if (!font) throw new Error('Шрифт не загружен.');
+
+      const doc = font.doc.cloneNode(true);
+      const root = doc.documentElement;
+
+      for (const el of Array.from(root.getElementsByTagName('char'))) {
+        const id = num(el.getAttribute('id'), NaN);
+        if (!font.chars.has(id)) continue;
+        const xoffset = num(el.getAttribute('xoffset'), 0) + state.offsetX;
+        const yoffset = num(el.getAttribute('yoffset'), 0) + state.offsetY;
+        el.setAttribute('xoffset', String(Math.round(xoffset)));
+        el.setAttribute('yoffset', String(Math.round(yoffset)));
+      }
+
+      const entries = [];
+      for (const [key, value] of kernValues.entries()) {
+        if (!Number.isFinite(value) || Math.round(value) === 0) continue;
+        const parts = key.split(',');
+        const first = Number(parts[0]);
+        const second = Number(parts[1]);
+        if (!font.chars.has(first) || !font.chars.has(second)) continue;
+        entries.push([first, second, Math.round(value)]);
+      }
+      entries.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+
+      let kernEl = root.getElementsByTagName('kernings')[0] || null;
+      if (!kernEl) {
+        kernEl = doc.createElement('kernings');
+        root.appendChild(kernEl);
+      }
+      while (kernEl.firstChild) kernEl.removeChild(kernEl.firstChild);
+
+      for (const [first, second, amount] of entries) {
+        const el = doc.createElement('kerning');
+        el.setAttribute('first', String(first));
+        el.setAttribute('second', String(second));
+        el.setAttribute('amount', String(amount));
+        kernEl.appendChild(el);
+      }
+      kernEl.setAttribute('count', String(entries.length));
+
+      const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + prettyXml(doc);
+      const safeName = String(font.face || 'font')
+        .replace(/[\\/:*?"<>|]+/g, '-')
+        .trim() || 'font';
+
+      return { xml, name: safeName + '-aligned.xml' };
+    }
+
+    function downloadFile(name, content) {
+      const blob = new Blob([content], { type: 'application/xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    /* ---------------- example ---------------- */
+
+    async function loadExample(showErrors) {
+      if (location.protocol === 'file:') {
+        if (showErrors) {
+          setStatus(
+            'Пример по кнопке доступен через локальный сервер. ' +
+            'Перетащите XML и PNG из папки examples или откройте страницу через http.',
+            'error'
+          );
+        }
+        return;
+      }
+
+      try {
+        setStatus('Загрузка примера…');
+        const [xmlResponse, pngResponse] = await Promise.all([
+          fetch('examples/bitmap-font-04.xml', { cache: 'no-store' }),
+          fetch('examples/bitmap-font-04.png', { cache: 'no-store' }),
+        ]);
+        if (!xmlResponse.ok) throw new Error('XML: HTTP ' + xmlResponse.status);
+        if (!pngResponse.ok) throw new Error('PNG: HTTP ' + pngResponse.status);
+
+        const [xmlText, pngBlob] = await Promise.all([
+          xmlResponse.text(),
+          pngResponse.blob(),
+        ]);
+
+        const xmlFile = new File([xmlText], 'bitmap-font-04.xml', { type: 'application/xml' });
+        const pngFile = new File([pngBlob], 'bitmap-font-04.png', { type: 'image/png' });
+        await loadFontFromFiles([xmlFile, pngFile]);
+      } catch (err) {
+        if (showErrors) {
+          setStatus(
+            'Пример не загрузился: ' + (err.message || err) +
+            '. Перетащите файлы из папки examples.',
+            'error'
+          );
+        } else {
+          setStatus('Пример недоступен. Перетащите XML и PNG из папки examples.');
+        }
+      }
+    }
+
+    /* ---------------- events ---------------- */
+
+    pickFilesBtn.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files && fileInput.files.length) {
+        loadFontFromFiles(fileInput.files);
+      }
+      fileInput.value = '';
+    });
+
+    loadExampleBtn.addEventListener('click', () => loadExample(true));
+
+    sampleTextEl.addEventListener('input', () => {
+      state.text = sampleTextEl.value;
+      rebuildKernSliders();
+      scheduleRender();
+    });
+
+    document.querySelectorAll('[data-sample]').forEach((button) => {
+      button.addEventListener('click', () => {
+        state.text = button.dataset.sample;
+        sampleTextEl.value = state.text;
+        rebuildKernSliders();
+        scheduleRender();
+      });
+    });
+
+    resetBtn.addEventListener('click', () => {
+      state.frameWidth = DEFAULTS.frameWidth;
+      state.frameHeight = DEFAULTS.frameHeight;
+      state.offsetX = DEFAULTS.offsetX;
+      state.offsetY = DEFAULTS.offsetY;
+      state.scale = DEFAULTS.scale;
+      state.text = DEFAULT_TEXT;
+
+      frameWidthCtl.set(state.frameWidth, true);
+      frameHeightCtl.set(state.frameHeight, true);
+      offsetXCtl.set(state.offsetX, true);
+      offsetYCtl.set(state.offsetY, true);
+      scaleCtl.set(state.scale, true);
+      sampleTextEl.value = DEFAULT_TEXT;
+
+      if (font) kernValues = new Map(font.kernings);
+      rebuildKernSliders();
+      scheduleRender();
+      setStatus('Выравнивание и кернинг сброшены', 'ok');
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      try {
+        const result = buildAlignedXml();
+        downloadFile(result.name, result.xml);
+        setStatus('XML сохранён: ' + result.name + ' (PNG остаётся исходным)', 'ok');
+      } catch (err) {
+        setStatus('Не удалось сохранить XML: ' + (err.message || err), 'error');
+      }
+    });
+
+    window.addEventListener('dragenter', (event) => {
+      if (!hasFileDrag(event)) return;
+      event.preventDefault();
+      dragDepth++;
+      draggingFiles = true;
+      updateOverlay();
+    });
+
+    window.addEventListener('dragleave', (event) => {
+      if (!hasFileDrag(event)) return;
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (!dragDepth) {
+        draggingFiles = false;
+        updateOverlay();
+      }
+    });
+
+    window.addEventListener('dragover', (event) => {
+      if (!hasFileDrag(event)) return;
+      event.preventDefault();
+      try { event.dataTransfer.dropEffect = 'copy'; } catch (e) {}
+    });
+
+    window.addEventListener('drop', (event) => {
+      if (!hasFileDrag(event)) return;
+      event.preventDefault();
+      dragDepth = 0;
+      draggingFiles = false;
+      updateOverlay();
+
+      const files = Array.from(event.dataTransfer.files || []);
+      if (files.length) loadFontFromFiles(files);
+    });
+
+    window.addEventListener('dragend', () => {
+      dragDepth = 0;
+      draggingFiles = false;
+      updateOverlay();
+    });
+
+    window.addEventListener('blur', () => {
+      dragDepth = 0;
+      draggingFiles = false;
+      updateOverlay();
+    });
+
+    /* ---------------- theme ---------------- */
+
+    function applyTheme(value) {
+      const brightness = Math.round((Number(value) / 100) * 255);
+      rootEl.style.setProperty('--bg', brightness);
+      const dark = brightness <= 127;
+      rootEl.style.setProperty('--fg-r', dark ? 255 : 0);
+      rootEl.style.setProperty('--fg-g', dark ? 255 : 0);
+      rootEl.style.setProperty('--fg-b', dark ? 255 : 0);
+      scheduleRender();
+    }
+
+    function applyContrast(value) {
+      rootEl.style.setProperty('--contrast', Number(value) / 100);
+      scheduleRender();
+    }
+
+    function applyFontsize(value) {
+      rootEl.style.setProperty('--font-size', Number(value));
+    }
+
+    function applySliderWidth(value) {
+      rootEl.style.setProperty('--slider-width', Number(value) + 'px');
+    }
+
+    function applyMenuPadding(value) {
+      rootEl.style.setProperty('--menu-padding', Number(value) + 'px');
+    }
+
+    function applyDividers(on) {
+      rootEl.classList.toggle('hide-dividers', !on);
+    }
+
+    const savedTheme = read(THEME_KEY);
+    themeEl.value = savedTheme !== null ? savedTheme : '7';
+    const savedContrast = read(CONTRAST_KEY);
+    contrastEl.value = savedContrast !== null ? savedContrast : '100';
+    const savedFontsize = read(FONTSIZE_KEY);
+    fontsizeEl.value = savedFontsize !== null ? savedFontsize : '14';
+    const savedSliderWidth = read(SLIDERWIDTH_KEY);
+    sliderwidthEl.value = savedSliderWidth !== null ? savedSliderWidth : '341';
+    const savedMenuPadding = read(MENUPADDING_KEY);
+    menupaddingEl.value = savedMenuPadding !== null ? savedMenuPadding : '14';
+    const savedDividers = read(DIVIDERS_KEY);
+    dividersEl.checked = savedDividers !== null ? savedDividers === '1' : true;
+
+    themeEl.addEventListener('input', () => {
+      applyTheme(themeEl.value);
+      store(THEME_KEY, themeEl.value);
+    });
+    contrastEl.addEventListener('input', () => {
+      applyContrast(contrastEl.value);
+      store(CONTRAST_KEY, contrastEl.value);
+    });
+    fontsizeEl.addEventListener('input', () => {
+      applyFontsize(fontsizeEl.value);
+      store(FONTSIZE_KEY, fontsizeEl.value);
+    });
+    sliderwidthEl.addEventListener('input', () => {
+      applySliderWidth(sliderwidthEl.value);
+      store(SLIDERWIDTH_KEY, sliderwidthEl.value);
+    });
+    menupaddingEl.addEventListener('input', () => {
+      applyMenuPadding(menupaddingEl.value);
+      store(MENUPADDING_KEY, menupaddingEl.value);
+    });
+    dividersEl.addEventListener('change', () => {
+      applyDividers(dividersEl.checked);
+      store(DIVIDERS_KEY, dividersEl.checked ? '1' : '0');
+    });
+
+    applyTheme(themeEl.value);
+    applyContrast(contrastEl.value);
+    applyFontsize(fontsizeEl.value);
+    applySliderWidth(sliderwidthEl.value);
+    applyMenuPadding(menupaddingEl.value);
+    applyDividers(dividersEl.checked);
+
+    /* ---------------- panel resizer ---------------- */
+
+    let resizing = false;
+
+    function setLeftWidth(px) {
+      const total = layoutEl.getBoundingClientRect().width;
+      const max = Math.max(280, total - 240 - resizerEl.offsetWidth);
+      const width = clamp(px, 280, max);
+      panelLeft.style.width = width + 'px';
+      rootEl.style.setProperty('--theme-reserve', (width + 20) + 'px');
+    }
+
+    resizerEl.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      resizing = true;
+      resizerEl.setPointerCapture(event.pointerId);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+
+    resizerEl.addEventListener('pointermove', (event) => {
+      if (!resizing) return;
+      const rect = layoutEl.getBoundingClientRect();
+      setLeftWidth(event.clientX - rect.left);
+    });
+
+    function endResize(event) {
+      if (!resizing) return;
+      resizing = false;
+      try { resizerEl.releasePointerCapture(event.pointerId); } catch (e) {}
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      const total = layoutEl.getBoundingClientRect().width - resizerEl.offsetWidth;
+      if (total > 0) {
+        store(SPLIT_KEY, String((panelLeft.getBoundingClientRect().width / total) * 100));
+      }
+    }
+
+    resizerEl.addEventListener('pointerup', endResize);
+    resizerEl.addEventListener('pointercancel', endResize);
+
+    window.addEventListener('resize', () => {
+      setLeftWidth(panelLeft.getBoundingClientRect().width);
+    });
+
+    /* ---------------- boot ---------------- */
+
+    async function boot() {
+      setLeftWidth(panelLeft.getBoundingClientRect().width);
+      setStatus('Ожидание файлов: XML + PNG');
+      rebuildKernSliders();
+      updateFontInfo();
+      updateOverlay();
+
+      try {
+        await initPixi();
+      } catch (err) {
+        setStatus('PixiJS не запустился: ' + (err.message || err), 'error');
+        return;
+      }
+
+      updateOverlay();
+
+      if (location.protocol === 'http:' || location.protocol === 'https:') {
+        loadExample(false);
+      }
+    }
+
+    boot();
+  })();
+  </script>
+</body>
+</html>
