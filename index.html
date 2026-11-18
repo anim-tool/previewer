@@ -2066,7 +2066,7 @@
         <div class="left-panel">
             <div class="upload-section">
                 <button id="uploadButton" class="upload-btn">Files</button>
-                <input type="file" id="fileInput" multiple accept=".skel,.atlas,.webp,.png,.jpg" style="display:none">
+                <input type="file" id="fileInput" multiple accept=".skel,.atlas,.webp,.png,.jpg,.jpeg" style="display:none">
                 <button id="folderButton" class="upload-btn">Folder</button>
                 <input type="file" id="folderInput" webkitdirectory multiple style="display:none">
             </div>
@@ -2316,7 +2316,7 @@
                 <div id="dropZone" class="drop-zone">
                     <div class="drop-zone-inner">
                         <div class="drop-zone-title">Drag files or folders here</div>
-                        <div class="drop-zone-hint">.skel, .atlas, .webp, .png</div>
+                        <div class="drop-zone-hint">.skel, .atlas, .webp, .png — unified atlas groups supported</div>
                     </div>
                 </div>
                 <div id="loadingOverlay" class="loading-overlay">
@@ -2542,6 +2542,164 @@
                 return result;
             }
 
+            function expandRangeToken(str) {
+                const rangeRe = /(\d+)(\u2026|\.\.\.|\.\.)(\d+)/;
+                const m = rangeRe.exec(str);
+                if (!m) return [str];
+                const startStr = m[1];
+                const endStr = m[3];
+                const startNum = parseInt(startStr, 10);
+                const endNum = parseInt(endStr, 10);
+                if (!isFinite(startNum) || !isFinite(endNum)) return [str];
+                const count = Math.abs(endNum - startNum) + 1;
+                if (count > 1000) return [str];
+                const width = Math.max(startStr.length, endStr.length);
+                const step = endNum >= startNum ? 1 : -1;
+                const results = [];
+                for (let n = startNum; step > 0 ? n <= endNum : n >= endNum; n += step) {
+                    const numStr = String(Math.abs(n)).padStart(width, '0');
+                    const replaced = str.slice(0, m.index) + numStr + str.slice(m.index + m[0].length);
+                    results.push(...expandRangeToken(replaced));
+                }
+                return results;
+            }
+
+            function parsePlaceholderCheckLines(text) {
+                const result = [];
+                const seen = new Set();
+                text.split('\n').forEach(line => {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.includes('|') || trimmed.includes('~')) return;
+                    if (trimmed.indexOf(':') < 0) return;
+                    expandRangeToken(trimmed).forEach(expanded => {
+                        const sep = expanded.indexOf(':');
+                        if (sep < 0) return;
+                        const skeletonName = expanded.slice(0, sep).trim();
+                        const placeholderName = expanded.slice(sep + 1).trim();
+                        if (!skeletonName || !placeholderName) return;
+                        const key = skeletonName + ':' + placeholderName;
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        result.push({ skeletonName: skeletonName, placeholderName: placeholderName });
+                    });
+                });
+                return result;
+            }
+
+            function parseEventCheckLines(text) {
+                const result = [];
+                const seen = new Set();
+                text.split('\n').forEach(line => {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed.includes('|')) return;
+                    if (trimmed.indexOf('~') < 0) return;
+                    expandRangeToken(trimmed).forEach(expanded => {
+                        const sep = expanded.indexOf('~');
+                        if (sep < 0) return;
+                        const skeletonName = expanded.slice(0, sep).trim();
+                        const eventName = expanded.slice(sep + 1).trim();
+                        if (!skeletonName || !eventName) return;
+                        const key = skeletonName + '~' + eventName;
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                        result.push({ skeletonName: skeletonName, eventName: eventName });
+                    });
+                });
+                return result;
+            }
+
+            function isEventUsedInAnimations(data, eventName) {
+                const animations = data.animations || [];
+                for (let a = 0; a < animations.length; a++) {
+                    const timelines = animations[a].timelines || [];
+                    for (let t = 0; t < timelines.length; t++) {
+                        const evs = timelines[t].events;
+                        if (!evs || !evs.length) continue;
+                        for (let e = 0; e < evs.length; e++) {
+                            const name = evs[e] && evs[e].data && evs[e].data.name;
+                            if (name === eventName) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            function collectPlaceholderCheckErrors(notLoadedReported) {
+                const errors = [];
+                const reported = notLoadedReported || new Set();
+                const text = getScenarioPlainText();
+                const requests = parsePlaceholderCheckLines(text);
+                const seen = new Set();
+                requests.forEach(req => {
+                    const skeletonName = req.skeletonName;
+                    const placeholderName = req.placeholderName;
+                    const key = skeletonName + ':' + placeholderName;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    if (reported.has(skeletonName)) return;
+                    if (!state.loadedSkeletons.has(skeletonName)) {
+                        reported.add(skeletonName);
+                        errors.push('[placeholders] Skeleton not loaded: "' + skeletonName + '" (placeholder "' + placeholderName + '")');
+                        return;
+                    }
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return;
+                    const slotsData = sk.skeleton.data.slots || [];
+                    let found = false;
+                    for (let i = 0; i < slotsData.length; i++) {
+                        const name = slotsData[i].name;
+                        if (name && (name === placeholderName || name.indexOf(placeholderName) >= 0)) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
+                        errors.push('[' + skeletonName + '] Placeholder not found: "' + placeholderName + '"');
+                    }
+                });
+                return errors;
+            }
+
+            function collectEventCheckErrors(notLoadedReported) {
+                const errors = [];
+                const reported = notLoadedReported || new Set();
+                const text = getScenarioPlainText();
+                const requests = parseEventCheckLines(text);
+                const seen = new Set();
+                requests.forEach(req => {
+                    const skeletonName = req.skeletonName;
+                    const eventName = req.eventName;
+                    const key = skeletonName + '~' + eventName;
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    if (reported.has(skeletonName)) return;
+                    if (!state.loadedSkeletons.has(skeletonName)) {
+                        reported.add(skeletonName);
+                        errors.push('[events] Skeleton not loaded: "' + skeletonName + '" (event "' + eventName + '")');
+                        return;
+                    }
+                    const sk = state.skeletons[skeletonName];
+                    if (!sk || !sk.skeleton || !sk.skeleton.data) return;
+                    const data = sk.skeleton.data;
+                    const events = data.events || [];
+                    let exists = false;
+                    for (let i = 0; i < events.length; i++) {
+                        if (events[i] && events[i].name === eventName) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        errors.push('[' + skeletonName + '] Event not found in skeleton: "' + eventName + '"');
+                        return;
+                    }
+                    if (!isEventUsedInAnimations(data, eventName)) {
+                        errors.push('[' + skeletonName + '] Event not used in any animation: "' + eventName + '"');
+                    }
+                });
+                return errors;
+            }
+
             function collectAllErrors() {
                 const errors = [];
                 if (state.loadErrors && state.loadErrors.length > 0) {
@@ -2556,6 +2714,14 @@
                 if (state.checkPlaceholders) {
                     errors.push(...placeholderManager.listPlaceholders());
                 }
+                const notLoadedReported = new Set();
+                state.playlist.forEach(item => {
+                    if (item && item.skeletonName && !state.loadedSkeletons.has(item.skeletonName)) {
+                        notLoadedReported.add(item.skeletonName);
+                    }
+                });
+                errors.push(...collectPlaceholderCheckErrors(notLoadedReported));
+                errors.push(...collectEventCheckErrors(notLoadedReported));
                 if (state.checkEvents) {
                     errors.push(...collectEventList());
                 }
@@ -2591,6 +2757,10 @@
                 skeletons: {},
                 skeletonResolution: {},
                 availableResolutions: {},
+                skeletonAtlas: {},
+                skeletonAtlasCandidates: {},
+                sharedAtlasAliases: {},
+                atlasInfo: {},
                 isResizing: false,
                 resizeStartX: 0,
                 leftPanelStartWidth: 0,
@@ -2841,6 +3011,18 @@
 
             const skeletonManager = {
                 getAtlasAlias(skeletonName, resolution) {
+                    // Shared (merged) atlases: the alias is stored per skeleton/resolution
+                    const atlasMap = state.skeletonAtlas[skeletonName];
+                    if (atlasMap) {
+                        if (atlasMap[resolution]) {
+                            return atlasMap[resolution];
+                        }
+                        const atlasKeys = Object.keys(atlasMap);
+                        if (atlasKeys.length > 0) {
+                            return atlasMap[atlasKeys[0]];
+                        }
+                    }
+
                     const available = state.availableResolutions[skeletonName];
                     if (available && available[resolution]) {
                         return skeletonName + 'A@' + resolution;
@@ -2854,21 +3036,61 @@
                     return skeletonName + 'A';
                 },
 
-                createSkeleton(skeletonName, resolution) {
-                    const atlasAlias = this.getAtlasAlias(skeletonName, resolution);
-                    try {
-                        const skeleton = spine.Spine.from({
-                            skeleton: skeletonName + 'D',
-                            atlas: atlasAlias
-                        });
-
-                        skeleton.x = state.cameraX;
-                        skeleton.y = state.cameraY;
-                        skeleton.scale.set(state.currentScale);
-                        return skeleton;
-                    } catch (e) {
-                        throw new Error('[' + skeletonName + '] ' + e.message);
+                getAtlasAliases(skeletonName, resolution) {
+                    // Several shared atlases may exist for the same resolution. Try them in order.
+                    const candidates = state.skeletonAtlasCandidates[skeletonName];
+                    if (candidates) {
+                        if (candidates[resolution] && candidates[resolution].length > 0) {
+                            return candidates[resolution].slice();
+                        }
+                        const keys = Object.keys(candidates);
+                        for (const key of keys) {
+                            if (candidates[key] && candidates[key].length > 0) {
+                                return candidates[key].slice();
+                            }
+                        }
                     }
+                    return [this.getAtlasAlias(skeletonName, resolution)];
+                },
+
+                createSkeleton(skeletonName, resolution) {
+                    const atlasAliases = this.getAtlasAliases(skeletonName, resolution);
+                    let lastError = null;
+
+                    for (const atlasAlias of atlasAliases) {
+                        try {
+                            const skeleton = spine.Spine.from({
+                                skeleton: skeletonName + 'D',
+                                atlas: atlasAlias
+                            });
+
+                            if (!state.skeletonAtlas[skeletonName]) {
+                                state.skeletonAtlas[skeletonName] = {};
+                            }
+                            state.skeletonAtlas[skeletonName][resolution] = atlasAlias;
+
+                            skeleton.x = state.cameraX;
+                            skeleton.y = state.cameraY;
+                            skeleton.scale.set(state.currentScale);
+                            return skeleton;
+                        } catch (e) {
+                            lastError = e;
+                            // A shared atlas without the required regions is not a fatal error:
+                            // try the next candidate atlas for this resolution.
+                            if (!/Region not found in atlas/i.test(e.message || '')) {
+                                break;
+                            }
+                        }
+                    }
+
+                    const tried = atlasAliases.map(alias => {
+                        const info = state.atlasInfo[alias];
+                        return info && info.group ? info.group : alias;
+                    });
+                    const triedNote = tried.length > 1 ? ' (atlases tried: ' + tried.join(', ') + ')' : '';
+                    throw new Error('[' + skeletonName + '] '
+                        + (lastError ? lastError.message : 'Failed to create skeleton')
+                        + triedNote);
                 },
 
                 switchTo(skeletonName, resolution) {
@@ -8602,14 +8824,18 @@
 
             const playlistManager = {
                 parse(text) {
-                    return text
+                    const items = [];
+                    text
                         .split('\n')
                         .map(line => line.trim())
                         .filter(line => line.length > 0 && line.includes('|'))
-                        .map(line => {
-                            const [skeletonName, animationName] = line.split('|').map(s => s.trim());
-                            return { skeletonName, animationName };
+                        .forEach(line => {
+                            expandRangeToken(line).forEach(expanded => {
+                                const [skeletonName, animationName] = expanded.split('|').map(s => s.trim());
+                                items.push({ skeletonName, animationName });
+                            });
                         });
+                    return items;
                 },
 
                 playAnimation(skeletonName, animationName, loop) {
@@ -9760,35 +9986,189 @@
                     document.getElementById('loadingOverlay').classList.remove('active');
                 },
 
-                findTextureForAtlas(atlasFileName, textureFiles) {
-                    const baseName = atlasFileName.replace('.atlas', '');
-                    return textureFiles.find(f => {
-                        const name = f.name.replace(/\.(webp|png|jpg)$/, '');
-                        return name === baseName;
-                    });
+                getFileBaseName(fileName) {
+                    return String(fileName).replace(/\.(atlas|webp|png|jpe?g)$/i, '');
                 },
 
-                async loadAtlasTexture(skeletonName, resolution, atlasFile, textureFile) {
-                    const atlasText = await atlasFile.text();
-                    const textureBlobUrl = URL.createObjectURL(textureFile);
-                    state.blobUrls.push(textureBlobUrl);
-                    const img = new Image();
-                    img.src = textureBlobUrl;
-                    await new Promise((resolve, reject) => {
-                        img.onload = resolve;
-                        img.onerror = reject;
-                    });
-                    const pixiTexture = PIXI.Texture.from(img);
-                    state.pixiTextures.push(pixiTexture);
+                // Files from a directory input carry webkitRelativePath; files collected from
+                // drag-and-drop folders get __relativePath in traverseEntry().
+                getFileRelativePath(file) {
+                    if (!file) return '';
+                    return String(file.__relativePath || file.webkitRelativePath || '').replace(/\\/g, '/');
+                },
 
+                getFileDirectory(file) {
+                    const relativePath = this.getFileRelativePath(file);
+                    const slash = relativePath.lastIndexOf('/');
+                    return slash >= 0 ? relativePath.slice(0, slash) : '';
+                },
+
+                isRelatedDirectory(dirA, dirB) {
+                    if (!dirA || !dirB) return false;
+                    return dirA === dirB || dirA.startsWith(dirB + '/') || dirB.startsWith(dirA + '/');
+                },
+
+                removeCacheKey(cacheKey) {
+                    if (PIXI.Cache.has(cacheKey)) {
+                        PIXI.Cache.remove(cacheKey);
+                    }
+                },
+
+                findTextureForAtlas(atlasFile, textureFiles) {
+                    const atlasFileName = typeof atlasFile === 'string' ? atlasFile : atlasFile.name;
+                    const baseName = this.getFileBaseName(atlasFileName).toLowerCase();
+                    const candidates = textureFiles.filter(
+                        f => this.getFileBaseName(f.name).toLowerCase() === baseName
+                    );
+
+                    if (candidates.length <= 1) return candidates[0] || null;
+
+                    // Prefer a texture from the same folder as the atlas (nested asset groups).
+                    const atlasDir = typeof atlasFile === 'string' ? '' : this.getFileDirectory(atlasFile);
+                    if (atlasDir) {
+                        const sameDir = candidates.find(f => this.getFileDirectory(f) === atlasDir);
+                        if (sameDir) return sameDir;
+
+                        const relatedDir = candidates.find(
+                            f => this.isRelatedDirectory(this.getFileDirectory(f), atlasDir)
+                        );
+                        if (relatedDir) return relatedDir;
+                    }
+
+                    return candidates[0];
+                },
+
+                findTextureForPage(pageName, textureFiles, atlasFile) {
+                    const pagePath = String(pageName || '').replace(/\\/g, '/');
+                    const pageFileName = pagePath.split('/').pop().toLowerCase();
+                    const pageBaseName = this.getFileBaseName(pageFileName);
+
+                    let candidates = textureFiles.filter(f => f.name.toLowerCase() === pageFileName);
+                    if (candidates.length === 0) {
+                        candidates = textureFiles.filter(
+                            f => this.getFileBaseName(f.name).toLowerCase() === pageBaseName
+                        );
+                    }
+
+                    if (candidates.length <= 1) return candidates[0] || null;
+
+                    const atlasDir = atlasFile ? this.getFileDirectory(atlasFile) : '';
+                    if (atlasDir) {
+                        const sameDir = candidates.find(f => this.getFileDirectory(f) === atlasDir);
+                        if (sameDir) return sameDir;
+
+                        const relatedDir = candidates.find(
+                            f => this.isRelatedDirectory(this.getFileDirectory(f), atlasDir)
+                        );
+                        if (relatedDir) return relatedDir;
+                    }
+
+                    return candidates[0];
+                },
+
+                isAtlasForSkeleton(atlasFileName, skeletonName) {
+                    const baseName = this.getFileBaseName(atlasFileName).toLowerCase();
+                    const name = skeletonName.toLowerCase();
+                    return baseName === name
+                        || baseName === name + '@2x'
+                        || baseName === name + '@1x'
+                        || baseName === name + '-hd'
+                        || baseName === name + '-sd'
+                        || baseName === name + '_hd'
+                        || baseName === name + '_sd';
+                },
+
+                inferAtlasResolution(atlasFileName) {
+                    const baseName = this.getFileBaseName(atlasFileName).toLowerCase();
+                    if (/@1x$/.test(baseName)
+                        || /(?:^|[-_.])(sd|low|half|1x)$/.test(baseName)) {
+                        return '1x';
+                    }
+                    if (/@2x$/.test(baseName)
+                        || /(?:^|[-_.])(hd|high|2x)$/.test(baseName)) {
+                        return '2x';
+                    }
+                    return null;
+                },
+
+                // Atlas group = atlas name without the scale suffix. "sym-regular@2x.atlas",
+                // "sym-regular-2x.atlas" and "sym-regular-hd.atlas" belong to the group
+                // "sym-regular". One unified atlas group can hold many skeletons.
+                getAtlasGroupName(atlasFileName) {
+                    const baseName = this.getFileBaseName(atlasFileName);
+                    const groupName = baseName
+                        .replace(/@\d+x$/i, '')
+                        .replace(/(?:^|[-_.])(hd|sd|high|low|2x|1x)$/i, '');
+                    return groupName || baseName;
+                },
+
+                // Number of leading name tokens shared by a skeleton and an atlas group.
+                // "sym-special-01" vs "sym-special" -> 2, "sym-01" vs "sym-special" -> 1.
+                // Used only to order candidate atlases; region lookups still decide.
+                getNameAffinity(skeletonName, atlasGroupName) {
+                    const left = String(skeletonName || '').toLowerCase().split(/[-_.\s]+/).filter(Boolean);
+                    const right = String(atlasGroupName || '').toLowerCase().split(/[-_.\s]+/).filter(Boolean);
+                    let matched = 0;
+                    while (matched < left.length && matched < right.length && left[matched] === right[matched]) {
+                        matched++;
+                    }
+                    return matched;
+                },
+
+                // Spine 4.2 atlas format writes "bounds"/"offsets"; older exporters
+                // used "xy"/"size"/"orig"/"offset". Both are accepted by the bundled runtime.
+                detectAtlasFormat(atlasText) {
+                    if (/^\s*bounds:/m.test(atlasText)) return 'bounds';
+                    if (/^\s*xy:/m.test(atlasText)) return 'legacy';
+                    return 'unknown';
+                },
+
+                async loadAtlasTexture(cacheKey, atlasFile, textureFiles, fallbackTextureFile) {
+                    const atlasText = await atlasFile.text();
+                    const atlasFormat = this.detectAtlasFormat(atlasText);
                     const spineAtlas = new spine.TextureAtlas(atlasText);
+
+                    const loadedTextures = new Map();
+                    const loadTextureFile = async (textureFile) => {
+                        if (loadedTextures.has(textureFile.name)) {
+                            return loadedTextures.get(textureFile.name);
+                        }
+
+                        const textureBlobUrl = URL.createObjectURL(textureFile);
+                        state.blobUrls.push(textureBlobUrl);
+                        const img = new Image();
+                        img.src = textureBlobUrl;
+                        await new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = () => reject(new Error('Failed to load texture "' + textureFile.name + '"'));
+                        });
+
+                        const pixiTexture = PIXI.Texture.from(img);
+                        state.pixiTextures.push(pixiTexture);
+                        loadedTextures.set(textureFile.name, pixiTexture);
+                        return pixiTexture;
+                    };
+
                     for (const page of spineAtlas.pages) {
+                        const textureFile = this.findTextureForPage(page.name, textureFiles, atlasFile) || fallbackTextureFile;
+                        if (!textureFile) {
+                            throw new Error('Texture for atlas page "' + page.name + '" not found (' + atlasFile.name + ')');
+                        }
+                        const pixiTexture = await loadTextureFile(textureFile);
                         page.setTexture(spine.SpineTexture.from(pixiTexture.source));
                     }
 
-                    const cacheKey = skeletonName + 'A@' + resolution;
-                    PIXI.Cache.remove(cacheKey);
+                    this.removeCacheKey(cacheKey);
                     PIXI.Cache.set(cacheKey, spineAtlas);
+                    state.atlasInfo[cacheKey] = {
+                        atlasFile: atlasFile.name,
+                        group: this.getAtlasGroupName(atlasFile.name),
+                        format: atlasFormat,
+                        dir: this.getFileDirectory(atlasFile),
+                        pages: spineAtlas.pages.length,
+                        regions: spineAtlas.regions.length
+                    };
+                    return spineAtlas;
                 },
 
                 collectSpineErrors(fn) {
@@ -9839,30 +10219,54 @@
                     });
                     state.blobUrls = [];
 
-                    Object.keys(state.availableResolutions).forEach(skeletonName => {
-                        const resKeys = Object.keys(state.availableResolutions[skeletonName]);
-                        resKeys.forEach(res => {
-                            PIXI.Cache.remove(skeletonName + 'A@' + res);
+                    // Remove all atlas objects used by skeletons (own and shared/merged)
+                    Object.keys(state.skeletonAtlas).forEach(skeletonName => {
+                        const atlasMap = state.skeletonAtlas[skeletonName] || {};
+                        Object.keys(atlasMap).forEach(res => {
+                            this.removeCacheKey(atlasMap[res]);
                         });
                     });
 
-                    Object.keys(state.skeletonResolution).forEach(skeletonName => {
-                        PIXI.Cache.remove(skeletonName + 'D');
+                    Object.keys(state.sharedAtlasAliases).forEach(alias => {
+                        this.removeCacheKey(alias);
                     });
 
                     Object.keys(state.skeletonResolution).forEach(skeletonName => {
+                        this.removeCacheKey(skeletonName + 'D');
+                    });
+
+                    // Remove SkeletonData objects cached by spine.Spine.from
+                    const removeSkeletonDataCache = (skeletonName, atlasAlias) => {
+                        this.removeCacheKey(skeletonName + 'D-' + atlasAlias + '-1');
+                    };
+
+                    Object.keys(state.skeletonResolution).forEach(skeletonName => {
+                        const aliases = new Set();
+
+                        const atlasMap = state.skeletonAtlas[skeletonName] || {};
+                        Object.keys(atlasMap).forEach(res => aliases.add(atlasMap[res]));
+
+                        const candidates = state.skeletonAtlasCandidates[skeletonName] || {};
+                        Object.keys(candidates).forEach(res => {
+                            (candidates[res] || []).forEach(alias => aliases.add(alias));
+                        });
+
+                        // Fallback for skeletons created before the atlas map was populated
                         const resKeys = state.availableResolutions[skeletonName]
                             ? Object.keys(state.availableResolutions[skeletonName])
                             : [];
-                        resKeys.forEach(res => {
-                            const cacheKey = skeletonName + 'D-' + skeletonName + 'A@' + res + '-1';
-                            PIXI.Cache.remove(cacheKey);
-                        });
+                        resKeys.forEach(res => aliases.add(skeletonName + 'A@' + res));
+
+                        aliases.forEach(alias => removeSkeletonDataCache(skeletonName, alias));
                     });
 
                         state.skeletons = {};
                         state.skeletonResolution = {};
                         state.availableResolutions = {};
+                        state.skeletonAtlas = {};
+                        state.skeletonAtlasCandidates = {};
+                        state.sharedAtlasAliases = {};
+                        state.atlasInfo = {};
                         state.loadedSkeletons.clear();
                         state.availableAnimations = [];
                         state.animationDurations = {};
@@ -9908,9 +10312,9 @@
 
                 async handleFiles(fileList) {
                     const files = Array.from(fileList);
-                    const skelFiles = files.filter(f => f.name.endsWith('.skel')).sort((a, b) => a.name.localeCompare(b.name));
-                    const atlasFiles = files.filter(f => f.name.endsWith('.atlas'));
-                    const textureFiles = files.filter(f => /\.(webp|png|jpg)$/.test(f.name));
+                    const skelFiles = files.filter(f => /\.skel$/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name));
+                    const atlasFiles = files.filter(f => /\.atlas$/i.test(f.name));
+                    const textureFiles = files.filter(f => /\.(webp|png|jpe?g)$/i.test(f.name));
 
                     if (skelFiles.length === 0) {
                         alert('Skeleton file (.skel) not found');
@@ -9925,106 +10329,295 @@
 
                         let scenarioText = '';
 
+                        const skeletonNames = new Set(skelFiles.map(f => f.name.replace(/\.skel$/i, '')));
+                        const skeletonFileByName = new Map(
+                            skelFiles.map(f => [f.name.replace(/\.skel$/i, ''), f])
+                        );
+
+                        // Split atlases into per-skeleton atlases and shared (merged) atlases.
+                        // A shared atlas is one .atlas file used by several .skel files.
+                        const ownAtlasSources = {};
+                        const sharedAtlasSources = [];
+                        const seenAtlasNames = new Set();
+
+                        for (const atlasFile of atlasFiles) {
+                            const atlasKey = (this.getFileRelativePath(atlasFile) || atlasFile.name).toLowerCase();
+                            if (seenAtlasNames.has(atlasKey)) continue;
+                            seenAtlasNames.add(atlasKey);
+
+                            const atlasDir = this.getFileDirectory(atlasFile);
+                            const owners = [];
+                            for (const skeletonName of skeletonNames) {
+                                if (this.isAtlasForSkeleton(atlasFile.name, skeletonName)) {
+                                    owners.push(skeletonName);
+                                }
+                            }
+
+                            let owner = owners.length > 0 ? owners[0] : null;
+                            if (owners.length > 1 && atlasDir) {
+                                owner = owners.find(name => {
+                                    const skelFile = skeletonFileByName.get(name);
+                                    return skelFile && this.isRelatedDirectory(this.getFileDirectory(skelFile), atlasDir);
+                                }) || owner;
+                            }
+
+                            // The texture may be referenced by the atlas page name instead of
+                            // the atlas file name, so let loadAtlasTexture resolve it per page.
+                            const textureFile = this.findTextureForAtlas(atlasFile, textureFiles);
+
+                            const resolution = this.inferAtlasResolution(atlasFile.name) || '2x';
+
+                            if (owner) {
+                                if (!ownAtlasSources[owner]) ownAtlasSources[owner] = [];
+                                ownAtlasSources[owner].push({ resolution, atlasFile, textureFile });
+                            } else {
+                                sharedAtlasSources.push({ resolution, atlasFile, textureFile });
+                            }
+                        }
+
+                        // Load every shared atlas once, no matter how many skeletons use it.
+                        const sharedResolutions = {};
+                        const resolutionOrder = { '2x': 0, '1x': 1 };
+
+                        sharedAtlasSources.sort((a, b) => {
+                            const ra = resolutionOrder[a.resolution] ?? 9;
+                            const rb = resolutionOrder[b.resolution] ?? 9;
+                            return ra - rb || a.atlasFile.name.localeCompare(b.atlasFile.name);
+                        });
+
+                        for (const source of sharedAtlasSources) {
+                            const atlasPath = this.getFileRelativePath(source.atlasFile) || source.atlasFile.name;
+                            const alias = '@shared:' + atlasPath + '@' + source.resolution;
+                            try {
+                                await this.loadAtlasTexture(alias, source.atlasFile, textureFiles, source.textureFile);
+                                if (!sharedResolutions[source.resolution]) sharedResolutions[source.resolution] = [];
+                                sharedResolutions[source.resolution].push(alias);
+                                state.sharedAtlasAliases[alias] = {
+                                    atlasFile: source.atlasFile.name,
+                                    resolution: source.resolution,
+                                    dir: this.getFileDirectory(source.atlasFile)
+                                };
+                                const loadedInfo = state.atlasInfo[alias] || {};
+                                console.log(
+                                    'Shared atlas loaded: ' + atlasPath + ' (' + source.resolution
+                                    + ', group "' + (loadedInfo.group || '?') + '"'
+                                    + ', format ' + (loadedInfo.format || '?')
+                                    + ', regions ' + (loadedInfo.regions || 0)
+                                    + ', pages ' + (loadedInfo.pages || 0) + ')'
+                                );
+                            } catch (e) {
+                                console.warn('Failed to load shared atlas ' + source.atlasFile.name + ': ' + e.message);
+                            }
+                        }
+
+                        // Merged atlases belong to the folder tree they live in. This keeps
+                        // e.g. animations/sym-regular/* separate from animations/sym-special/*,
+                        // and lets skeletons in a nested "skeletons" subfolder use the parent atlas.
+                        const getSharedResolutionsFor = (skelFile, skeletonName) => {
+                            const skelDir = this.getFileDirectory(skelFile);
+                            const hasAtlasDirs = Object.keys(state.sharedAtlasAliases).some(
+                                alias => !!state.sharedAtlasAliases[alias].dir
+                            );
+                            const filterByDir = !!(skelDir && hasAtlasDirs);
+
+                            const rankAlias = (alias) => {
+                                const meta = state.sharedAtlasAliases[alias] || {};
+                                const info = state.atlasInfo[alias] || {};
+                                const sameDir = filterByDir && meta.dir && meta.dir === skelDir ? 1 : 0;
+                                const groupName = info.group || this.getAtlasGroupName(meta.atlasFile || '');
+                                return {
+                                    sameDir,
+                                    affinity: this.getNameAffinity(skeletonName, groupName)
+                                };
+                            };
+
+                            const result = {};
+                            for (const res of Object.keys(sharedResolutions)) {
+                                const candidates = filterByDir
+                                    ? sharedResolutions[res].filter(alias => {
+                                        const meta = state.sharedAtlasAliases[alias];
+                                        return meta && (!meta.dir || this.isRelatedDirectory(skelDir, meta.dir));
+                                    })
+                                    : sharedResolutions[res].slice();
+                                if (candidates.length > 0) {
+                                    // Prefer an atlas from the same folder, then the group whose
+                                    // name is the closest match. Stable sort keeps the load order
+                                    // as the final tie-breaker.
+                                    candidates.sort((a, b) => {
+                                        const ra = rankAlias(a);
+                                        const rb = rankAlias(b);
+                                        return (rb.sameDir - ra.sameDir) || (rb.affinity - ra.affinity);
+                                    });
+                                    result[res] = candidates;
+                                }
+                            }
+                            return result;
+                        };
+
                         for (const skelFile of skelFiles) {
-                            const skeletonName = skelFile.name.replace('.skel', '');
+                            const skeletonName = skelFile.name.replace(/\.skel$/i, '');
 
-                            const skelData = new Uint8Array(await skelFile.arrayBuffer());
-                            PIXI.Cache.set(skeletonName + 'D', skelData);
+                            try {
+                                const skelData = new Uint8Array(await skelFile.arrayBuffer());
+                                PIXI.Cache.set(skeletonName + 'D', skelData);
 
-                            const resolutions = {};
+                                const resolutions = {};
+                                const atlasMap = {};
+                                const atlasCandidates = {};
 
-                            const atlas2x = atlasFiles.find(f => f.name === skeletonName + '@2x.atlas');
-                            if (atlas2x) {
-                                const tex2x = this.findTextureForAtlas(atlas2x.name, textureFiles);
-                                if (tex2x) {
-                                    await this.loadAtlasTexture(skeletonName, '2x', atlas2x, tex2x);
-                                    resolutions['2x'] = true;
-                                }
-                            }
+                                const ownSources = (ownAtlasSources[skeletonName] || []).slice().sort((a, b) => {
+                                    const ra = resolutionOrder[a.resolution] ?? 9;
+                                    const rb = resolutionOrder[b.resolution] ?? 9;
+                                    return ra - rb || a.atlasFile.name.localeCompare(b.atlasFile.name);
+                                });
 
-                            const atlas1x = atlasFiles.find(f => f.name === skeletonName + '@1x.atlas');
-                            if (atlas1x) {
-                                const tex1x = this.findTextureForAtlas(atlas1x.name, textureFiles);
-                                if (tex1x) {
-                                    await this.loadAtlasTexture(skeletonName, '1x', atlas1x, tex1x);
-                                    resolutions['1x'] = true;
-                                }
-                            }
-
-                            if (!resolutions['2x'] && !resolutions['1x']) {
-                                const atlasDefault = atlasFiles.find(f => f.name === skeletonName + '.atlas');
-                                if (atlasDefault) {
-                                    const texDefault = this.findTextureForAtlas(atlasDefault.name, textureFiles);
-                                    if (texDefault) {
-                                        await this.loadAtlasTexture(skeletonName, '2x', atlasDefault, texDefault);
-                                        resolutions['2x'] = true;
+                                for (const source of ownSources) {
+                                    const alias = skeletonName + 'A@' + source.resolution;
+                                    try {
+                                        await this.loadAtlasTexture(alias, source.atlasFile, textureFiles, source.textureFile);
+                                        atlasMap[source.resolution] = alias;
+                                        atlasCandidates[source.resolution] = [alias];
+                                        resolutions[source.resolution] = true;
+                                    } catch (e) {
+                                        console.warn('Failed to load atlas ' + source.atlasFile.name + ': ' + e.message);
                                     }
                                 }
-                            }
 
-                            if (Object.keys(resolutions).length === 0) {
-                                console.warn('No atlas/texture found for ' + skeletonName);
-                                continue;
-                            }
+                                // Fill the resolutions that have no own atlas from the unified
+                                // (shared) atlas groups. Own atlases always win per resolution.
+                                const sharedForSkeleton = getSharedResolutionsFor(skelFile, skeletonName);
+                                for (const res of Object.keys(sharedForSkeleton)) {
+                                    if (resolutions[res]) continue;
+                                    atlasMap[res] = sharedForSkeleton[res][0];
+                                    atlasCandidates[res] = sharedForSkeleton[res].slice();
+                                    resolutions[res] = true;
+                                }
 
-                            state.availableResolutions[skeletonName] = resolutions;
-                            state.loadedSkeletons.add(skeletonName);
+                                if (Object.keys(resolutions).length === 0) {
+                                    console.warn('No atlas/texture found for ' + skeletonName);
+                                    continue;
+                                }
 
-                            const initialRes = state.sdMode ? (resolutions['1x'] ? '1x' : Object.keys(resolutions)[0]) : (resolutions['2x'] ? '2x' : Object.keys(resolutions)[0]);
+                                state.skeletonAtlas[skeletonName] = atlasMap;
+                                state.skeletonAtlasCandidates[skeletonName] = atlasCandidates;
 
-                            if (!state.skeletons[skeletonName]) {
-                                const { result, errors } = this.collectSpineErrors(() => {
-                                    return skeletonManager.createSkeleton(skeletonName, initialRes);
-                                });
-                                if (result) {
+                                const initialRes = state.sdMode ? (resolutions['1x'] ? '1x' : Object.keys(resolutions)[0]) : (resolutions['2x'] ? '2x' : Object.keys(resolutions)[0]);
+                                let skeletonObj = state.skeletons[skeletonName];
+
+                                if (!skeletonObj) {
+                                    const { result, errors } = this.collectSpineErrors(() => {
+                                        return skeletonManager.createSkeleton(skeletonName, initialRes);
+                                    });
+                                    if (errors.length > 0) {
+                                        state.loadErrors.push('[' + skeletonName + '] ' + errors.join('\n'));
+                                        state.hasLoadError = true;
+                                    }
+                                    if (!result) {
+                                        // Do not leave a phantom "loaded" skeleton behind.
+                                        delete state.skeletonAtlas[skeletonName];
+                                        delete state.skeletonAtlasCandidates[skeletonName];
+                                        Object.keys(atlasMap).forEach(res => {
+                                            const alias = atlasMap[res];
+                                            if (alias && alias === skeletonName + 'A@' + res) {
+                                                this.removeCacheKey(alias);
+                                            }
+                                        });
+                                        continue;
+                                    }
+                                    skeletonObj = result;
                                     state.skeletons[skeletonName] = result;
                                     state.skeletonResolution[skeletonName] = initialRes;
                                     placeholderManager.buildFor(skeletonName);
                                 }
-                                if (errors.length > 0) {
-                                    state.loadErrors.push('[' + skeletonName + '] ' + errors.join('\n'));
-                                    state.hasLoadError = true;
+
+                                state.availableResolutions[skeletonName] = resolutions;
+                                state.loadedSkeletons.add(skeletonName);
+
+                                let animationList = [];
+                                try {
+                                    const skeletonData = skeletonObj.skeleton?.data || skeletonObj.state?.data?.skeletonData;
+                                    animationList = skeletonData?.animations || [];
+                                } catch (e) {
+                                    console.error('Failed to read animations:', e);
                                 }
-                            }
 
-                            const skeletonObj = state.skeletons[skeletonName];
-                            if (!skeletonObj) continue;
+                                const durations = {};
+                                animationList.forEach(a => {
+                                    const animName = a.name;
+                                    state.availableAnimations.push({ skeletonName, animationName: animName });
+                                    durations[animName] = a.duration;
+                                });
+                                state.animationDurations[skeletonName] = durations;
 
-                            let animationList = [];
-                            try {
-                                const skeletonData = skeletonObj.skeleton?.data || skeletonObj.state?.data?.skeletonData;
-                                animationList = skeletonData?.animations || [];
+                                const zeroWarnings = placeholderManager.detectZeroAlpha(skeletonName);
+                                if (zeroWarnings.length > 0) {
+                                    state.zeroAlphaWarnings = state.zeroAlphaWarnings.concat(zeroWarnings);
+                                }
+
+                                const skins = skinManager.readSkins(skeletonName);
+                                state.availableSkins[skeletonName] = skins;
+
+                                const newLines = animationList.map(a => skeletonName + '|' + a.name);
+                                if (scenarioText.trim()) {
+                                    scenarioText += '\n' + newLines.join('\n');
+                                } else {
+                                    scenarioText = newLines.join('\n');
+                                }
                             } catch (e) {
-                                console.error('Failed to read animations:', e);
+                                console.error('Failed to load skeleton ' + skeletonName + ':', e);
+                                state.loadErrors.push('[' + skeletonName + '] ' + (e && e.message ? e.message : String(e)));
+                                state.hasLoadError = true;
                             }
+                        }
 
-                            const durations = {};
-                            animationList.forEach(a => {
-                                const animName = a.name;
-                                state.availableAnimations.push({ skeletonName, animationName: animName });
-                                durations[animName] = a.duration;
+                        // Summarize unified atlas groups: which group fed which skeletons
+                        // and which atlas layout (bounds / legacy) was used.
+                        const groupsSummary = {};
+                        Object.keys(state.skeletonAtlas).forEach(skeletonName => {
+                            const atlasMap = state.skeletonAtlas[skeletonName] || {};
+                            Object.keys(atlasMap).forEach(res => {
+                                const alias = atlasMap[res];
+                                const info = state.atlasInfo[alias];
+                                if (!info) return;
+                                const groupKey = info.group || info.atlasFile || alias;
+                                if (!groupsSummary[groupKey]) {
+                                    groupsSummary[groupKey] = {
+                                        format: info.format,
+                                        resolutions: {},
+                                        skeletons: new Set()
+                                    };
+                                }
+                                groupsSummary[groupKey].resolutions[res] = info.atlasFile;
+                                groupsSummary[groupKey].skeletons.add(skeletonName);
                             });
-                            state.animationDurations[skeletonName] = durations;
+                        });
 
-                            const zeroWarnings = placeholderManager.detectZeroAlpha(skeletonName);
-                            if (zeroWarnings.length > 0) {
-                                state.zeroAlphaWarnings = state.zeroAlphaWarnings.concat(zeroWarnings);
-                            }
-
-                            const skins = skinManager.readSkins(skeletonName);
-                            state.availableSkins[skeletonName] = skins;
-
-                            const newLines = animationList.map(a => skeletonName + '|' + a.name);
-                            if (scenarioText.trim()) {
-                                scenarioText += '\n' + newLines.join('\n');
-                            } else {
-                                scenarioText = newLines.join('\n');
-                            }
+                        const groupLines = [];
+                        Object.keys(groupsSummary).sort().forEach(groupKey => {
+                            const group = groupsSummary[groupKey];
+                            if (group.skeletons.size < 2) return;
+                            const resList = Object.keys(group.resolutions).sort().join('/');
+                            groupLines.push(
+                                groupKey + ': ' + group.skeletons.size + ' skeleton(s), '
+                                + 'resolutions ' + resList + ', '
+                                + (group.format === 'bounds' ? 'Spine 4.2 (bounds)' : group.format) + ' format'
+                            );
+                        });
+                        if (groupLines.length > 0) {
+                            console.info('Unified atlas groups (' + groupLines.length + '):\n  ' + groupLines.join('\n  '));
                         }
 
                         uiControls.renderAnimationsList();
                         await playlistManager.onTextChange(scenarioText);
                         sceneManager.onSkeletonsChanged();
+
+                        // New files invalidate the old museum layout. Rebuild it right away
+                        // when the user is currently in Museum mode.
+                        if (state.activeMode === 'museum') {
+                            state.museum.skeletons = [];
+                            state.museum.selectedSkeletons = [];
+                            museumManager.setupMuseumView();
+                        }
                     } catch (error) {
                         console.error('Upload error:', error);
                         state.loadErrors.push('Upload error: ' + error.message);
@@ -10034,11 +10627,15 @@
                     }
                 },
 
-                async traverseEntry(entry) {
+                async traverseEntry(entry, parentPath = '') {
+                    const entryPath = parentPath ? parentPath + '/' + entry.name : entry.name;
+
                     if (entry.isFile) {
                         return new Promise((resolve) => {
                             entry.file((file) => {
-                                if (/\.(skel|atlas|webp|png|jpg)$/.test(file.name)) {
+                                if (/\.(skel|atlas|webp|png|jpe?g)$/i.test(file.name)) {
+                                    // Preserve the folder structure for nested asset groups.
+                                    try { file.__relativePath = entryPath; } catch (e) {}
                                     resolve([file]);
                                 } else {
                                     resolve([]);
@@ -10061,7 +10658,7 @@
                             };
                             readBatch();
                         });
-                        const nested = await Promise.all(entries.map(e => this.traverseEntry(e)));
+                        const nested = await Promise.all(entries.map(e => this.traverseEntry(e, entryPath)));
                         return nested.flat();
                     }
                     return [];
@@ -10078,7 +10675,7 @@
                         const nested = await Promise.all(entries.map(e => this.traverseEntry(e)));
                         return nested.flat();
                     }
-                    return Array.from(dataTransfer.files).filter(f => /\.(skel|atlas|webp|png|jpg)$/.test(f.name));
+                    return Array.from(dataTransfer.files).filter(f => /\.(skel|atlas|webp|png|jpe?g)$/i.test(f.name));
                 },
 
                 initDragDrop() {
@@ -10136,7 +10733,7 @@
                     folderInput.addEventListener('change', () => {
                         if (folderInput.files.length > 0) {
                             const filtered = Array.from(folderInput.files).filter(
-                                f => /\.(skel|atlas|webp|png|jpg)$/.test(f.name)
+                                f => /\.(skel|atlas|webp|png|jpe?g)$/i.test(f.name)
                             );
                             if (filtered.length > 0) {
                                 this.handleFiles(filtered);
