@@ -2221,6 +2221,10 @@
                         <input type="checkbox" id="unusedCheckbox">
                         <label for="unusedCheckbox">Check unused</label>
                     </div>
+                    <div class="checkbox-item">
+                        <input type="checkbox" id="colorRangeCheckbox" checked>
+                        <label for="colorRangeCheckbox" title="Report animations with slot color curves outside the 0..1 range">Check color range</label>
+                    </div>
                 </div>
                 <div id="sceneGridSection" class="scene-only">
                     <div class="scene-field-row">
@@ -2407,10 +2411,17 @@
                 rs.setProperty('--error-fg-hover', eh);
             }
 
-            function showError(message) {
+            function showError(message, includeChecks) {
                 const block = document.getElementById('errorBlock');
                 const text = document.getElementById('errorBlockText');
-                text.textContent = message;
+                let fullText = message;
+                if (includeChecks && typeof collectAllErrors === 'function' && typeof state !== 'undefined' && state) {
+                    const checkErrors = collectAllErrors();
+                    if (checkErrors.length > 0) {
+                        fullText = fullText ? (fullText + '\n' + checkErrors.join('\n')) : checkErrors.join('\n');
+                    }
+                }
+                text.textContent = fullText;
                 block.classList.add('visible');
             }
 
@@ -2700,6 +2711,97 @@
                 return errors;
             }
 
+            // Collect animations whose slot color curves (including tint-black dark colors)
+            // leave the valid 0..1 range. Such values crash PIXI's color conversion at render time.
+            function collectColorRangeWarnings(skeletonName) {
+                const sk = state.skeletons[skeletonName];
+                if (!sk || !sk.skeleton || !sk.skeleton.data) return [];
+                const data = sk.skeleton.data;
+                const animations = data.animations || [];
+                const slots = data.slots || [];
+                const EPS = 1e-4;
+                const warnings = [];
+
+                const getChannels = (timeline) => {
+                    if (!timeline) return null;
+                    if (spine.RGBATimeline && timeline instanceof spine.RGBATimeline) return ['r', 'g', 'b', 'a'];
+                    if (spine.RGBA2Timeline && timeline instanceof spine.RGBA2Timeline) return ['r', 'g', 'b', 'a', 'r2', 'g2', 'b2'];
+                    if (spine.RGBTimeline && timeline instanceof spine.RGBTimeline) return ['r', 'g', 'b'];
+                    if (spine.RGB2Timeline && timeline instanceof spine.RGB2Timeline) return ['r', 'g', 'b', 'r2', 'g2', 'b2'];
+                    return null;
+                };
+
+                const formatValue = (value) => {
+                    const abs = Math.abs(value);
+                    if (abs >= 10) return String(Math.round(value * 100) / 100);
+                    if (abs >= 1) return value.toFixed(2);
+                    return value.toFixed(3);
+                };
+
+                animations.forEach(anim => {
+                    const timelineInfos = [];
+                    (anim.timelines || []).forEach(timeline => {
+                        const channelNames = getChannels(timeline);
+                        if (!channelNames) return;
+                        const entries = timeline.getFrameEntries ? timeline.getFrameEntries() : 0;
+                        const frames = timeline.frames || [];
+                        const curves = timeline.curves || [];
+                        if (entries < 2 || frames.length < entries) return;
+                        const frameCount = Math.floor(frames.length / entries);
+                        const stats = {};
+
+                        for (let f = 0; f < frameCount; f++) {
+                            const base = f * entries;
+                            const hasNext = f < frameCount - 1;
+                            const curveType = curves[f];
+                            for (let c = 1; c < entries; c++) {
+                                let min = frames[base + c];
+                                let max = min;
+                                if (hasNext) {
+                                    const next = frames[base + entries + c];
+                                    if (next < min) min = next;
+                                    if (next > max) max = next;
+                                    // Bezier values are piecewise-linear between the precomputed
+                                    // curve samples, so checking those samples is enough.
+                                    if (curveType >= 2) {
+                                        const start = curveType + 18 * (c - 1) - 2;
+                                        const end = start + 18;
+                                        for (let i = start + 1; i < end; i += 2) {
+                                            const value = curves[i];
+                                            if (value < min) min = value;
+                                            if (value > max) max = value;
+                                        }
+                                    }
+                                }
+                                if (min < -EPS || max > 1 + EPS) {
+                                    const name = channelNames[c - 1];
+                                    const st = stats[name] || (stats[name] = { min: Infinity, max: -Infinity });
+                                    if (min < st.min) st.min = min;
+                                    if (max > st.max) st.max = max;
+                                }
+                            }
+                        }
+
+                        const names = Object.keys(stats);
+                        if (names.length === 0) return;
+                        const slot = slots[timeline.slotIndex];
+                        const slotName = slot && slot.name ? slot.name : ('#' + timeline.slotIndex);
+                        const channelInfo = names.map(name => {
+                            const st = stats[name];
+                            return name + ' [' + formatValue(st.min) + '..' + formatValue(st.max) + ']';
+                        }).join(', ');
+                        timelineInfos.push('slot "' + slotName + '": ' + channelInfo);
+                    });
+
+                    if (timelineInfos.length > 0) {
+                        warnings.push('[color] ' + skeletonName + ': animation "' + anim.name
+                            + '" has colors out of range 0..1 \u2014 ' + timelineInfos.join('; '));
+                    }
+                });
+
+                return warnings;
+            }
+
             function collectAllErrors() {
                 const errors = [];
                 if (state.loadErrors && state.loadErrors.length > 0) {
@@ -2710,6 +2812,9 @@
                 }
                 if (state.checkZeroAlpha && state.zeroAlphaWarnings.length > 0) {
                     errors.push(...state.zeroAlphaWarnings);
+                }
+                if (state.checkColorRange && state.colorRangeWarnings.length > 0) {
+                    errors.push(...state.colorRangeWarnings);
                 }
                 if (state.checkPlaceholders) {
                     errors.push(...placeholderManager.listPlaceholders());
@@ -2790,7 +2895,9 @@
                 hasPlaylistError: false,
                 playlistErrors: [],
                 zeroAlphaWarnings: [],
+                colorRangeWarnings: [],
                 checkZeroAlpha: false,
+                checkColorRange: true,
                 checkPlaceholders: false,
                 checkEvents: false,
                 checkEventsVerbose: false,
@@ -9598,6 +9705,17 @@
                     });
                 },
 
+                initColorRangeCheckbox() {
+                    const checkbox = document.getElementById('colorRangeCheckbox');
+                    if (!checkbox) return;
+                    checkbox.checked = state.checkColorRange;
+
+                    checkbox.addEventListener('change', (e) => {
+                        state.checkColorRange = e.target.checked;
+                        showChecksIfAny();
+                    });
+                },
+
                 initPlaceholdersListCheckbox() {
                     const checkbox = document.getElementById('placeholdersListCheckbox');
                     if (!checkbox) return;
@@ -10307,6 +10425,7 @@
                     state.hasPlaylistError = false;
                     state.playlistErrors = [];
                     state.zeroAlphaWarnings = [];
+                    state.colorRangeWarnings = [];
                     document.getElementById('skinSection').classList.remove('visible');
                 },
 
@@ -10552,6 +10671,16 @@
                                 const zeroWarnings = placeholderManager.detectZeroAlpha(skeletonName);
                                 if (zeroWarnings.length > 0) {
                                     state.zeroAlphaWarnings = state.zeroAlphaWarnings.concat(zeroWarnings);
+                                }
+
+                                let colorWarnings = [];
+                                try {
+                                    colorWarnings = collectColorRangeWarnings(skeletonName);
+                                } catch (e) {
+                                    console.warn('Color range check failed for ' + skeletonName + ': ' + (e && e.message ? e.message : String(e)));
+                                }
+                                if (colorWarnings.length > 0) {
+                                    state.colorRangeWarnings = state.colorRangeWarnings.concat(colorWarnings);
                                 }
 
                                 const skins = skinManager.readSkins(skeletonName);
@@ -11084,7 +11213,7 @@
                         const now = Date.now();
                         if (now - lastRenderErrorTime > 3000) {
                             lastRenderErrorTime = now;
-                            showError('Render error: ' + (e && e.message ? e.message : String(e)));
+                            showError('Render error: ' + (e && e.message ? e.message : String(e)), true);
                         }
                     }
                 };
@@ -11130,6 +11259,7 @@
                 uiControls.initPlaceholdersCheckbox();
                 uiControls.initPlaceholderScaleSlider();
                 uiControls.initZeroAlphaCheckbox();
+                uiControls.initColorRangeCheckbox();
                 uiControls.initPlaceholdersListCheckbox();
                 uiControls.initEventsListCheckbox();
                 uiControls.initEventsVerboseCheckbox();
