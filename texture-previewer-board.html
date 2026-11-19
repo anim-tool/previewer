@@ -1,0 +1,3123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Texture Previewer Board</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-rgb: 30, 30, 30;
+            --fg-rgb: 255, 255, 255;
+            --bg: rgb(var(--bg-rgb));
+            --fg: rgb(var(--fg-rgb));
+            --n1: rgba(var(--fg-rgb), 0.08);
+            --n2: rgba(var(--fg-rgb), 0.14);
+            --n3: rgba(var(--fg-rgb), 0.20);
+            --n4: rgba(var(--fg-rgb), 0.30);
+            --n5: rgba(var(--fg-rgb), 0.42);
+            --n-text: rgba(var(--fg-rgb), 0.62);
+            --n-text-dim: rgba(var(--fg-rgb), 0.40);
+            --accent-rgb: 51, 153, 255;
+            --error-rgb: 255, 122, 122;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background-color: var(--bg);
+            color: var(--fg);
+        }
+
+        button,
+        input,
+        select {
+            font-family: inherit;
+        }
+
+        .container {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .left-panel {
+            width: 300px;
+            flex: 0 0 auto;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 12px 12px 10px;
+            background-color: var(--bg);
+            border-right: 1px solid var(--n2);
+            overflow-y: auto;
+            overflow-x: hidden;
+            scrollbar-width: thin;
+            scrollbar-color: var(--n4) transparent;
+        }
+
+        .left-panel::-webkit-scrollbar,
+        .texture-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .left-panel::-webkit-scrollbar-track,
+        .texture-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .left-panel::-webkit-scrollbar-thumb,
+        .texture-list::-webkit-scrollbar-thumb {
+            background-color: var(--n4);
+            border-radius: 3px;
+        }
+
+        .left-panel::-webkit-scrollbar-thumb:hover,
+        .texture-list::-webkit-scrollbar-thumb:hover {
+            background-color: var(--n-text);
+        }
+
+        .resize-handle {
+            flex: 0 0 12px;
+            height: 100vh;
+            cursor: col-resize;
+            background-color: var(--n1);
+            border-right: 1px solid var(--n2);
+            position: relative;
+            z-index: 10;
+        }
+
+        .resize-handle:hover,
+        .resize-handle:active {
+            background-color: var(--n3);
+        }
+
+        .resize-handle::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 32px;
+            background-color: var(--n4);
+            border-radius: 1px;
+        }
+
+        .right-area {
+            flex: 1;
+            min-width: 0;
+            height: 100vh;
+            position: relative;
+            background-color: var(--bg);
+        }
+
+        .canvas-container {
+            position: absolute;
+            inset: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            touch-action: none;
+            cursor: default;
+        }
+
+        body.list-mode .canvas-container {
+            cursor: grab;
+        }
+
+        .canvas-container.panning {
+            cursor: grabbing !important;
+        }
+
+        .canvas-container.selecting {
+            cursor: crosshair;
+        }
+
+        .canvas-layer,
+        .overlay-layer {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            pointer-events: none;
+        }
+
+        .canvas-layer {
+            z-index: 0;
+        }
+
+        .overlay-layer {
+            z-index: 2;
+        }
+
+        .world-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform-origin: 0 0;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .world-layer.hidden {
+            display: none;
+        }
+
+        .tex-card {
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-user-drag: none;
+            cursor: grab;
+            background-color: rgba(var(--fg-rgb), 0.035);
+        }
+
+        .tex-card:active {
+            cursor: grabbing;
+        }
+
+        .tex-card img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-drag: none;
+            image-rendering: auto;
+        }
+
+        .list-card {
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            cursor: default;
+        }
+
+        .info-overlay {
+            position: absolute;
+            top: 18px;
+            left: 20px;
+            max-width: calc(100% - 40px);
+            z-index: 5;
+            pointer-events: none;
+            display: none;
+        }
+
+        .info-overlay.visible {
+            display: block;
+        }
+
+        .info-title {
+            color: var(--fg);
+            font-size: 20px;
+            line-height: 1.15;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 1px 1px 4px rgba(var(--bg-rgb), 0.92);
+        }
+
+        .info-sub {
+            margin-top: 4px;
+            color: var(--n-text);
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 1px 1px 3px rgba(var(--bg-rgb), 0.92);
+        }
+
+        .view-hint {
+            position: absolute;
+            right: 16px;
+            bottom: 14px;
+            max-width: min(560px, calc(100% - 32px));
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 10px;
+            line-height: 1.5;
+            text-align: right;
+            pointer-events: none;
+            z-index: 6;
+            opacity: 0.8;
+        }
+
+        .hover-tip {
+            position: absolute;
+            left: 0;
+            top: 0;
+            max-width: 340px;
+            padding: 6px 8px;
+            background: rgba(var(--bg-rgb), 0.94);
+            color: var(--fg);
+            border: 1px solid var(--n3);
+            border-radius: 4px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            white-space: pre-line;
+            pointer-events: none;
+            z-index: 12;
+            display: none;
+        }
+
+        .upload-section {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .upload-btn {
+            flex: 1;
+            width: auto;
+            background: var(--n1);
+            color: var(--n-text);
+            border: 2px dashed var(--n3);
+            padding: 10px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+
+        .upload-btn:hover {
+            background: var(--n2);
+            border-color: var(--n4);
+            color: var(--fg);
+        }
+
+        .empty-button {
+            flex: 0 0 auto;
+            width: auto;
+            padding: 10px 22px;
+            pointer-events: auto;
+        }
+
+        .tabs {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .tab {
+            width: auto;
+            background: transparent;
+            border: none;
+            color: var(--n-text);
+            font-size: 14px;
+            font-weight: bold;
+            padding: 7px 12px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 4px;
+            line-height: 1.2;
+        }
+
+        .tab:hover {
+            color: var(--fg);
+            background-color: var(--n2);
+        }
+
+        .tab.active {
+            color: var(--fg);
+            background-color: var(--n3);
+        }
+
+        .panel-section {
+            flex: 0 0 auto;
+            margin-bottom: 10px;
+        }
+
+        .section-label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .group-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .group-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            width: auto;
+            padding: 7px 9px;
+            background: var(--n1);
+            color: var(--n-text);
+            border: 1px solid var(--n2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        .group-chip:hover {
+            background: var(--n2);
+            color: var(--fg);
+            border-color: var(--n3);
+        }
+
+        .group-chip.active {
+            background: var(--n3);
+            color: var(--fg);
+            border-color: var(--n4);
+        }
+
+        .chip-count {
+            color: var(--n-text-dim);
+            font-size: 9px;
+            font-weight: normal;
+            line-height: 1;
+            padding: 2px 4px;
+            background: rgba(var(--fg-rgb), 0.06);
+            border-radius: 7px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .group-chip.active .chip-count {
+            color: var(--n-text);
+            background: rgba(var(--fg-rgb), 0.08);
+        }
+
+        .sort-controls {
+            display: flex;
+            align-items: stretch;
+            gap: 6px;
+        }
+
+        .select-input {
+            flex: 1;
+            min-width: 0;
+            background-color: var(--n1);
+            color: var(--fg);
+            border: 1px solid var(--n2);
+            border-radius: 4px;
+            padding: 6px 7px;
+            font-size: 11px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .select-input:focus {
+            border-color: var(--n4);
+        }
+
+        .select-input option {
+            background-color: var(--bg);
+            color: var(--fg);
+        }
+
+        .small-btn {
+            width: auto;
+            margin: 0;
+            padding: 6px 10px;
+            background: var(--n1);
+            color: var(--n-text);
+            border: 1px solid var(--n2);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .small-btn:hover {
+            background: var(--n2);
+            border-color: var(--n3);
+            color: var(--fg);
+        }
+
+        .texture-list {
+            flex: 1 1 170px;
+            min-height: 100px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            margin: 0 -4px 8px;
+            padding: 0 4px;
+            scrollbar-width: thin;
+            scrollbar-color: var(--n4) transparent;
+        }
+
+        .list-empty {
+            padding: 10px 4px;
+            color: var(--n-text-dim);
+            font-size: 11px;
+            line-height: 1.4;
+        }
+
+        .texture-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            margin: 0;
+            padding: 4px;
+            background: transparent;
+            border: none;
+            border-radius: 4px;
+            color: var(--n-text);
+            cursor: pointer;
+            text-align: left;
+            user-select: none;
+        }
+
+        .texture-item:hover {
+            background-color: var(--n1);
+        }
+
+        .texture-item.selected {
+            background-color: var(--n2);
+            color: var(--fg);
+        }
+
+        .tex-thumb {
+            flex: 0 0 36px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            border: 1px solid var(--n2);
+            border-radius: 3px;
+            background-color: rgba(var(--fg-rgb), 0.05);
+        }
+
+        .tex-thumb img {
+            display: block;
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            pointer-events: none;
+        }
+
+        .tex-row-main {
+            display: block;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tex-row-name {
+            display: block;
+            font-family: monospace;
+            font-size: 12px;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .texture-item.selected .tex-row-name {
+            color: var(--fg);
+        }
+
+        .tex-row-meta {
+            display: block;
+            margin-top: 2px;
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 9px;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .selected-info {
+            flex: 0 0 auto;
+            margin-bottom: 8px;
+            padding-top: 9px;
+            border-top: 1px solid var(--n2);
+        }
+
+        .selected-name-input {
+            width: 100%;
+            background: var(--n1);
+            border: 1px solid var(--n2);
+            border-radius: 4px;
+            padding: 6px 8px;
+            color: var(--fg);
+            font-family: monospace;
+            font-size: 11px;
+            outline: none;
+        }
+
+        .selected-name-input:focus {
+            border-color: var(--n4);
+        }
+
+        .selected-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+            color: var(--n-text);
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        .selected-badge {
+            color: var(--n-text-dim);
+            white-space: nowrap;
+        }
+
+        .selected-path {
+            margin-top: 4px;
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 9px;
+            line-height: 1.3;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .coord-row {
+            display: flex;
+            gap: 7px;
+            margin-top: 7px;
+        }
+
+        .coord-field {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .coord-label {
+            flex: 0 0 auto;
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        .coord-input {
+            width: 100%;
+            min-width: 0;
+            padding: 5px 6px;
+            background: var(--n1);
+            color: var(--fg);
+            border: 1px solid var(--n2);
+            border-radius: 4px;
+            outline: none;
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        .coord-input:focus {
+            border-color: var(--n4);
+        }
+
+        .menu-section {
+            flex: 0 0 auto;
+            margin-top: auto;
+            padding-top: 9px;
+            border-top: 1px solid var(--n2);
+        }
+
+        .scale-row,
+        .theme-row {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin-bottom: 5px;
+        }
+
+        .scale-row {
+            margin-bottom: 2px;
+        }
+
+        .slider-label {
+            flex: 0 0 auto;
+            color: var(--n-text);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .slider {
+            flex: 1;
+            min-width: 0;
+            width: 100%;
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-runnable-track {
+            height: 4px;
+            background: var(--n4);
+            border-radius: 2px;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 16px;
+            width: 16px;
+            background: var(--n-text);
+            border-radius: 50%;
+            margin-top: -6px;
+            cursor: pointer;
+            border: 2px solid var(--bg);
+        }
+
+        .slider::-moz-range-track {
+            height: 4px;
+            background: var(--n4);
+            border-radius: 2px;
+        }
+
+        .slider::-moz-range-thumb {
+            height: 16px;
+            width: 16px;
+            background: var(--n-text);
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid var(--bg);
+        }
+
+        .slider-value {
+            margin-top: 1px;
+            margin-bottom: 6px;
+            color: var(--n-text);
+            font-family: monospace;
+            font-size: 10px;
+            text-align: right;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 7px;
+            accent-color: var(--n-text);
+            transform: scale(1.1);
+        }
+
+        .checkbox-item label {
+            color: var(--n-text);
+            font-size: 11px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .theme-row {
+            margin-bottom: 0;
+            margin-top: 8px;
+            padding-top: 9px;
+            border-top: 1px solid var(--n2);
+        }
+
+        .empty-state {
+            position: absolute;
+            inset: 0;
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .empty-state.visible {
+            display: flex;
+        }
+
+        .empty-mark {
+            color: var(--n-text-dim);
+            font-size: 58px;
+            line-height: 1;
+            margin-bottom: 12px;
+            opacity: 0.55;
+        }
+
+        .empty-title {
+            color: var(--fg);
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            max-width: 420px;
+            color: var(--n-text);
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .empty-note {
+            margin-top: 14px;
+            color: var(--n-text-dim);
+            font-family: monospace;
+            font-size: 10px;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 90;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(var(--bg-rgb), 0.74);
+            pointer-events: auto;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .loading-text {
+            color: var(--fg);
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .drop-zone {
+            position: fixed;
+            inset: 0;
+            z-index: 95;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.76);
+            pointer-events: none;
+        }
+
+        .drop-zone.active {
+            display: flex;
+        }
+
+        .drop-zone-inner {
+            border: 3px dashed #888;
+            border-radius: 15px;
+            padding: 40px 60px;
+            text-align: center;
+        }
+
+        .drop-zone-title {
+            font-size: 18px;
+            color: #ddd;
+            margin-bottom: 8px;
+        }
+
+        .drop-zone-hint {
+            font-family: monospace;
+            font-size: 11px;
+            color: #999;
+        }
+
+        .toast {
+            position: absolute;
+            left: 50%;
+            bottom: 24px;
+            transform: translateX(-50%);
+            z-index: 120;
+            display: none;
+            max-width: min(520px, calc(100% - 30px));
+            padding: 8px 12px;
+            background: rgba(var(--bg-rgb), 0.97);
+            color: var(--fg);
+            border: 1px solid var(--n3);
+            border-radius: 4px;
+            box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+            font-family: monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .toast.visible {
+            display: block;
+        }
+
+        .toast.error {
+            border-color: rgba(var(--error-rgb), 0.6);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        body.list-mode .map-only {
+            display: none !important;
+        }
+
+        .tab:focus-visible,
+        .group-chip:focus-visible,
+        .texture-item:focus-visible,
+        .small-btn:focus-visible,
+        .upload-btn:focus-visible,
+        .select-input:focus-visible,
+        .coord-input:focus-visible,
+        .selected-name-input:focus-visible {
+            outline: 2px solid rgba(var(--accent-rgb), 0.8);
+            outline-offset: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="left-panel" id="leftPanel">
+            <div class="upload-section">
+                <button id="filesButton" class="upload-btn" type="button" title="Load individual WebP / PNG files">Files</button>
+                <button id="folderButton" class="upload-btn" type="button" title="Load a folder with WebP / PNG textures">Folder</button>
+                <input type="file" id="fileInput" class="file-input" multiple accept=".webp,.png,image/webp,image/png">
+                <input type="file" id="folderInput" class="file-input" webkitdirectory directory multiple accept=".webp,.png,image/webp,image/png">
+            </div>
+
+            <div class="tabs" role="tablist" aria-label="View mode">
+                <button id="mapTab" class="tab active" type="button" role="tab" aria-selected="true" data-mode="map">Map</button>
+                <button id="listTab" class="tab" type="button" role="tab" aria-selected="false" data-mode="list">List</button>
+            </div>
+
+            <div id="groupSection" class="panel-section hidden">
+                <div class="section-label">Quality</div>
+                <div id="groupTabs" class="group-tabs"></div>
+            </div>
+
+            <div id="sortSection" class="panel-section hidden">
+                <label class="section-label" for="sortSelect">Sort</label>
+                <div class="sort-controls">
+                    <select id="sortSelect" class="select-input">
+                        <option value="name-asc">Name A &rarr; Z</option>
+                        <option value="name-desc">Name Z &rarr; A</option>
+                        <option value="size-asc">Size small &rarr; large</option>
+                        <option value="size-desc">Size large &rarr; small</option>
+                        <option value="width-desc">Width wide first</option>
+                        <option value="height-desc">Height tall first</option>
+                    </select>
+                    <button id="arrangeButton" class="small-btn map-only" type="button" title="Rebuild the automatic map layout">Arrange</button>
+                </div>
+            </div>
+
+            <div id="textureList" class="texture-list hidden" role="listbox" aria-label="Textures"></div>
+
+            <div id="selectionPanel" class="selected-info hidden">
+                <div class="section-label">Selected</div>
+                <input id="selectedName" class="selected-name-input" type="text" readonly placeholder="&mdash;" aria-label="Selected texture">
+                <div class="selected-meta">
+                    <span id="selectedDims">&mdash;</span>
+                    <span id="selectedGroup" class="selected-badge">&mdash;</span>
+                </div>
+                <div id="selectedPath" class="selected-path"></div>
+                <div class="coord-row map-only">
+                    <div class="coord-field">
+                        <span class="coord-label">X</span>
+                        <input id="selectedX" class="coord-input" type="text" inputmode="decimal" aria-label="X position">
+                    </div>
+                    <div class="coord-field">
+                        <span class="coord-label">Y</span>
+                        <input id="selectedY" class="coord-input" type="text" inputmode="decimal" aria-label="Y position">
+                    </div>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <div class="scale-row">
+                    <label class="slider-label" for="scaleSlider">Scale</label>
+                    <input id="scaleSlider" class="slider" type="range" min="0.005" max="4" step="0.001" value="1">
+                    <button id="resetViewButton" class="small-btn" type="button" title="Fit map to viewport">Fit</button>
+                </div>
+                <div class="slider-value" id="scaleValue">100%</div>
+                <div class="checkbox-item">
+                    <input id="gridCheckbox" type="checkbox" checked>
+                    <label for="gridCheckbox">Show grid</label>
+                </div>
+                <div class="checkbox-item">
+                    <input id="axesCheckbox" type="checkbox" checked>
+                    <label for="axesCheckbox">Show axes</label>
+                </div>
+                <div class="checkbox-item">
+                    <input id="over2048Checkbox" type="checkbox">
+                    <label for="over2048Checkbox">Show over 2048</label>
+                </div>
+                <div class="checkbox-item map-only">
+                    <input id="snapCheckbox" type="checkbox" checked>
+                    <label for="snapCheckbox">Snap to grid</label>
+                </div>
+            </div>
+
+            <div class="theme-row">
+                <label class="slider-label" for="themeSlider">Theme</label>
+                <input id="themeSlider" class="slider" type="range" min="0" max="255" step="1" value="30">
+            </div>
+        </aside>
+
+        <div id="resizeHandle" class="resize-handle" title="Drag to resize &middot; double-click to reset"></div>
+
+        <main class="right-area">
+            <div id="viewport" class="canvas-container">
+                <canvas id="gridCanvas" class="canvas-layer"></canvas>
+                <div id="mapLayer" class="world-layer"></div>
+                <div id="listLayer" class="world-layer hidden"></div>
+                <canvas id="overlayCanvas" class="overlay-layer"></canvas>
+
+                <div id="infoOverlay" class="info-overlay">
+                    <div id="infoTitle" class="info-title"></div>
+                    <div id="infoSub" class="info-sub"></div>
+                </div>
+
+                <div id="hoverTip" class="hover-tip"></div>
+                <div id="viewHint" class="view-hint"></div>
+
+                <div id="emptyState" class="empty-state visible">
+                    <div class="empty-mark">&#9638;</div>
+                    <div class="empty-title">Texture Board</div>
+                    <div class="empty-text">Drop a folder with WebP or PNG textures, or open one.</div>
+                    <button id="emptyFolderButton" class="upload-btn empty-button" type="button">Open folder</button>
+                    <div class="empty-note">WebP 1x / 2x &middot; PNG single quality</div>
+                </div>
+
+                <div id="loadingOverlay" class="loading-overlay">
+                    <div id="loadingText" class="loading-text">Loading&hellip;</div>
+                </div>
+
+                <div id="dragOverlay" class="drop-zone">
+                    <div class="drop-zone-inner">
+                        <div class="drop-zone-title">Drop textures or a folder</div>
+                        <div class="drop-zone-hint">.webp and .png only</div>
+                    </div>
+                </div>
+
+                <div id="toast" class="toast"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        (function () {
+            'use strict';
+
+            var MIN_SCALE = 0.005;
+            var MAX_SCALE = 4;
+            var MAP_GAP = 160;
+            var FIT_PADDING = 64;
+            var SNAP_STEP = 100;
+            var THEME_KEY = 'textureBoardThemeLuminance';
+            var PANEL_KEY = 'textureBoardPanelWidth';
+            var GRID_KEY = 'textureBoardShowGrid';
+            var AXES_KEY = 'textureBoardShowAxes';
+            var OVER_2048_KEY = 'textureBoardShowOver2048';
+            var SNAP_KEY = 'textureBoardSnapToGrid';
+            var DEFAULT_PANEL_WIDTH = 300;
+
+            var ui = {};
+            var state = {
+                textures: [],
+                groups: [],
+                groupId: null,
+                activeGroup: null,
+                listed: [],
+                order: 'name-asc',
+                mode: 'map',
+                selected: new Set(),
+                primary: null,
+                map: {
+                    positions: new Map(),
+                    camera: { x: 0, y: 0, scale: 1 },
+                    autoFit: true,
+                    hovered: null
+                },
+                list: {
+                    camera: { x: 0, y: 0, scale: 1 },
+                    initialized: false
+                },
+                viewport: { w: 1, h: 1, dpr: 1 },
+                interaction: null,
+                loading: false,
+                loadToken: 0,
+                themeL: 30,
+                themeFg: 255,
+                showGrid: true,
+                showAxes: true,
+                showOver2048: false,
+                snap: true,
+                dragDepth: 0,
+                toastTimer: null
+            };
+
+            function clamp(value, min, max) {
+                return Math.min(max, Math.max(min, value));
+            }
+
+            function getStoredNumber(key, fallback) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw === null || raw === undefined) return fallback;
+                    var value = Number(raw);
+                    return isFinite(value) ? value : fallback;
+                } catch (e) {
+                    return fallback;
+                }
+            }
+
+            function setStoredNumber(key, value) {
+                try {
+                    localStorage.setItem(key, String(value));
+                } catch (e) {}
+            }
+
+            function getStoredBool(key, fallback) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (raw === null || raw === undefined) return fallback;
+                    return raw !== '0';
+                } catch (e) {
+                    return fallback;
+                }
+            }
+
+            function setStoredBool(key, value) {
+                try {
+                    localStorage.setItem(key, value ? '1' : '0');
+                } catch (e) {}
+            }
+
+            function cacheUi() {
+                [
+                    'leftPanel', 'resizeHandle', 'viewport',
+                    'filesButton', 'folderButton', 'fileInput', 'folderInput', 'emptyFolderButton',
+                    'mapTab', 'listTab', 'groupSection', 'groupTabs', 'sortSection', 'sortSelect', 'arrangeButton',
+                    'textureList', 'selectionPanel', 'selectedName', 'selectedDims', 'selectedGroup', 'selectedPath',
+                    'selectedX', 'selectedY', 'scaleSlider', 'scaleValue', 'resetViewButton',
+                    'gridCheckbox', 'axesCheckbox', 'over2048Checkbox', 'snapCheckbox', 'themeSlider',
+                    'gridCanvas', 'mapLayer', 'listLayer', 'overlayCanvas',
+                    'infoOverlay', 'infoTitle', 'infoSub', 'hoverTip', 'viewHint',
+                    'emptyState', 'loadingOverlay', 'loadingText', 'dragOverlay', 'toast'
+                ].forEach(function (id) {
+                    ui[id] = document.getElementById(id);
+                });
+            }
+
+            function init() {
+                cacheUi();
+                restorePanelWidth();
+                restoreMenuOptions();
+                initTheme();
+                bindEvents();
+                measureViewport();
+                state.map.camera.x = state.viewport.w / 2;
+                state.map.camera.y = state.viewport.h / 2;
+                state.list.camera.x = state.viewport.w / 2;
+                state.list.camera.y = state.viewport.h / 2;
+                applyCameraTransforms();
+                syncModeUi();
+                syncGroupUi();
+                syncScaleUi();
+                updateEmptyState();
+                updateInfoOverlay();
+                updateViewHint();
+                drawScene();
+                observeViewport();
+            }
+
+            function restorePanelWidth() {
+                var width = getStoredNumber(PANEL_KEY, DEFAULT_PANEL_WIDTH);
+                width = clamp(width, 250, Math.max(250, Math.min(560, window.innerWidth - 320)));
+                ui.leftPanel.style.width = Math.round(width) + 'px';
+            }
+
+            function restoreMenuOptions() {
+                state.showGrid = getStoredBool(GRID_KEY, true);
+                state.showAxes = getStoredBool(AXES_KEY, true);
+                state.showOver2048 = getStoredBool(OVER_2048_KEY, false);
+                state.snap = getStoredBool(SNAP_KEY, true);
+                ui.gridCheckbox.checked = state.showGrid;
+                ui.axesCheckbox.checked = state.showAxes;
+                ui.over2048Checkbox.checked = state.showOver2048;
+                ui.snapCheckbox.checked = state.snap;
+            }
+
+            function initTheme() {
+                var stored = getStoredNumber(THEME_KEY, 30);
+                stored = clamp(Math.round(stored), 0, 255);
+                ui.themeSlider.value = String(stored);
+                applyTheme(stored, false);
+            }
+
+            function applyTheme(luminance, persist) {
+                var L = clamp(Math.round(luminance), 0, 255);
+                var fg = L < 128 ? 255 : 0;
+                var rootStyle = document.documentElement.style;
+                rootStyle.setProperty('--bg-rgb', L + ',' + L + ',' + L);
+                rootStyle.setProperty('--fg-rgb', fg + ',' + fg + ',' + fg);
+                document.documentElement.style.colorScheme = fg === 255 ? 'dark' : 'light';
+                state.themeL = L;
+                state.themeFg = fg;
+                if (ui.themeSlider) ui.themeSlider.value = String(L);
+                if (persist) setStoredNumber(THEME_KEY, L);
+                drawScene();
+            }
+
+            function bindEvents() {
+                ui.filesButton.addEventListener('click', function () { ui.fileInput.click(); });
+                ui.folderButton.addEventListener('click', function () { ui.folderInput.click(); });
+                ui.emptyFolderButton.addEventListener('click', function () { ui.folderInput.click(); });
+
+                ui.fileInput.addEventListener('change', function () { handleInputChange(ui.fileInput); });
+                ui.folderInput.addEventListener('change', function () { handleInputChange(ui.folderInput); });
+
+                ui.mapTab.addEventListener('click', function () { setMode('map'); });
+                ui.listTab.addEventListener('click', function () { setMode('list'); });
+
+                ui.groupTabs.addEventListener('click', function (event) {
+                    var chip = event.target.closest('.group-chip');
+                    if (!chip) return;
+                    activateGroup(chip.getAttribute('data-group-id'));
+                });
+
+                ui.sortSelect.addEventListener('change', function () {
+                    state.order = ui.sortSelect.value;
+                    if (!state.activeGroup) return;
+                    sortCurrentGroup();
+                    renderTextureList();
+                    updateListSelection();
+                    layoutMap();
+                    fitMapCamera();
+                    updateSelectionVisuals({ card: false });
+                });
+
+                ui.arrangeButton.addEventListener('click', function () {
+                    if (!state.activeGroup) return;
+                    layoutMap();
+                    fitMapCamera();
+                    updateSelectionVisuals({ card: false });
+                });
+
+                ui.gridCheckbox.addEventListener('change', function () {
+                    state.showGrid = !!ui.gridCheckbox.checked;
+                    setStoredBool(GRID_KEY, state.showGrid);
+                    drawScene();
+                });
+
+                ui.axesCheckbox.addEventListener('change', function () {
+                    state.showAxes = !!ui.axesCheckbox.checked;
+                    setStoredBool(AXES_KEY, state.showAxes);
+                    drawScene();
+                });
+
+                ui.over2048Checkbox.addEventListener('change', function () {
+                    state.showOver2048 = !!ui.over2048Checkbox.checked;
+                    setStoredBool(OVER_2048_KEY, state.showOver2048);
+                    drawScene();
+                });
+
+                ui.snapCheckbox.addEventListener('change', function () {
+                    state.snap = !!ui.snapCheckbox.checked;
+                    setStoredBool(SNAP_KEY, state.snap);
+                });
+
+                ui.themeSlider.addEventListener('input', function () {
+                    applyTheme(Number(ui.themeSlider.value), true);
+                });
+
+                ui.scaleSlider.addEventListener('input', function () {
+                    if (!state.activeGroup) return;
+                    var scale = Number(ui.scaleSlider.value);
+                    if (!isFinite(scale)) return;
+                    var rect = ui.viewport.getBoundingClientRect();
+                    setActiveScaleAt(scale, rect.width / 2, rect.height / 2);
+                });
+
+                ui.resetViewButton.addEventListener('click', function () {
+                    if (state.mode === 'list') {
+                        resetListCamera();
+                    } else {
+                        fitMapCamera();
+                    }
+                });
+
+                ui.selectedX.addEventListener('change', function () {
+                    applyCoordinateInput('x', ui.selectedX.value);
+                });
+                ui.selectedY.addEventListener('change', function () {
+                    applyCoordinateInput('y', ui.selectedY.value);
+                });
+                ui.selectedX.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') ui.selectedX.blur();
+                });
+                ui.selectedY.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') ui.selectedY.blur();
+                });
+
+                ui.textureList.addEventListener('click', function (event) {
+                    var item = event.target.closest('.texture-item');
+                    if (!item) return;
+                    selectSingleTexture(item.getAttribute('data-uid'), false);
+                });
+
+                ui.viewport.addEventListener('pointerdown', onViewportPointerDown);
+                ui.viewport.addEventListener('wheel', onViewportWheel, { passive: false });
+                ui.viewport.addEventListener('contextmenu', function (event) { event.preventDefault(); });
+                ui.viewport.addEventListener('pointerleave', function () {
+                    if (!state.interaction) {
+                        setHovered(null);
+                    }
+                });
+                ui.viewport.addEventListener('pointermove', function (event) {
+                    if (state.map.hovered && !state.interaction) {
+                        positionHoverTip(event.clientX, event.clientY);
+                    }
+                });
+
+                ui.mapLayer.addEventListener('pointerover', function (event) {
+                    if (state.mode !== 'map' || state.interaction) return;
+                    var card = event.target.closest('.tex-card');
+                    if (!card || !ui.mapLayer.contains(card)) return;
+                    if (card.contains(event.relatedTarget)) return;
+                    setHovered(card.getAttribute('data-uid'));
+                });
+                ui.mapLayer.addEventListener('pointerout', function (event) {
+                    if (state.mode !== 'map') return;
+                    var card = event.target.closest('.tex-card');
+                    if (!card || !ui.mapLayer.contains(card)) return;
+                    if (card.contains(event.relatedTarget)) return;
+                    if (state.map.hovered === card.getAttribute('data-uid')) {
+                        setHovered(null);
+                    }
+                });
+
+                window.addEventListener('pointermove', onWindowPointerMove);
+                window.addEventListener('pointerup', onWindowPointerUp);
+                window.addEventListener('pointercancel', onWindowPointerUp);
+                window.addEventListener('blur', cancelInteraction);
+
+                ui.resizeHandle.addEventListener('pointerdown', onPanelResizeStart);
+                ui.resizeHandle.addEventListener('dblclick', function () {
+                    var max = Math.max(250, Math.min(560, window.innerWidth - 320));
+                    var width = clamp(DEFAULT_PANEL_WIDTH, 250, max);
+                    ui.leftPanel.style.width = width + 'px';
+                    setStoredNumber(PANEL_KEY, width);
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key !== 'Escape') return;
+                    if (state.mode !== 'map') return;
+                    if (!state.selected.size) return;
+                    state.selected.clear();
+                    state.primary = null;
+                    updateSelectionVisuals({ card: false });
+                });
+
+                window.addEventListener('dragenter', onWindowDragEnter);
+                window.addEventListener('dragover', onWindowDragOver);
+                window.addEventListener('dragleave', onWindowDragLeave);
+                window.addEventListener('drop', onWindowDrop);
+            }
+
+            function handleInputChange(input) {
+                var files = Array.prototype.slice.call(input.files || []);
+                input.value = '';
+                if (!files.length) return;
+                var entries = files.map(function (file) {
+                    return {
+                        file: file,
+                        path: file.webkitRelativePath || file.name
+                    };
+                });
+                loadFiles(entries);
+            }
+
+            function normalizePath(path) {
+                return String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+            }
+
+            function parseTextureFile(entry) {
+                var file = entry.file;
+                var fileName = file.name;
+                var extMatch = /\.(webp|png)$/i.exec(fileName);
+                if (!extMatch) return null;
+                var format = extMatch[1].toLowerCase();
+                var stem = fileName.slice(0, fileName.length - extMatch[0].length);
+                var qualityMatch = stem.match(/(?:@|[-_.])(\d+(?:\.\d+)?x|hd|sd|high|low)$/i);
+                var quality = 'default';
+                var name = stem;
+
+                if (qualityMatch) {
+                    quality = normalizeQuality(qualityMatch[1]);
+                    name = stem.slice(0, qualityMatch.index) || stem;
+                }
+
+                var path = normalizePath(entry.path || file.webkitRelativePath || fileName);
+                var dir = path.indexOf('/') >= 0 ? path.slice(0, path.lastIndexOf('/')) : '';
+                var key = ((dir ? dir + '/' : '') + name).toLowerCase();
+
+                return {
+                    file: file,
+                    format: format,
+                    quality: quality,
+                    name: name,
+                    path: path,
+                    dir: dir,
+                    key: key
+                };
+            }
+
+            function normalizeQuality(token) {
+                var lower = String(token).toLowerCase();
+                var numeric = /^(\d+(?:\.\d+)?)x$/.exec(lower);
+                if (numeric) {
+                    return String(Number(numeric[1])) + 'x';
+                }
+                if (lower === 'high') return 'hd';
+                if (lower === 'low') return 'sd';
+                return lower;
+            }
+
+            function qualityRank(quality) {
+                var numeric = /^(\d+(?:\.\d+)?)x$/.exec(quality);
+                if (numeric) return Number(numeric[1]);
+                if (quality === 'hd') return 2;
+                if (quality === 'sd') return 1;
+                return 0;
+            }
+
+            function formatLabel(format) {
+                if (format === 'webp') return 'WebP';
+                if (format === 'png') return 'PNG';
+                return String(format).toUpperCase();
+            }
+
+            function groupLabel(format, quality) {
+                var base = formatLabel(format);
+                if (!quality || quality === 'default') return base;
+                return base + ' ' + quality;
+            }
+
+            async function loadFiles(entries) {
+                if (!entries || !entries.length) return;
+
+                var token = ++state.loadToken;
+                state.loading = true;
+                setLoading(true, 'Reading textures\u2026');
+
+                var oldTextures = state.textures;
+                var oldGroupId = state.groupId;
+                var newUrls = [];
+                var success = false;
+
+                try {
+                    var seen = new Set();
+                    var candidates = [];
+
+                    for (var i = 0; i < entries.length; i++) {
+                        var parsed = parseTextureFile(entries[i]);
+                        if (!parsed) continue;
+                        var dedupe = parsed.format + '|' + parsed.path.toLowerCase();
+                        if (seen.has(dedupe)) continue;
+                        seen.add(dedupe);
+                        candidates.push(parsed);
+                    }
+
+                    if (!candidates.length) {
+                        if (token === state.loadToken) {
+                            showToast('No .webp or .png files found.', true);
+                        }
+                        return;
+                    }
+
+                    var processed = 0;
+                    var skipped = 0;
+
+                    var records = await Promise.all(candidates.map(async function (candidate) {
+                        var size = null;
+                        try {
+                            size = await readImageSize(candidate.file);
+                        } catch (e) {
+                            size = null;
+                        }
+
+                        processed++;
+                        if (processed === candidates.length || processed % 5 === 0) {
+                            setLoadingText('Reading textures\u2026 ' + processed + ' / ' + candidates.length);
+                        }
+
+                        if (!size || !size.width || !size.height) {
+                            skipped++;
+                            return null;
+                        }
+
+                        var url = URL.createObjectURL(candidate.file);
+                        newUrls.push(url);
+
+                        return {
+                            file: candidate.file,
+                            format: candidate.format,
+                            quality: candidate.quality,
+                            name: candidate.name,
+                            path: candidate.path,
+                            dir: candidate.dir,
+                            key: candidate.key,
+                            width: size.width,
+                            height: size.height,
+                            url: url,
+                            groupId: candidate.format + ':' + candidate.quality,
+                            uid: candidate.format + ':' + candidate.quality + '|' + candidate.path.toLowerCase()
+                        };
+                    }));
+
+                    if (token !== state.loadToken) {
+                        return;
+                    }
+
+                    var valid = records.filter(Boolean);
+                    if (!valid.length) {
+                        showToast('Could not read any of the selected textures.', true);
+                        return;
+                    }
+
+                    var groupMap = new Map();
+                    valid.forEach(function (texture) {
+                        var group = groupMap.get(texture.groupId);
+                        if (!group) {
+                            group = {
+                                id: texture.groupId,
+                                format: texture.format,
+                                quality: texture.quality,
+                                label: groupLabel(texture.format, texture.quality),
+                                textures: []
+                            };
+                            groupMap.set(texture.groupId, group);
+                        }
+                        group.textures.push(texture);
+                    });
+
+                    var groups = Array.from(groupMap.values());
+                    groups.sort(compareGroups);
+
+                    state.textures = valid;
+                    state.groups = groups;
+                    state.selected.clear();
+                    state.primary = null;
+
+                    buildGroupTabs();
+
+                    var nextGroupId = groups.some(function (group) { return group.id === oldGroupId; })
+                        ? oldGroupId
+                        : pickDefaultGroupId(groups);
+
+                    activateGroup(nextGroupId, { force: true, carrySelection: false });
+                    success = true;
+
+                    if (skipped > 0) {
+                        showToast('Loaded ' + valid.length + ' textures. Skipped ' + skipped + ' unreadable file' + (skipped === 1 ? '' : 's') + '.', true);
+                    } else {
+                        showToast('Loaded ' + valid.length + ' textures in ' + groups.length + ' group' + (groups.length === 1 ? '' : 's') + '.', false);
+                    }
+                } catch (error) {
+                    console.error('Failed to load textures:', error);
+                    if (token === state.loadToken) {
+                        showToast('Failed to load textures.', true);
+                    }
+                } finally {
+                    if (token === state.loadToken) {
+                        state.loading = false;
+                        setLoading(false);
+                    }
+                    if (!success) {
+                        newUrls.forEach(function (url) {
+                            try { URL.revokeObjectURL(url); } catch (e) {}
+                    });
+                    } else {
+                        oldTextures.forEach(function (texture) {
+                            try { URL.revokeObjectURL(texture.url); } catch (e) {}
+                        });
+                    }
+                }
+            }
+
+            function compareGroups(a, b) {
+                var formatOrder = { webp: 0, png: 1 };
+                var ao = formatOrder[a.format] === undefined ? 2 : formatOrder[a.format];
+                var bo = formatOrder[b.format] === undefined ? 2 : formatOrder[b.format];
+                if (ao !== bo) return ao - bo;
+                var aq = qualityRank(a.quality);
+                var bq = qualityRank(b.quality);
+                if (aq !== bq) return aq - bq;
+                return a.id.localeCompare(b.id);
+            }
+
+            function pickDefaultGroupId(groups) {
+                if (!groups.length) return null;
+                var webp = groups.filter(function (group) { return group.format === 'webp'; });
+                if (webp.length) {
+                    webp.sort(function (a, b) {
+                        return qualityRank(b.quality) - qualityRank(a.quality);
+                    });
+                    return webp[0].id;
+                }
+                var png = groups.filter(function (group) { return group.format === 'png'; });
+                if (png.length) {
+                    png.sort(function (a, b) {
+                        return qualityRank(b.quality) - qualityRank(a.quality);
+                    });
+                    return png[0].id;
+                }
+                return groups[0].id;
+            }
+
+            function buildGroupTabs() {
+                ui.groupTabs.innerHTML = '';
+                state.groups.forEach(function (group) {
+                    var chip = document.createElement('button');
+                    chip.type = 'button';
+                    chip.className = 'group-chip';
+                    chip.setAttribute('data-group-id', group.id);
+                    chip.title = group.label + ' \u00b7 ' + group.textures.length + ' textures';
+
+                    var label = document.createElement('span');
+                    label.textContent = group.label;
+
+                    var count = document.createElement('span');
+                    count.className = 'chip-count';
+                    count.textContent = String(group.textures.length);
+
+                    chip.appendChild(label);
+                    chip.appendChild(count);
+                    ui.groupTabs.appendChild(chip);
+                });
+            }
+
+            function syncGroupUi() {
+                var chips = ui.groupTabs.querySelectorAll('.group-chip');
+                for (var i = 0; i < chips.length; i++) {
+                    chips[i].classList.toggle('active', chips[i].getAttribute('data-group-id') === state.groupId);
+                }
+
+                var hasGroup = !!state.activeGroup;
+                ui.groupSection.classList.toggle('hidden', !state.groups.length);
+                ui.sortSection.classList.toggle('hidden', !hasGroup);
+                ui.textureList.classList.toggle('hidden', !hasGroup);
+
+                ui.emptyState.classList.toggle('visible', !hasGroup || !state.listed.length);
+                ui.infoOverlay.classList.toggle('visible', !!hasGroup && state.listed.length > 0);
+                updateViewHint();
+            }
+
+            function activateGroup(groupId, options) {
+                options = options || {};
+                var group = null;
+                for (var i = 0; i < state.groups.length; i++) {
+                    if (state.groups[i].id === groupId) {
+                        group = state.groups[i];
+                        break;
+                    }
+                }
+                if (!group) return;
+
+                var previousGroup = state.activeGroup;
+                var sameGroup = previousGroup && previousGroup.id === group.id;
+                if (sameGroup && !options.force) return;
+
+                var oldSelected = [];
+                var oldPrimary = null;
+                if (previousGroup && options.carrySelection !== false) {
+                    var oldById = new Map();
+                    previousGroup.textures.forEach(function (texture) {
+                        oldById.set(texture.uid, texture);
+                    });
+                    state.selected.forEach(function (uid) {
+                        var texture = oldById.get(uid);
+                        if (texture) oldSelected.push(texture);
+                    });
+                    oldPrimary = oldById.get(state.primary) || null;
+                }
+
+                state.activeGroup = group;
+                state.groupId = group.id;
+                state.listed = sortTextureArray(group.textures);
+
+                if (oldSelected.length) {
+                    var mapped = remapSelection(oldSelected, oldPrimary, state.listed);
+                    state.selected = mapped.selected;
+                    state.primary = mapped.primary;
+                } else {
+                    state.selected.clear();
+                    state.primary = null;
+                }
+
+                if (state.mode === 'list' && state.listed.length && !state.primary) {
+                    state.selected = new Set([state.listed[0].uid]);
+                    state.primary = state.listed[0].uid;
+                }
+
+                if (state.mode === 'list' && !state.list.initialized) {
+                    resetListCamera(true);
+                }
+
+                ensureSelectionValid();
+                layoutMap();
+                fitMapCamera();
+                renderTextureList();
+                updateListSelection();
+                renderListCard();
+                updateSelectedInfo();
+                updateInfoOverlay();
+                syncGroupUi();
+                syncScaleUi();
+                drawScene();
+                if (state.mode === 'list' && state.primary) {
+                    scrollPrimaryIntoView();
+                }
+            }
+
+            function remapSelection(oldSelected, oldPrimary, newTextures) {
+                var byKey = new Map();
+                var byName = new Map();
+
+                newTextures.forEach(function (texture) {
+                    if (!byKey.has(texture.key)) byKey.set(texture.key, []);
+                    byKey.get(texture.key).push(texture);
+                    if (!byName.has(texture.name)) byName.set(texture.name, []);
+                    byName.get(texture.name).push(texture);
+                });
+
+                function findMatch(oldTexture) {
+                    var byKeyMatches = byKey.get(oldTexture.key) || [];
+                    if (byKeyMatches.length === 1) return byKeyMatches[0];
+                    var byNameMatches = byName.get(oldTexture.name) || [];
+                    if (byNameMatches.length === 1) return byNameMatches[0];
+                    return null;
+                }
+
+                var selected = new Set();
+                var primary = null;
+                var primaryMatch = oldPrimary ? findMatch(oldPrimary) : null;
+
+                oldSelected.forEach(function (oldTexture) {
+                    var match = findMatch(oldTexture);
+                    if (match) selected.add(match.uid);
+                });
+
+                if (primaryMatch && selected.has(primaryMatch.uid)) {
+                    primary = primaryMatch.uid;
+                } else if (selected.size) {
+                    primary = selected.values().next().value;
+                }
+
+                return { selected: selected, primary: primary };
+            }
+
+            function compareTextures(a, b) {
+                return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })
+                    || a.path.localeCompare(b.path, undefined, { numeric: true, sensitivity: 'base' });
+            }
+
+            function compareTexturesDesc(a, b) {
+                return b.name.localeCompare(a.name, undefined, { numeric: true, sensitivity: 'base' })
+                    || b.path.localeCompare(a.path, undefined, { numeric: true, sensitivity: 'base' });
+            }
+
+            function sortTextureArray(textures) {
+                var list = textures.slice();
+                var order = state.order;
+                list.sort(function (a, b) {
+                    if (order === 'name-desc') return compareTexturesDesc(a, b);
+                    if (order === 'size-asc') {
+                        return (a.width * a.height) - (b.width * b.height) || compareTextures(a, b);
+                    }
+                    if (order === 'size-desc') {
+                        return (b.width * b.height) - (a.width * a.height) || compareTextures(a, b);
+                    }
+                    if (order === 'width-desc') {
+                        return b.width - a.width || b.height - a.height || compareTextures(a, b);
+                    }
+                    if (order === 'height-desc') {
+                        return b.height - a.height || b.width - a.width || compareTextures(a, b);
+                    }
+                    return compareTextures(a, b);
+                });
+                return list;
+            }
+
+            function sortCurrentGroup() {
+                if (!state.activeGroup) {
+                    state.listed = [];
+                    return;
+                }
+                state.listed = sortTextureArray(state.activeGroup.textures);
+            }
+
+            function findTexture(uid) {
+                if (!uid || !state.activeGroup) return null;
+                for (var i = 0; i < state.activeGroup.textures.length; i++) {
+                    if (state.activeGroup.textures[i].uid === uid) {
+                        return state.activeGroup.textures[i];
+                    }
+                }
+                return null;
+            }
+
+            function ensureSelectionValid() {
+                var valid = new Set();
+                state.listed.forEach(function (texture) { valid.add(texture.uid); });
+
+                state.selected.forEach(function (uid) {
+                    if (!valid.has(uid)) state.selected.delete(uid);
+                });
+
+                if (state.primary && !state.selected.has(state.primary)) {
+                    state.primary = null;
+                }
+                if (!state.primary && state.selected.size) {
+                    state.primary = state.selected.values().next().value;
+                }
+            }
+
+            function computeMapPositions(textures, viewportWidth, viewportHeight) {
+                var positions = new Map();
+                if (!textures.length) return positions;
+
+                var availableW = Math.max(1, viewportWidth - FIT_PADDING * 2);
+                var availableH = Math.max(1, viewportHeight - FIT_PADDING * 2);
+                var targetAspect = availableW / availableH;
+                var count = textures.length;
+                var best = null;
+
+                for (var cols = 1; cols <= count; cols++) {
+                    var rowCount = Math.ceil(count / cols);
+                    var contentW = 0;
+                    var contentH = 0;
+
+                    for (var row = 0; row < rowCount; row++) {
+                        var start = row * cols;
+                        var end = Math.min(count, start + cols);
+                        var rowWidth = 0;
+                        var rowHeight = 0;
+
+                        for (var index = start; index < end; index++) {
+                            var texture = textures[index];
+                            rowWidth += texture.width;
+                            if (index > start) rowWidth += MAP_GAP;
+                            if (texture.height > rowHeight) rowHeight = texture.height;
+                        }
+
+                        if (rowWidth > contentW) contentW = rowWidth;
+                        contentH += rowHeight;
+                        if (row < rowCount - 1) contentH += MAP_GAP;
+                    }
+
+                    var fit = Math.min(availableW / contentW, availableH / contentH);
+                    var aspectPenalty = Math.abs((contentW / contentH) - targetAspect);
+
+                    if (!best || fit > best.fit + 1e-9 ||
+                        (Math.abs(fit - best.fit) <= 1e-9 && aspectPenalty < best.aspectPenalty)) {
+                        best = {
+                            cols: cols,
+                            contentW: contentW,
+                            contentH: contentH,
+                            fit: fit,
+                            aspectPenalty: aspectPenalty
+                        };
+                    }
+                }
+
+                var rowCountFinal = Math.ceil(count / best.cols);
+                var y = 0;
+
+                for (var rowIndex = 0; rowIndex < rowCountFinal; rowIndex++) {
+                    var startIndex = rowIndex * best.cols;
+                    var endIndex = Math.min(count, startIndex + best.cols);
+                    var rowW = 0;
+                    var rowH = 0;
+
+                    for (var i = startIndex; i < endIndex; i++) {
+                        rowW += textures[i].width;
+                        if (i > startIndex) rowW += MAP_GAP;
+                        if (textures[i].height > rowH) rowH = textures[i].height;
+                    }
+
+                    var x = (best.contentW - rowW) / 2;
+
+                    for (var j = startIndex; j < endIndex; j++) {
+                        var item = textures[j];
+                        positions.set(item.uid, { x: x, y: y });
+                        x += item.width + MAP_GAP;
+                    }
+
+                    y += rowH + MAP_GAP;
+                }
+
+                var shiftX = -best.contentW / 2;
+                var shiftY = -(y - MAP_GAP) / 2;
+
+                positions.forEach(function (position) {
+                    position.x += shiftX;
+                    position.y += shiftY;
+                });
+
+                return positions;
+            }
+
+            function layoutMap() {
+                setHovered(null);
+                state.map.positions = computeMapPositions(state.listed, state.viewport.w, state.viewport.h);
+                renderMapCards();
+            }
+
+            function getMapBounds() {
+                var hasAny = false;
+                var minX = Infinity;
+                var minY = Infinity;
+                var maxX = -Infinity;
+                var maxY = -Infinity;
+
+                state.listed.forEach(function (texture) {
+                    var position = state.map.positions.get(texture.uid);
+                    if (!position) return;
+                    hasAny = true;
+                    if (position.x < minX) minX = position.x;
+                    if (position.y < minY) minY = position.y;
+                    if (position.x + texture.width > maxX) maxX = position.x + texture.width;
+                    if (position.y + texture.height > maxY) maxY = position.y + texture.height;
+                });
+
+                if (!hasAny) return null;
+                return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
+            }
+
+            function fitMapCamera() {
+                var cam = state.map.camera;
+                var width = state.viewport.w;
+                var height = state.viewport.h;
+                var bounds = getMapBounds();
+
+                if (!bounds) {
+                    cam.scale = 1;
+                    cam.x = width / 2;
+                    cam.y = height / 2;
+                    state.map.autoFit = true;
+                    cameraChanged();
+                    return;
+                }
+
+                var contentW = Math.max(1, bounds.maxX - bounds.minX);
+                var contentH = Math.max(1, bounds.maxY - bounds.minY);
+                var availableW = Math.max(1, width - FIT_PADDING * 2);
+                var availableH = Math.max(1, height - FIT_PADDING * 2);
+                var scale = Math.min(1, availableW / contentW, availableH / contentH);
+                scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+
+                cam.scale = scale;
+                cam.x = width / 2 - (bounds.minX + bounds.maxX) / 2 * scale;
+                cam.y = height / 2 - (bounds.minY + bounds.maxY) / 2 * scale;
+                state.map.autoFit = true;
+                cameraChanged();
+            }
+
+            function resetListCamera(silent) {
+                state.list.initialized = true;
+                state.list.camera.scale = 1;
+                state.list.camera.x = state.viewport.w / 2;
+                state.list.camera.y = state.viewport.h / 2;
+                if (!silent && state.mode === 'list') cameraChanged();
+            }
+
+            function getActiveCamera() {
+                return state.mode === 'list' ? state.list.camera : state.map.camera;
+            }
+
+            function setActiveScaleAt(newScale, screenX, screenY) {
+                if (!state.activeGroup) return;
+                var cam = getActiveCamera();
+                var scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
+                if (Math.abs(scale - cam.scale) < 1e-9) return;
+
+                var worldX = (screenX - cam.x) / cam.scale;
+                var worldY = (screenY - cam.y) / cam.scale;
+
+                cam.scale = scale;
+                cam.x = screenX - worldX * scale;
+                cam.y = screenY - worldY * scale;
+
+                if (state.mode === 'map') state.map.autoFit = false;
+                cameraChanged();
+            }
+
+            function cameraChanged() {
+                applyCameraTransforms();
+                syncScaleUi();
+                drawScene();
+            }
+
+            function applyCameraTransforms() {
+                var mapCam = state.map.camera;
+                var listCam = state.list.camera;
+                ui.mapLayer.style.transform = 'translate(' + mapCam.x + 'px, ' + mapCam.y + 'px) scale(' + mapCam.scale + ')';
+                ui.listLayer.style.transform = 'translate(' + listCam.x + 'px, ' + listCam.y + 'px) scale(' + listCam.scale + ')';
+            }
+
+            function syncScaleUi() {
+                var cam = getActiveCamera();
+                if (ui.scaleSlider) ui.scaleSlider.value = String(cam.scale);
+                if (ui.scaleValue) ui.scaleValue.textContent = formatScale(cam.scale);
+            }
+
+            function formatScale(scale) {
+                var pct = scale * 100;
+                if (pct >= 100) return Math.round(pct) + '%';
+                if (pct >= 10) {
+                    var rounded = Math.round(pct * 10) / 10;
+                    return String(rounded).replace(/\.0$/, '') + '%';
+                }
+                return pct.toFixed(1) + '%';
+            }
+
+            function setMode(mode) {
+                if (mode !== 'map' && mode !== 'list') return;
+                if (state.mode === mode) return;
+
+                state.mode = mode;
+
+                if (mode === 'list') {
+                    if (!state.list.initialized) {
+                        resetListCamera(true);
+                    }
+                    if (state.listed.length && (!state.primary || !state.selected.has(state.primary))) {
+                        state.selected = new Set([state.listed[0].uid]);
+                        state.primary = state.listed[0].uid;
+                    }
+                    renderListCard();
+                    syncModeUi();
+                    updateSelectionVisuals({ card: false });
+                    cameraChanged();
+                } else {
+                    syncModeUi();
+                    if (state.activeGroup && state.map.autoFit) {
+                        fitMapCamera();
+                    } else {
+                        cameraChanged();
+                    }
+                    updateSelectionVisuals({ card: false });
+                }
+            }
+
+            function syncModeUi() {
+                var isList = state.mode === 'list';
+                ui.mapTab.classList.toggle('active', !isList);
+                ui.listTab.classList.toggle('active', isList);
+                ui.mapTab.setAttribute('aria-selected', String(!isList));
+                ui.listTab.setAttribute('aria-selected', String(isList));
+                document.body.classList.toggle('list-mode', isList);
+
+                ui.mapLayer.classList.toggle('hidden', isList);
+                ui.listLayer.classList.toggle('hidden', !isList);
+                ui.resetViewButton.textContent = isList ? 'Reset' : 'Fit';
+                ui.resetViewButton.title = isList ? 'Reset to 100% and center' : 'Fit map to viewport';
+
+                syncScaleUi();
+                updateViewHint();
+                updateInfoOverlay();
+                updateEmptyState();
+                drawScene();
+            }
+
+            function updateViewHint() {
+                if (!state.activeGroup) {
+                    ui.viewHint.textContent = '';
+                    return;
+                }
+                if (state.mode === 'list') {
+                    ui.viewHint.textContent = 'Drag to pan \u00b7 Scroll or slider to zoom \u00b7 Scale changes only manually';
+                } else {
+                    ui.viewHint.textContent = 'Drag texture to move \u00b7 Drag empty space to select \u00b7 Right-drag to pan \u00b7 Scroll to zoom';
+                }
+            }
+
+            function updateEmptyState() {
+                var empty = !state.activeGroup || !state.listed.length;
+                ui.emptyState.classList.toggle('visible', empty);
+                ui.selectionPanel.classList.toggle('hidden', empty || state.selected.size === 0);
+                ui.infoOverlay.classList.toggle('visible', !empty);
+                updateViewHint();
+
+                if (empty) {
+                    setHovered(null);
+                }
+            }
+
+            function renderMapCards() {
+                ui.mapLayer.innerHTML = '';
+                if (!state.listed.length) return;
+
+                var fragment = document.createDocumentFragment();
+
+                state.listed.forEach(function (texture) {
+                    var position = state.map.positions.get(texture.uid) || { x: 0, y: 0 };
+                    var card = document.createElement('div');
+                    card.className = 'tex-card';
+                    card.setAttribute('data-uid', texture.uid);
+                    card.style.width = texture.width + 'px';
+                    card.style.height = texture.height + 'px';
+                    card.style.transform = 'translate(' + position.x + 'px, ' + position.y + 'px)';
+                    card.setAttribute('aria-label', texture.name + ', ' + texture.width + ' by ' + texture.height + ' pixels');
+
+                    var image = document.createElement('img');
+                    image.src = texture.url;
+                    image.alt = '';
+                    image.draggable = false;
+                    image.decoding = 'async';
+                    image.width = texture.width;
+                    image.height = texture.height;
+
+                    card.appendChild(image);
+                    fragment.appendChild(card);
+                });
+
+                ui.mapLayer.appendChild(fragment);
+            }
+
+            function renderListCard() {
+                ui.listLayer.innerHTML = '';
+                if (state.mode !== 'list') return;
+                var texture = findTexture(state.primary);
+                if (!texture) return;
+
+                var card = document.createElement('div');
+                card.className = 'tex-card list-card';
+                card.style.width = texture.width + 'px';
+                card.style.height = texture.height + 'px';
+
+                var image = document.createElement('img');
+                image.src = texture.url;
+                image.alt = '';
+                image.draggable = false;
+                image.decoding = 'async';
+                image.width = texture.width;
+                image.height = texture.height;
+
+                card.appendChild(image);
+                ui.listLayer.appendChild(card);
+            }
+
+            function renderTextureList() {
+                ui.textureList.innerHTML = '';
+                if (!state.activeGroup) {
+                    ui.textureList.classList.add('hidden');
+                    return;
+                }
+
+                ui.textureList.classList.remove('hidden');
+                var previousScroll = ui.textureList.scrollTop;
+
+                if (!state.listed.length) {
+                    var empty = document.createElement('div');
+                    empty.className = 'list-empty';
+                    empty.textContent = 'This group has no textures.';
+                    ui.textureList.appendChild(empty);
+                    return;
+                }
+
+                var nameCounts = new Map();
+                state.listed.forEach(function (texture) {
+                    nameCounts.set(texture.name, (nameCounts.get(texture.name) || 0) + 1);
+                });
+
+                var fragment = document.createDocumentFragment();
+
+                state.listed.forEach(function (texture) {
+                    var item = document.createElement('button');
+                    item.type = 'button';
+                    item.className = 'texture-item';
+                    item.setAttribute('data-uid', texture.uid);
+                    item.setAttribute('role', 'option');
+                    item.setAttribute('aria-selected', state.selected.has(texture.uid) ? 'true' : 'false');
+                    item.title = texture.path + '\n' + texture.width + ' \u00d7 ' + texture.height + ' px';
+
+                    var thumb = document.createElement('span');
+                    thumb.className = 'tex-thumb';
+
+                    var image = document.createElement('img');
+                    image.src = texture.url;
+                    image.alt = '';
+                    image.loading = 'lazy';
+                    image.decoding = 'async';
+                    image.draggable = false;
+                    thumb.appendChild(image);
+
+                    var main = document.createElement('span');
+                    main.className = 'tex-row-main';
+
+                    var name = document.createElement('span');
+                    name.className = 'tex-row-name';
+                    name.textContent = texture.name;
+                    main.appendChild(name);
+
+                    var meta = document.createElement('span');
+                    meta.className = 'tex-row-meta';
+                    var metaText = texture.width + ' \u00d7 ' + texture.height;
+                    if (nameCounts.get(texture.name) > 1 && texture.dir) {
+                        var shortDir = texture.dir.indexOf('/') >= 0 ? texture.dir.slice(texture.dir.lastIndexOf('/') + 1) : texture.dir;
+                        metaText += ' \u00b7 ' + shortDir;
+                    }
+                    meta.textContent = metaText;
+                    main.appendChild(meta);
+
+                    item.appendChild(thumb);
+                    item.appendChild(main);
+                    fragment.appendChild(item);
+                });
+
+                ui.textureList.appendChild(fragment);
+                ui.textureList.scrollTop = previousScroll;
+                updateListSelection();
+            }
+
+            function updateListSelection() {
+                var items = ui.textureList.querySelectorAll('.texture-item');
+                for (var i = 0; i < items.length; i++) {
+                    var selected = state.selected.has(items[i].getAttribute('data-uid'));
+                    items[i].classList.toggle('selected', selected);
+                    items[i].setAttribute('aria-selected', selected ? 'true' : 'false');
+                }
+            }
+
+            function scrollPrimaryIntoView() {
+                if (!state.primary) return;
+                var items = ui.textureList.querySelectorAll('.texture-item');
+                for (var i = 0; i < items.length; i++) {
+                    if (items[i].getAttribute('data-uid') === state.primary) {
+                        items[i].scrollIntoView({ block: 'nearest' });
+                        return;
+                    }
+                }
+            }
+
+            function selectSingleTexture(uid, scroll) {
+                var texture = findTexture(uid);
+                if (!texture) return;
+                state.selected = new Set([uid]);
+                state.primary = uid;
+                updateSelectionVisuals({ card: true });
+                if (scroll) scrollPrimaryIntoView();
+            }
+
+            function updateSelectionVisuals(options) {
+                options = options || {};
+                ensureSelectionValid();
+                updateListSelection();
+                updateSelectedInfo();
+                updateInfoOverlay();
+                updateEmptyState();
+                if (state.mode === 'list' && options.card !== false) {
+                    renderListCard();
+                }
+                drawScene();
+            }
+
+            function updateSelectedInfo() {
+                var texture = findTexture(state.primary);
+                var selectionCount = state.selected.size;
+                var panelVisible = !!(state.activeGroup && texture && selectionCount > 0);
+                ui.selectionPanel.classList.toggle('hidden', !panelVisible);
+
+                if (!panelVisible) {
+                    ui.selectedName.value = '';
+                    ui.selectedDims.textContent = '\u2014';
+                    ui.selectedGroup.textContent = state.activeGroup ? state.activeGroup.label : '\u2014';
+                    ui.selectedPath.textContent = '';
+                    ui.selectedPath.title = '';
+                    ui.selectedX.value = '';
+                    ui.selectedY.value = '';
+                    return;
+                }
+
+                var name = texture.name + (selectionCount > 1 ? ' +' + (selectionCount - 1) : '');
+                ui.selectedName.value = name;
+                ui.selectedName.title = name;
+                ui.selectedDims.textContent = texture.width + ' \u00d7 ' + texture.height + ' px';
+                ui.selectedGroup.textContent = state.activeGroup.label;
+                ui.selectedPath.textContent = texture.path;
+                ui.selectedPath.title = texture.path;
+
+                if (state.mode === 'map') {
+                    var sameX = true;
+                    var sameY = true;
+                    var x = null;
+                    var y = null;
+
+                    state.selected.forEach(function (uid) {
+                        var item = findTexture(uid);
+                        var position = state.map.positions.get(uid);
+                        if (!item || !position) return;
+                        if (x === null) {
+                            x = Math.round(position.x);
+                            y = Math.round(position.y);
+                        } else {
+                            if (Math.round(position.x) !== x) sameX = false;
+                            if (Math.round(position.y) !== y) sameY = false;
+                        }
+                    });
+
+                    ui.selectedX.value = sameX && x !== null ? String(x) : '';
+                    ui.selectedY.value = sameY && y !== null ? String(y) : '';
+                } else {
+                    ui.selectedX.value = '';
+                    ui.selectedY.value = '';
+                }
+            }
+
+            function updateInfoOverlay() {
+                if (!state.activeGroup) {
+                    ui.infoOverlay.classList.remove('visible');
+                    return;
+                }
+
+                ui.infoOverlay.classList.add('visible');
+                var texture = findTexture(state.primary);
+
+                if (texture) {
+                    ui.infoTitle.textContent = texture.name;
+                    var extra = state.selected.size > 1 ? ' \u00b7 ' + state.selected.size + ' selected' : '';
+                    ui.infoSub.textContent = texture.width + ' \u00d7 ' + texture.height + ' px \u00b7 ' + state.activeGroup.label + extra;
+                } else {
+                    ui.infoTitle.textContent = state.mode === 'map' ? 'Map' : 'List';
+                    ui.infoSub.textContent = state.activeGroup.label + ' \u00b7 ' + state.listed.length + ' texture' + (state.listed.length === 1 ? '' : 's');
+                }
+            }
+
+            function applyCoordinateInput(axis, rawValue) {
+                var value = Number(String(rawValue).trim());
+                if (!isFinite(value)) {
+                    updateSelectedInfo();
+                    return;
+                }
+
+                state.selected.forEach(function (uid) {
+                    var position = state.map.positions.get(uid);
+                    if (!position) return;
+                    if (axis === 'x') position.x = value;
+                    else position.y = value;
+
+                    var card = ui.mapLayer.querySelector('[data-uid="' + cssEscape(uid) + '"]');
+                    if (card) {
+                        card.style.transform = 'translate(' + position.x + 'px, ' + position.y + 'px)';
+                    }
+                });
+
+                state.map.autoFit = false;
+                updateSelectedInfo();
+                drawScene();
+            }
+
+            function cssEscape(value) {
+                if (window.CSS && CSS.escape) return CSS.escape(value);
+                return String(value).replace(/["\\]/g, '\\$&');
+            }
+
+            function setHovered(uid) {
+                if (state.map.hovered === uid) {
+                    if (!uid) hideHoverTip();
+                    return;
+                }
+                state.map.hovered = uid;
+
+                if (!uid) {
+                    hideHoverTip();
+                } else {
+                    var texture = findTexture(uid);
+                    if (texture) {
+                        ui.hoverTip.textContent = texture.name + '\n' + texture.width + ' \u00d7 ' + texture.height + ' px \u00b7 ' + state.activeGroup.label;
+                    }
+                }
+                drawOverlay();
+            }
+
+            function positionHoverTip(clientX, clientY) {
+                if (!state.map.hovered) return;
+                var rect = ui.viewport.getBoundingClientRect();
+                var localX = clientX - rect.left;
+                var localY = clientY - rect.top;
+                ui.hoverTip.style.display = 'block';
+                var tipWidth = ui.hoverTip.offsetWidth;
+                var tipHeight = ui.hoverTip.offsetHeight;
+                var left = localX + 14;
+                var top = localY + 16;
+
+                if (left + tipWidth > rect.width - 8) left = localX - tipWidth - 14;
+                if (top + tipHeight > rect.height - 8) top = localY - tipHeight - 12;
+
+                ui.hoverTip.style.left = Math.max(8, left) + 'px';
+                ui.hoverTip.style.top = Math.max(8, top) + 'px';
+            }
+
+            function hideHoverTip() {
+                ui.hoverTip.style.display = 'none';
+            }
+
+            function onViewportPointerDown(event) {
+                if (state.loading || !state.activeGroup) return;
+                if (state.interaction) return;
+                if (event.target.closest('button, input, select, textarea, a')) return;
+                if (event.button !== 0 && event.button !== 1 && event.button !== 2) return;
+
+                if (event.button === 0) {
+                    if (state.mode === 'list') {
+                        event.preventDefault();
+                        startPan(event);
+                        return;
+                    }
+
+                    var card = event.target.closest('.tex-card');
+                    if (card && ui.mapLayer.contains(card)) {
+                        event.preventDefault();
+                        startTextureDrag(event, card.getAttribute('data-uid'));
+                    } else {
+                        event.preventDefault();
+                        startMarquee(event);
+                    }
+                    return;
+                }
+
+                event.preventDefault();
+                startPan(event);
+            }
+
+            function capturePointer(pointerId) {
+                try {
+                    ui.viewport.setPointerCapture(pointerId);
+                } catch (e) {}
+            }
+
+            function releasePointer(pointerId) {
+                try {
+                    if (ui.viewport.hasPointerCapture(pointerId)) {
+                        ui.viewport.releasePointerCapture(pointerId);
+                    }
+                } catch (e) {}
+            }
+
+            function startPan(event) {
+                var cam = getActiveCamera();
+                state.interaction = {
+                    type: 'pan',
+                    pointerId: event.pointerId,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    startCamX: cam.x,
+                    startCamY: cam.y
+                };
+                ui.viewport.classList.add('panning');
+                hideHoverTip();
+                setHovered(null);
+                capturePointer(event.pointerId);
+            }
+
+            function startTextureDrag(event, uid) {
+                var additive = event.shiftKey || event.ctrlKey || event.metaKey;
+
+                if (additive) {
+                    if (state.selected.has(uid)) {
+                        state.selected.delete(uid);
+                        if (state.primary === uid) {
+                            state.primary = state.selected.size ? state.selected.values().next().value : null;
+                        }
+                        updateSelectionVisuals({ card: false });
+                        return;
+                    }
+                    state.selected.add(uid);
+                    state.primary = uid;
+                } else {
+                    if (!state.selected.has(uid)) {
+                        state.selected = new Set([uid]);
+                    }
+                    state.primary = uid;
+                }
+
+                ensureSelectionValid();
+                updateSelectionVisuals({ card: false });
+
+                var positions = new Map();
+                state.selected.forEach(function (selectedUid) {
+                    var position = state.map.positions.get(selectedUid);
+                    if (position) positions.set(selectedUid, { x: position.x, y: position.y });
+                });
+
+                state.interaction = {
+                    type: 'drag',
+                    pointerId: event.pointerId,
+                    startClientX: event.clientX,
+                    startClientY: event.clientY,
+                    positions: positions,
+                    moved: false
+                };
+
+                ui.viewport.classList.add('panning');
+                hideHoverTip();
+                setHovered(null);
+                capturePointer(event.pointerId);
+            }
+
+            function startMarquee(event) {
+                var additive = event.shiftKey || event.ctrlKey || event.metaKey;
+                var rect = ui.viewport.getBoundingClientRect();
+                var startX = event.clientX - rect.left;
+                var startY = event.clientY - rect.top;
+
+                if (!additive) {
+                    state.selected.clear();
+                    state.primary = null;
+                }
+
+                state.interaction = {
+                    type: 'marquee',
+                    pointerId: event.pointerId,
+                    startX: startX,
+                    startY: startY,
+                    currentX: startX,
+                    currentY: startY,
+                    baseSelection: additive ? new Set(state.selected) : new Set(),
+                    moved: false
+                };
+
+                ui.viewport.classList.add('selecting');
+                hideHoverTip();
+                setHovered(null);
+                updateSelectionVisuals({ card: false });
+                capturePointer(event.pointerId);
+            }
+
+            function onWindowPointerMove(event) {
+                var interaction = state.interaction;
+                if (!interaction || event.pointerId !== interaction.pointerId) return;
+
+                if (interaction.type === 'pan') {
+                    var cam = getActiveCamera();
+                    cam.x = interaction.startCamX + (event.clientX - interaction.startClientX);
+                    cam.y = interaction.startCamY + (event.clientY - interaction.startClientY);
+                    if (state.mode === 'map') state.map.autoFit = false;
+                    cameraChanged();
+                    return;
+                }
+
+                if (interaction.type === 'drag') {
+                    var activeCam = getActiveCamera();
+                    var dx = (event.clientX - interaction.startClientX) / activeCam.scale;
+                    var dy = (event.clientY - interaction.startClientY) / activeCam.scale;
+
+                    if (Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01) {
+                        state.map.autoFit = false;
+                    }
+                    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) interaction.moved = true;
+
+                    if (state.snap) {
+                        dx = Math.round(dx / SNAP_STEP) * SNAP_STEP;
+                        dy = Math.round(dy / SNAP_STEP) * SNAP_STEP;
+                    }
+
+                    interaction.positions.forEach(function (startPosition, uid) {
+                        var position = state.map.positions.get(uid);
+                        if (!position) return;
+                        position.x = startPosition.x + dx;
+                        position.y = startPosition.y + dy;
+
+                        var card = ui.mapLayer.querySelector('[data-uid="' + cssEscape(uid) + '"]');
+                        if (card) {
+                            card.style.transform = 'translate(' + position.x + 'px, ' + position.y + 'px)';
+                        }
+                    });
+
+                    drawScene();
+                    return;
+                }
+
+                if (interaction.type === 'marquee') {
+                    var rect = ui.viewport.getBoundingClientRect();
+                    interaction.currentX = event.clientX - rect.left;
+                    interaction.currentY = event.clientY - rect.top;
+                    var dragDistance = Math.abs(interaction.currentX - interaction.startX) + Math.abs(interaction.currentY - interaction.startY);
+                    if (dragDistance > 3) interaction.moved = true;
+                    updateMarqueeSelection();
+                    drawScene();
+                }
+            }
+
+            function updateMarqueeSelection() {
+                var interaction = state.interaction;
+                if (!interaction || interaction.type !== 'marquee') return;
+
+                var minX = Math.min(interaction.startX, interaction.currentX);
+                var maxX = Math.max(interaction.startX, interaction.currentX);
+                var minY = Math.min(interaction.startY, interaction.currentY);
+                var maxY = Math.max(interaction.startY, interaction.currentY);
+                var cam = state.map.camera;
+                var selected = new Set(interaction.baseSelection);
+
+                state.listed.forEach(function (texture) {
+                    var position = state.map.positions.get(texture.uid);
+                    if (!position) return;
+                    var sx = position.x * cam.scale + cam.x;
+                    var sy = position.y * cam.scale + cam.y;
+                    var sw = texture.width * cam.scale;
+                    var sh = texture.height * cam.scale;
+                    var intersects = sx < maxX && sx + sw > minX && sy < maxY && sy + sh > minY;
+                    if (intersects) selected.add(texture.uid);
+                });
+
+                state.selected = selected;
+                if (!state.primary || !selected.has(state.primary)) {
+                    state.primary = selected.size ? selected.values().next().value : null;
+                }
+
+                updateSelectionVisuals({ card: false });
+            }
+
+            function onWindowPointerUp(event) {
+                var interaction = state.interaction;
+                if (!interaction) return;
+                if (event.pointerId !== interaction.pointerId) return;
+
+                var wasMarquee = interaction.type === 'marquee';
+                var wasDrag = interaction.type === 'drag';
+                var primaryWasSet = !!state.primary;
+
+                state.interaction = null;
+                releasePointer(event.pointerId);
+                ui.viewport.classList.remove('panning');
+                ui.viewport.classList.remove('selecting');
+
+                if (wasMarquee && !interaction.moved) {
+                    // A click on empty space clears selection. updateMarqueeSelection
+                    // keeps the base selection for shift-marquee, so restore it here.
+                    state.selected = new Set(interaction.baseSelection);
+                    state.primary = state.selected.size ? state.selected.values().next().value : null;
+                }
+
+                ensureSelectionValid();
+                updateSelectionVisuals({ card: true });
+                if ((wasDrag || wasMarquee) && primaryWasSet) {
+                    scrollPrimaryIntoView();
+                }
+            }
+
+            function cancelInteraction() {
+                if (!state.interaction) return;
+                releasePointer(state.interaction.pointerId);
+                state.interaction = null;
+                ui.viewport.classList.remove('panning');
+                ui.viewport.classList.remove('selecting');
+                updateSelectionVisuals({ card: false });
+            }
+
+            function onViewportWheel(event) {
+                if (!state.activeGroup) return;
+                event.preventDefault();
+                var factor = event.deltaY > 0 ? 0.9 : 1.1;
+                var cam = getActiveCamera();
+                var rect = ui.viewport.getBoundingClientRect();
+                var x = event.clientX - rect.left;
+                var y = event.clientY - rect.top;
+                setActiveScaleAt(cam.scale * factor, x, y);
+            }
+
+            function drawScene() {
+                drawGrid();
+                drawOverlay();
+            }
+
+            function drawGrid() {
+                var canvas = ui.gridCanvas;
+                var ctx = canvas.getContext('2d');
+                var dpr = state.viewport.dpr;
+                var width = state.viewport.w;
+                var height = state.viewport.h;
+
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, width, height);
+
+                var cam = getActiveCamera();
+                var lineRgb = state.themeFg === 0 ? '0, 0, 0' : '255, 255, 255';
+
+                if (state.showGrid) {
+                    drawGridLayer(ctx, lineRgb, 0.022, 100, cam, width, height);
+                    drawGridLayer(ctx, lineRgb, 0.055, 500, cam, width, height);
+                }
+
+                if (state.showAxes) {
+                    ctx.strokeStyle = 'rgba(' + lineRgb + ', 0.13)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    if (cam.x >= 0 && cam.x <= width) {
+                        ctx.moveTo(cam.x, 0);
+                        ctx.lineTo(cam.x, height);
+                    }
+                    if (cam.y >= 0 && cam.y <= height) {
+                        ctx.moveTo(0, cam.y);
+                        ctx.lineTo(width, cam.y);
+                    }
+                    ctx.stroke();
+                }
+            }
+
+            function drawGridLayer(ctx, lineRgb, alpha, gridSize, cam, width, height) {
+                var spacing = gridSize * cam.scale;
+                if (spacing < 8) return;
+
+                var startWorldX = -cam.x / cam.scale;
+                var endWorldX = (width - cam.x) / cam.scale;
+                var startWorldY = -cam.y / cam.scale;
+                var endWorldY = (height - cam.y) / cam.scale;
+
+                var firstX = Math.floor(startWorldX / gridSize) * gridSize;
+                var firstY = Math.floor(startWorldY / gridSize) * gridSize;
+
+                ctx.strokeStyle = 'rgba(' + lineRgb + ', ' + alpha + ')';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+
+                for (var x = firstX; x <= endWorldX; x += gridSize) {
+                    if (x < startWorldX) continue;
+                    var sx = x * cam.scale + cam.x;
+                    ctx.moveTo(sx, 0);
+                    ctx.lineTo(sx, height);
+                }
+
+                for (var y = firstY; y <= endWorldY; y += gridSize) {
+                    if (y < startWorldY) continue;
+                    var sy = y * cam.scale + cam.y;
+                    ctx.moveTo(0, sy);
+                    ctx.lineTo(width, sy);
+                }
+
+                ctx.stroke();
+            }
+
+            function drawOverlay() {
+                var canvas = ui.overlayCanvas;
+                var ctx = canvas.getContext('2d');
+                var dpr = state.viewport.dpr;
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.clearRect(0, 0, state.viewport.w, state.viewport.h);
+
+                if (!state.activeGroup || !state.listed.length) return;
+
+                var cam = state.mode === 'list' ? state.list.camera : state.map.camera;
+                var lineRgb = state.themeFg === 0 ? '0, 0, 0' : '255, 255, 255';
+
+                if (state.showOver2048) {
+                    var largeTextures;
+                    if (state.mode === 'list') {
+                        var primaryTexture = findTexture(state.primary);
+                        largeTextures = primaryTexture ? [primaryTexture] : [];
+                    } else {
+                        largeTextures = state.listed;
+                    }
+
+                    ctx.beginPath();
+                    var hasLarge = false;
+                    largeTextures.forEach(function (texture) {
+                        if (texture.width <= 2048 && texture.height <= 2048) return;
+                        var rect = textureScreenRect(texture, cam);
+                        if (rect.w < 1 || rect.h < 1) return;
+                        ctx.rect(rect.x, rect.y, rect.w, rect.h);
+                        hasLarge = true;
+                    });
+
+                    if (hasLarge) {
+                        ctx.strokeStyle = 'rgba(255, 82, 82, 0.7)';
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+
+                if (state.mode === 'map' && state.map.hovered && !state.selected.has(state.map.hovered)) {
+                    var hoveredTexture = findTexture(state.map.hovered);
+                    if (hoveredTexture) {
+                        var hoverRect = textureScreenRect(hoveredTexture, cam);
+                        ctx.strokeStyle = 'rgba(' + lineRgb + ', 0.58)';
+                        ctx.lineWidth = 1;
+                        ctx.strokeRect(hoverRect.x, hoverRect.y, hoverRect.w, hoverRect.h);
+                    }
+                }
+
+                state.selected.forEach(function (uid) {
+                    var texture = findTexture(uid);
+                    if (!texture) return;
+                    var selectedRect = textureScreenRect(texture, cam);
+                    strokeSelected(ctx, selectedRect);
+                });
+
+                if (state.mode === 'map' && state.interaction && state.interaction.type === 'marquee') {
+                    var a = state.interaction;
+                    var minX = Math.min(a.startX, a.currentX);
+                    var maxX = Math.max(a.startX, a.currentX);
+                    var minY = Math.min(a.startY, a.currentY);
+                    var maxY = Math.max(a.startY, a.currentY);
+                    ctx.fillStyle = 'rgba(51, 153, 255, 0.12)';
+                    ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+                    ctx.strokeStyle = 'rgba(51, 153, 255, 0.85)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+                }
+            }
+
+            function textureScreenRect(texture, cam) {
+                var position;
+                if (state.mode === 'list') {
+                    position = { x: -texture.width / 2, y: -texture.height / 2 };
+                } else {
+                    position = state.map.positions.get(texture.uid) || { x: 0, y: 0 };
+                }
+                return {
+                    x: position.x * cam.scale + cam.x,
+                    y: position.y * cam.scale + cam.y,
+                    w: texture.width * cam.scale,
+                    h: texture.height * cam.scale
+                };
+            }
+
+            function strokeSelected(ctx, rect) {
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+            }
+
+            function measureViewport() {
+                var rect = ui.viewport.getBoundingClientRect();
+                var width = Math.max(1, rect.width);
+                var height = Math.max(1, rect.height);
+                var dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+                var changed = width !== state.viewport.w || height !== state.viewport.h || dpr !== state.viewport.dpr;
+                state.viewport.w = width;
+                state.viewport.h = height;
+                state.viewport.dpr = dpr;
+
+                if (changed) {
+                    [ui.gridCanvas, ui.overlayCanvas].forEach(function (canvas) {
+                        var pixelWidth = Math.max(1, Math.round(width * dpr));
+                        var pixelHeight = Math.max(1, Math.round(height * dpr));
+                        if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+                        if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+                    });
+                }
+
+                return changed;
+            }
+
+            function observeViewport() {
+                if (typeof ResizeObserver === 'undefined') {
+                    window.addEventListener('resize', handleViewportResize);
+                    return;
+                }
+                var observer = new ResizeObserver(function () {
+                    handleViewportResize();
+                });
+                observer.observe(ui.viewport);
+            }
+
+            function handleViewportResize() {
+                var oldW = state.viewport.w;
+                var oldH = state.viewport.h;
+                var changed = measureViewport();
+                if (!changed) return;
+
+                var dw = state.viewport.w - oldW;
+                var dh = state.viewport.h - oldH;
+
+                if (!state.activeGroup) {
+                    state.map.camera.x = state.viewport.w / 2;
+                    state.map.camera.y = state.viewport.h / 2;
+                    state.list.camera.x = state.viewport.w / 2;
+                    state.list.camera.y = state.viewport.h / 2;
+                    drawScene();
+                    return;
+                }
+
+                if (state.list.initialized) {
+                    state.list.camera.x += dw / 2;
+                    state.list.camera.y += dh / 2;
+                }
+
+                if (state.map.autoFit || state.mode === 'map') {
+                    if (state.map.autoFit) {
+                        fitMapCamera();
+                        return;
+                    }
+                }
+
+                state.map.camera.x += dw / 2;
+                state.map.camera.y += dh / 2;
+                cameraChanged();
+            }
+
+            function onPanelResizeStart(event) {
+                if (event.button !== 0) return;
+                event.preventDefault();
+
+                var startX = event.clientX;
+                var startWidth = ui.leftPanel.getBoundingClientRect().width;
+                var pointerId = event.pointerId;
+                var maxWidth = function () {
+                    return Math.max(250, Math.min(560, window.innerWidth - 320));
+                };
+
+                document.body.style.userSelect = 'none';
+                ui.resizeHandle.setPointerCapture(pointerId);
+
+                function onMove(moveEvent) {
+                    var width = clamp(startWidth + (moveEvent.clientX - startX), 250, maxWidth());
+                    ui.leftPanel.style.width = Math.round(width) + 'px';
+                }
+
+                function onUp() {
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                    document.body.style.userSelect = '';
+                    try { ui.resizeHandle.releasePointerCapture(pointerId); } catch (e) {}
+                    setStoredNumber(PANEL_KEY, Math.round(ui.leftPanel.getBoundingClientRect().width));
+                }
+
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            }
+
+            function setLoading(active, text) {
+                if (text) ui.loadingText.textContent = text;
+                ui.loadingOverlay.classList.toggle('active', !!active);
+            }
+
+            function setLoadingText(text) {
+                ui.loadingText.textContent = text;
+            }
+
+            function showToast(message, isError) {
+                if (state.toastTimer) {
+                    clearTimeout(state.toastTimer);
+                    state.toastTimer = null;
+                }
+                ui.toast.textContent = message;
+                ui.toast.classList.toggle('error', !!isError);
+                ui.toast.classList.add('visible');
+                state.toastTimer = setTimeout(function () {
+                    ui.toast.classList.remove('visible');
+                    state.toastTimer = null;
+                }, 4000);
+            }
+
+            function hasFiles(event) {
+                if (!event.dataTransfer) return false;
+                var types = event.dataTransfer.types;
+                if (!types) return false;
+                for (var i = 0; i < types.length; i++) {
+                    if (types[i] === 'Files') return true;
+                }
+                return false;
+            }
+
+            function onWindowDragEnter(event) {
+                if (!hasFiles(event)) return;
+                event.preventDefault();
+                state.dragDepth++;
+                ui.dragOverlay.classList.add('active');
+            }
+
+            function onWindowDragOver(event) {
+                if (!hasFiles(event)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+            }
+
+            function onWindowDragLeave(event) {
+                if (!hasFiles(event)) return;
+                state.dragDepth = Math.max(0, state.dragDepth - 1);
+                if (!event.relatedTarget) state.dragDepth = 0;
+                if (state.dragDepth === 0) {
+                    ui.dragOverlay.classList.remove('active');
+                }
+            }
+
+            function onWindowDrop(event) {
+                if (!hasFiles(event)) return;
+                event.preventDefault();
+                state.dragDepth = 0;
+                ui.dragOverlay.classList.remove('active');
+                setLoading(true, 'Reading dropped folder\u2026');
+                collectDroppedEntries(event.dataTransfer).then(function (entries) {
+                    if (entries.length) {
+                        loadFiles(entries);
+                    } else {
+                        setLoading(false);
+                        showToast('No .webp or .png files found.', true);
+                    }
+                }).catch(function (error) {
+                    console.error('Drop failed:', error);
+                    setLoading(false);
+                    showToast('Could not read the dropped files.', true);
+                });
+            }
+
+            async function collectDroppedEntries(dataTransfer) {
+                var entries = [];
+                var roots = [];
+
+                if (dataTransfer.items) {
+                    for (var i = 0; i < dataTransfer.items.length; i++) {
+                        var item = dataTransfer.items[i];
+                        if (item.kind !== 'file') continue;
+                        var entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        if (entry) roots.push(entry);
+                    }
+                }
+
+                if (roots.length) {
+                    for (var r = 0; r < roots.length; r++) {
+                        await walkEntry(roots[r], '', entries);
+                    }
+                }
+
+                if (!entries.length && dataTransfer.files) {
+                    for (var f = 0; f < dataTransfer.files.length; f++) {
+                        var file = dataTransfer.files[f];
+                        entries.push({
+                            file: file,
+                            path: file.webkitRelativePath || file.name
+                        });
+                    }
+                }
+
+                return entries;
+            }
+
+            async function walkEntry(entry, parentPath, output) {
+                var path = parentPath ? parentPath + '/' + entry.name : entry.name;
+
+                if (entry.isFile) {
+                    await new Promise(function (resolve, reject) {
+                        entry.file(function (file) {
+                            output.push({ file: file, path: path });
+                            resolve();
+                        }, reject);
+                    });
+                    return;
+                }
+
+                if (!entry.isDirectory) return;
+                var reader = entry.createReader();
+
+                while (true) {
+                    var batch = await new Promise(function (resolve, reject) {
+                        reader.readEntries(resolve, reject);
+                    });
+                    if (!batch.length) break;
+                    for (var i = 0; i < batch.length; i++) {
+                        await walkEntry(batch[i], path, output);
+                    }
+                }
+            }
+
+            async function readImageSize(file) {
+                var header = await file.slice(0, Math.min(file.size, 65536)).arrayBuffer();
+                var bytes = new Uint8Array(header);
+                var view = new DataView(header);
+
+                if (bytes.length >= 24 &&
+                    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 &&
+                    bytes[12] === 0x49 && bytes[13] === 0x48 && bytes[14] === 0x44 && bytes[15] === 0x52) {
+                    return {
+                        width: view.getUint32(16, false),
+                        height: view.getUint32(20, false)
+                    };
+                }
+
+                if (bytes.length >= 30 &&
+                    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+                    bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
+                    var offset = 12;
+                    while (offset + 8 <= bytes.length) {
+                        var id = String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
+                        var chunkSize = view.getUint32(offset + 4, true);
+                        var dataOffset = offset + 8;
+
+                        if (id === 'VP8X' && dataOffset + 10 <= bytes.length) {
+                            return {
+                                width: 1 + readUInt24LE(bytes, dataOffset + 4),
+                                height: 1 + readUInt24LE(bytes, dataOffset + 7)
+                            };
+                        }
+                        if (id === 'VP8L' && dataOffset + 5 <= bytes.length) {
+                            var bits = view.getUint32(dataOffset + 1, true);
+                            return {
+                                width: 1 + (bits & 0x3fff),
+                                height: 1 + ((bits >>> 14) & 0x3fff)
+                            };
+                        }
+                        if (id === 'VP8 ' && dataOffset + 10 <= bytes.length) {
+                            var startCode = bytes[dataOffset + 3] === 0x9d && bytes[dataOffset + 4] === 0x01 && bytes[dataOffset + 5] === 0x2a;
+                            if (startCode) {
+                                return {
+                                    width: view.getUint16(dataOffset + 6, true) & 0x3fff,
+                                    height: view.getUint16(dataOffset + 8, true) & 0x3fff
+                                };
+                            }
+                        }
+
+                        offset = dataOffset + chunkSize + (chunkSize & 1);
+                    }
+                }
+
+                return null;
+            }
+
+            function readUInt24LE(bytes, offset) {
+                return bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16);
+            }
+
+            init();
+        })();
+    </script>
+</body>
+</html>
