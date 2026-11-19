@@ -1,0 +1,1631 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprite Resizer</title>
+<style>
+:root {
+  --bg: 64;
+  --fg-r: 255;
+  --fg-g: 255;
+  --fg-b: 255;
+  --font-size: 16;
+  --contrast: 1;
+  --fg: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  --bgc: rgb(var(--bg) var(--bg) var(--bg));
+  --slider-width: 168px;
+  --menu-padding: calc(var(--font-size) * 0.75px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)) transparent;
+}
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 5%), var(--bgc)); }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 10%), var(--bgc)); }
+
+[hidden] { display: none !important; }
+
+body {
+  background-color: var(--bgc);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 100%), var(--bgc));
+  font-family: system-ui, sans-serif;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: 100vh;
+  position: relative;
+}
+
+.theme-control {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  opacity: 0.1;
+  background: rgb(var(--fg-r) var(--fg-g) var(--fg-b) / 0.05);
+  color: rgb(var(--fg-r) var(--fg-g) var(--fg-b));
+  font-size: 12px;
+  z-index: 10;
+}
+.theme-control:hover { opacity: 1; }
+.theme-control > div { display: flex; align-items: center; gap: 4px; }
+.theme-control label { font-size: inherit; }
+.theme-control input[type="range"] { width: 60px; }
+
+.layout { display: flex; height: 100vh; overflow: hidden; }
+.panel-left {
+  flex: 0 0 auto;
+  width: max(220px, calc(var(--slider-width) * 2 + var(--menu-padding) * 2 + 2px));
+  min-width: 0;
+  overflow: auto;
+  padding: var(--menu-padding);
+}
+.panel-right { flex: 1 1 0; min-width: 0; overflow: auto; padding: var(--menu-padding); }
+
+.wrap { display: flex; flex-direction: column; gap: 16px; }
+
+.cells {
+  display: block;
+  font-size: 0;
+  line-height: 1.6;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cells hr {
+  border: none;
+  border-top: 1px solid color-mix(in srgb, var(--fg) calc(var(--contrast) * 18%), var(--bgc));
+  margin: 5px 0;
+  padding: 0;
+  clear: both;
+}
+.hide-dividers .cells hr { display: none; }
+
+.cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: var(--slider-width);
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  color: inherit;
+  font-size: calc(var(--font-size) * 1px);
+  line-height: 1.5;
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.cell > .label {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell > .value {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell:hover { background-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 8%), var(--bgc)); }
+.cell:focus-within { outline: 1px solid currentColor; outline-offset: -1px; }
+
+.cell-note {
+  position: relative;
+  display: inline-block;
+  width: var(--slider-width);
+  max-width: 100%;
+  padding: 0 8px;
+  margin: 1px 3px 1px 0;
+  vertical-align: bottom;
+  background: none;
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc));
+  line-height: calc(var(--font-size) * 1.5 * 1px);
+  min-height: calc(var(--font-size) * 1.5 * 1px);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.cell-btn {
+  cursor: pointer;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  border: none;
+  outline: none;
+  border-radius: 999px;
+  color: inherit;
+  font-family: inherit;
+}
+.cell-btn:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 20%), var(--bgc)); }
+.cell-btn:active { color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc)); }
+.cell-btn:disabled {
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 30%), var(--bgc));
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  cursor: default;
+}
+
+.cell input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  border: none;
+  padding: 0;
+  font: inherit;
+  line-height: inherit;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.cell input[type="text"],
+.cell input[type="number"] {
+  padding: 0;
+  border: none;
+  background: color-mix(in srgb, #63d471 6%, transparent);
+  font-size: inherit;
+  height: auto;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+  color: inherit;
+}
+input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: currentColor; opacity: 0.75; }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -7px;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-track { height: 2px; background: currentColor; }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; background: currentColor; border: none; cursor: pointer; }
+input[type="range"]:disabled { opacity: 0.35; cursor: default; }
+
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  color: inherit;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: 4px;
+  width: 5px;
+  height: 9px;
+  border: solid currentColor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+input:focus-visible,
+button:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 1px;
+}
+
+/* ---------------- scale controls ---------------- */
+
+.scale-options,
+.scale-grid,
+.cell-toggle-row,
+.dropzone,
+.file-chip,
+.download-button,
+.status-line {
+  width: calc(var(--slider-width) * 2 + 3px);
+  max-width: 100%;
+}
+
+.scale-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.preset-set {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+.preset-set.preset-row {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.presets {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+  min-width: 0;
+}
+.preset {
+  height: calc(var(--font-size) * 1.5px);
+  padding: 0 2px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  color: inherit;
+  font: inherit;
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.preset:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc)); }
+.preset.is-active { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 22%), var(--bgc)); }
+.preset-axis {
+  flex: 0 0 4.4em;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc));
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  text-align: left;
+}
+
+.cell-toggle-row {
+  margin: 0;
+  cursor: pointer;
+}
+.cell-toggle-row > .label { flex: 1 1 auto; }
+.cell-toggle-row input[type="checkbox"] { flex: 0 0 auto; width: 16px; }
+
+.scale-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+.scale-field {
+  width: 100%;
+  margin: 0;
+}
+.scale-field > .label { flex: 1 1 auto; }
+.scale-field input[type="number"] {
+  flex: 0 0 7ch;
+  width: 7ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.scale-field input[type="number"]::-webkit-inner-spin-button,
+.scale-field input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+.scale-range { width: 100%; }
+
+/* ---------------- file ---------------- */
+
+.dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: calc(var(--font-size) * 2.5px);
+  padding: 0 8px;
+  border: 1px dashed color-mix(in srgb, var(--fg) calc(var(--contrast) * 25%), var(--bgc));
+  background: transparent;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 65%), var(--bgc));
+  font-size: calc(0.875 * var(--font-size) * 1px);
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  user-select: none;
+}
+.dropzone:hover,
+.dropzone:focus-visible {
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 8%), var(--bgc));
+  color: inherit;
+}
+.dropzone.is-dragging {
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 14%), var(--bgc));
+  border-style: solid;
+}
+.dropzone.has-file { border-color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+
+.file-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: calc(var(--font-size) * 1.5px);
+  padding: 2px 4px;
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+}
+.file-thumb {
+  flex: 0 0 auto;
+  width: calc(var(--font-size) * 1.5px);
+  height: calc(var(--font-size) * 1.5px);
+  overflow: hidden;
+  background-color: var(--bgc);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 75%);
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-size: 8px 8px;
+}
+.file-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.file-meta {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.file-name {
+  overflow: hidden;
+  font-size: calc(0.875 * var(--font-size) * 1px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-details {
+  overflow: hidden;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 50%), var(--bgc));
+  font-size: calc(0.78 * var(--font-size) * 1px);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.icon-button {
+  display: grid;
+  flex: 0 0 auto;
+  width: calc(var(--font-size) * 1.25px);
+  height: calc(var(--font-size) * 1.25px);
+  padding: 0;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.icon-button:hover { background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 12%), var(--bgc)); }
+
+.download-button {
+  justify-content: center;
+  margin: 0;
+  padding: 0 8px;
+}
+.download-button:disabled {
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 30%), var(--bgc));
+  background: color-mix(in srgb, var(--fg) calc(var(--contrast) * 6%), var(--bgc));
+  cursor: default;
+}
+
+.status-line {
+  margin: 0;
+  padding: 0 2px;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.status-line.is-error { color: color-mix(in srgb, #e05555 60%, var(--fg)); }
+.status-line.is-success { color: color-mix(in srgb, #63d471 55%, var(--fg)); }
+
+.cells > * + * { margin-top: 2px; }
+
+/* ---------------- preview ---------------- */
+
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--menu-padding);
+  min-height: 100%;
+  align-content: center;
+}
+.preview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  margin: 0;
+}
+.preview-card figcaption {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 60%), var(--bgc));
+  font-size: calc(0.78 * var(--font-size) * 1px);
+}
+.dimensions {
+  color: color-mix(in srgb, var(--fg) calc(var(--contrast) * 40%), var(--bgc));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.preview-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  padding: calc(var(--font-size) * 1px);
+  overflow: hidden;
+  background-color: var(--bgc);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--fg) calc(var(--contrast) * 7%), var(--bgc)) 75%);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+}
+.preview-image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.loading-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bgc) 70%, transparent);
+}
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 750ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 760px) {
+  .layout { flex-direction: column; height: auto; overflow: visible; }
+  .panel-left { width: 100%; overflow: visible; }
+  .panel-right { overflow: visible; min-height: 100vh; }
+  .preview-grid { grid-template-columns: 1fr; min-height: 0; }
+  .scale-options,
+  .scale-grid,
+  .cell-toggle-row,
+  .dropzone,
+  .file-chip,
+  .download-button,
+  .status-line { width: 100%; }
+  .theme-control { flex-wrap: wrap; justify-content: flex-end; max-width: 100vw; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>
+<script>
+(function () {
+  try {
+    var root = document.documentElement;
+    var s = function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    var th = s('ui.theme');
+    var theme = th !== null ? parseInt(th, 10) : 25;
+    if (isFinite(theme)) {
+      var b = Math.round((theme / 100) * 255);
+      root.style.setProperty('--bg', b);
+      var d = b <= 127;
+      root.style.setProperty('--fg-r', d ? 255 : 0);
+      root.style.setProperty('--fg-g', d ? 255 : 0);
+      root.style.setProperty('--fg-b', d ? 255 : 0);
+    }
+    var c = s('ui.contrast');
+    if (c !== null) root.style.setProperty('--contrast', parseInt(c, 10) / 100);
+    var f = s('ui.fontsize');
+    if (f !== null) root.style.setProperty('--font-size', f);
+    var w = s('ui.slider-width');
+    if (w !== null) root.style.setProperty('--slider-width', w + 'px');
+    var mp = s('ui.menupadding');
+    if (mp !== null) root.style.setProperty('--menu-padding', mp + 'px');
+    if (s('ui.dividers') === '0') root.classList.add('hide-dividers');
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+  <div class="theme-control">
+    <div><label for="theme">Тема</label><input type="range" id="theme" min="0" max="100" value="25"></div>
+    <div><label for="contrast">Контраст</label><input type="range" id="contrast" min="10" max="100" value="100"></div>
+    <div><label for="fontsize">Размер</label><input type="range" id="fontsize" min="11" max="22" value="16"></div>
+    <div><label for="sliderwidth">Ширина</label><input type="range" id="sliderwidth" min="80" max="320" value="168"></div>
+    <div><label for="menupadding">Отступы</label><input type="range" id="menupadding" min="0" max="64" value="12"></div>
+    <div><label for="dividers"><input type="checkbox" id="dividers" checked> <span>Разделители</span></label></div>
+  </div>
+
+  <div class="layout">
+    <aside class="panel-left">
+      <div class="wrap">
+        <div class="cells">
+          <input id="fileInput" type="file" accept="image/png,.png" hidden>
+
+          <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Выбрать PNG" aria-controls="fileInput">
+            <span>PNG</span>
+          </div>
+
+          <div class="file-chip" id="fileChip" hidden>
+            <div class="file-thumb"><img id="fileThumb" alt=""></div>
+            <div class="file-meta">
+              <span class="file-name" id="fileName"></span>
+              <span class="file-details" id="fileDetails"></span>
+            </div>
+            <button class="icon-button" id="clearFile" type="button" aria-label="Убрать файл" title="Убрать файл">×</button>
+          </div>
+
+          <hr>
+
+          <div class="scale-options" id="presetBlock">
+            <div class="preset-set" id="commonPresetGroup">
+              <div class="presets" id="presets" role="group" aria-label="Масштаб"></div>
+            </div>
+            <div class="preset-set preset-row" id="widthPresetGroup" hidden>
+              <span class="preset-axis" aria-hidden="true">Ширина</span>
+              <div class="presets" id="widthPresets" role="group" aria-label="Масштаб по ширине"></div>
+            </div>
+            <div class="preset-set preset-row" id="heightPresetGroup" hidden>
+              <span class="preset-axis" aria-hidden="true">Высота</span>
+              <div class="presets" id="heightPresets" role="group" aria-label="Масштаб по высоте"></div>
+            </div>
+          </div>
+
+          <hr>
+
+          <label class="cell cell-toggle-row">
+            <span class="label">Раздельные масштабы</span>
+            <input id="separateScales" type="checkbox" checked aria-label="Раздельные масштабы">
+          </label>
+
+          <div class="scale-grid" id="scaleGrid">
+            <div class="field" id="widthField">
+              <div class="cell scale-field">
+                <label class="label" for="scaleX" id="widthLabel">Ширина</label>
+                <input id="scaleX" name="scaleX" type="number" min="0.1" max="1" step="0.01" value="0.75" inputmode="decimal" aria-label="Масштаб по ширине">
+              </div>
+              <input class="scale-range" id="scaleXRange" type="range" min="0.1" max="1" step="0.01" value="0.75" aria-label="Масштаб по ширине" aria-valuetext="0.75×">
+            </div>
+
+            <div class="field" id="heightField">
+              <div class="cell scale-field">
+                <label class="label" for="scaleY">Высота</label>
+                <input id="scaleY" name="scaleY" type="number" min="0.1" max="1" step="0.01" value="0.75" inputmode="decimal" aria-label="Масштаб по высоте">
+              </div>
+              <input class="scale-range" id="scaleYRange" type="range" min="0.1" max="1" step="0.01" value="0.75" aria-label="Масштаб по высоте" aria-valuetext="0.75×">
+            </div>
+          </div>
+
+          <hr>
+
+          <button class="cell cell-btn download-button" id="downloadBtn" type="button" disabled>
+            <span>Скачать</span>
+            <span id="downloadLabel">PNG</span>
+          </button>
+
+          <p class="cell-note status-line" id="status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </aside>
+
+    <main class="panel-right">
+      <div class="preview-grid">
+        <figure class="preview-card">
+          <figcaption>
+            <span>До</span>
+            <span class="dimensions" id="originalDimensions">—</span>
+          </figcaption>
+          <div class="preview-stage" id="originalStage">
+            <img class="preview-image" id="originalPreview" alt="Исходный спрайт" hidden>
+          </div>
+        </figure>
+
+        <figure class="preview-card">
+          <figcaption>
+            <span>После</span>
+            <span class="dimensions" id="resultDimensions">—</span>
+          </figcaption>
+          <div class="preview-stage" id="resultStage">
+            <img class="preview-image" id="resultPreview" alt="Уменьшенный спрайт" hidden>
+            <div class="loading-layer" id="loadingLayer" hidden>
+              <span class="spinner" aria-hidden="true"></span>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </main>
+  </div>
+
+  <script>
+const MIN_FALLBACK = 0.1;
+const MAX_FALLBACK = 1;
+const MAX_FILE_FALLBACK = 25 * 1024 * 1024;
+const PREVIEW_DELAY = 240;
+
+const elements = {
+  scaleX: document.getElementById("scaleX"),
+  scaleY: document.getElementById("scaleY"),
+  scaleXRange: document.getElementById("scaleXRange"),
+  scaleYRange: document.getElementById("scaleYRange"),
+  separateScales: document.getElementById("separateScales"),
+  scaleGrid: document.getElementById("scaleGrid"),
+  widthField: document.getElementById("widthField"),
+  heightField: document.getElementById("heightField"),
+  widthLabel: document.getElementById("widthLabel"),
+  presetBlock: document.getElementById("presetBlock"),
+  commonPresetGroup: document.getElementById("commonPresetGroup"),
+  widthPresetGroup: document.getElementById("widthPresetGroup"),
+  heightPresetGroup: document.getElementById("heightPresetGroup"),
+  presets: document.getElementById("presets"),
+  widthPresets: document.getElementById("widthPresets"),
+  heightPresets: document.getElementById("heightPresets"),
+  dropzone: document.getElementById("dropzone"),
+  fileInput: document.getElementById("fileInput"),
+  fileChip: document.getElementById("fileChip"),
+  fileThumb: document.getElementById("fileThumb"),
+  fileName: document.getElementById("fileName"),
+  fileDetails: document.getElementById("fileDetails"),
+  clearFile: document.getElementById("clearFile"),
+  downloadBtn: document.getElementById("downloadBtn"),
+  downloadLabel: document.getElementById("downloadLabel"),
+  status: document.getElementById("status"),
+  originalPreview: document.getElementById("originalPreview"),
+  originalDimensions: document.getElementById("originalDimensions"),
+  resultStage: document.getElementById("resultStage"),
+  resultPreview: document.getElementById("resultPreview"),
+  resultDimensions: document.getElementById("resultDimensions"),
+  loadingLayer: document.getElementById("loadingLayer"),
+};
+
+const SCALE_STOPS = [0.1, 0.2, 0.25, 0.33, 0.5, 0.75, 1];
+
+const state = {
+  file: null,
+  originalWidth: 0,
+  originalHeight: 0,
+  resultWidth: 0,
+  resultHeight: 0,
+  resultBlob: null,
+  originalUrl: null,
+  resultUrl: null,
+  fileToken: 0,
+  requestToken: 0,
+  debounceId: null,
+  abortController: null,
+  minScale: MIN_FALLBACK,
+  maxScale: MAX_FALLBACK,
+  maxFileBytes: MAX_FILE_FALLBACK,
+  initialScale: 0.75,
+  lastScaleAxis: "x",
+};
+
+function formatScale(value) {
+  return Number(value.toFixed(4)).toString();
+}
+
+function formatPresetLabel(value) {
+  return value === 1 ? "1.0" : formatScale(value);
+}
+
+function createPresetButton(value, axis = null) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "preset";
+  button.dataset.scale = String(value);
+  button.textContent = formatPresetLabel(value);
+  button.setAttribute("aria-pressed", "false");
+  if (axis) button.dataset.axis = axis;
+  return button;
+}
+
+function renderPresets() {
+  elements.presets.replaceChildren(...SCALE_STOPS.map((value) => createPresetButton(value)));
+  elements.widthPresets.replaceChildren(...SCALE_STOPS.map((value) => createPresetButton(value, "x")));
+  elements.heightPresets.replaceChildren(...SCALE_STOPS.map((value) => createPresetButton(value, "y")));
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} Б`;
+  const kilobytes = bytes / 1024;
+  if (kilobytes < 1024) {
+    return `${kilobytes >= 10 ? Math.round(kilobytes) : kilobytes.toFixed(1)} КБ`;
+  }
+  const megabytes = kilobytes / 1024;
+  return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} МБ`;
+}
+
+function setStatus(message, type = "") {
+  elements.status.textContent = message;
+  elements.status.classList.toggle("is-error", type === "error");
+  elements.status.classList.toggle("is-success", type === "success");
+}
+
+function setLoading(isLoading) {
+  elements.loadingLayer.hidden = !isLoading;
+  elements.resultStage.setAttribute("aria-busy", String(isLoading));
+}
+
+function waitForImage(image) {
+  return new Promise((resolve, reject) => {
+    if (image.complete) {
+      if (image.naturalWidth > 0) resolve();
+      else reject(new Error("изображение не загрузилось"));
+      return;
+    }
+
+    const cleanup = () => {
+      image.removeEventListener("load", handleLoad);
+      image.removeEventListener("error", handleError);
+    };
+    const handleLoad = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(new Error("изображение не загрузилось"));
+    };
+
+    image.addEventListener("load", handleLoad);
+    image.addEventListener("error", handleError);
+  });
+}
+
+const MAX_SOURCE_PIXELS = 20_000_000;
+const MAX_SOURCE_SIDE = 8192;
+const MAX_TARGET_SIDE = 4096;
+const LANCZOS_RADIUS = 3;
+
+function lanczos3(x) {
+  const distance = Math.abs(x);
+  if (distance === 0) return 1;
+  if (distance >= LANCZOS_RADIUS) return 0;
+  const piX = Math.PI * x;
+  return (LANCZOS_RADIUS * Math.sin(piX) * Math.sin(piX / LANCZOS_RADIUS)) / (piX * piX);
+}
+
+function buildWeights(sourceSize, targetSize) {
+  const scale = sourceSize / targetSize;
+  const filterScale = Math.max(1, scale);
+  const support = LANCZOS_RADIUS * filterScale;
+  const weights = new Array(targetSize);
+
+  for (let i = 0; i < targetSize; i++) {
+    const center = (i + 0.5) * scale - 0.5;
+    const left = Math.max(0, Math.ceil(center - support));
+    const right = Math.min(sourceSize - 1, Math.floor(center + support));
+    const taps = [];
+    let total = 0;
+
+    for (let j = left; j <= right; j++) {
+      const weight = lanczos3((j - center) / filterScale);
+      if (weight === 0) continue;
+      taps.push({ index: j, weight });
+      total += weight;
+    }
+
+    if (total === 0) {
+      taps.push({ index: Math.min(sourceSize - 1, Math.max(0, Math.round(center))), weight: 1 });
+      total = 1;
+    }
+
+    for (const tap of taps) tap.weight /= total;
+    weights[i] = taps;
+  }
+
+  return weights;
+}
+
+function resizeRgba(source, sourceWidth, sourceHeight, targetWidth, targetHeight) {
+  const premultiplied = new Float32Array(source.length);
+  for (let i = 0; i < source.length; i += 4) {
+    const alpha = source[i + 3] / 255;
+    premultiplied[i] = source[i] * alpha;
+    premultiplied[i + 1] = source[i + 1] * alpha;
+    premultiplied[i + 2] = source[i + 2] * alpha;
+    premultiplied[i + 3] = source[i + 3];
+  }
+
+  const horizontalWeights = buildWeights(sourceWidth, targetWidth);
+  const verticalWeights = buildWeights(sourceHeight, targetHeight);
+  const horizontal = new Float32Array(targetWidth * sourceHeight * 4);
+
+  for (let y = 0; y < sourceHeight; y++) {
+    for (let x = 0; x < targetWidth; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+
+      for (const tap of horizontalWeights[x]) {
+        const sourceOffset = (y * sourceWidth + tap.index) * 4;
+        r += premultiplied[sourceOffset] * tap.weight;
+        g += premultiplied[sourceOffset + 1] * tap.weight;
+        b += premultiplied[sourceOffset + 2] * tap.weight;
+        a += premultiplied[sourceOffset + 3] * tap.weight;
+      }
+
+      const offset = (y * targetWidth + x) * 4;
+      horizontal[offset] = r;
+      horizontal[offset + 1] = g;
+      horizontal[offset + 2] = b;
+      horizontal[offset + 3] = a;
+    }
+  }
+
+  const output = new Uint8ClampedArray(targetWidth * targetHeight * 4);
+  for (let y = 0; y < targetHeight; y++) {
+    for (let x = 0; x < targetWidth; x++) {
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+
+      for (const tap of verticalWeights[y]) {
+        const offset = (tap.index * targetWidth + x) * 4;
+        r += horizontal[offset] * tap.weight;
+        g += horizontal[offset + 1] * tap.weight;
+        b += horizontal[offset + 2] * tap.weight;
+        a += horizontal[offset + 3] * tap.weight;
+      }
+
+      a = Math.min(255, Math.max(0, a));
+      const outputOffset = (y * targetWidth + x) * 4;
+
+      if (a < 0.5) {
+        output[outputOffset] = 0;
+        output[outputOffset + 1] = 0;
+        output[outputOffset + 2] = 0;
+        output[outputOffset + 3] = 0;
+      } else {
+        const alpha = a / 255;
+        output[outputOffset] = Math.min(255, Math.max(0, Math.round(r / alpha)));
+        output[outputOffset + 1] = Math.min(255, Math.max(0, Math.round(g / alpha)));
+        output[outputOffset + 2] = Math.min(255, Math.max(0, Math.round(b / alpha)));
+        output[outputOffset + 3] = Math.round(a);
+      }
+    }
+  }
+
+  return output;
+}
+
+async function resizeImageLocally(scaleX, scaleY) {
+  const image = elements.originalPreview;
+  const sourceWidth = image.naturalWidth;
+  const sourceHeight = image.naturalHeight;
+
+  if (!sourceWidth || !sourceHeight) {
+    throw new Error("не удалось определить размер изображения");
+  }
+  if (sourceWidth > MAX_SOURCE_SIDE || sourceHeight > MAX_SOURCE_SIDE || sourceWidth * sourceHeight > MAX_SOURCE_PIXELS) {
+    throw new Error(`слишком большое изображение (максимум ${MAX_SOURCE_SIDE}px по стороне)`);
+  }
+
+  const targetWidth = Math.max(1, Math.round(sourceWidth * scaleX));
+  const targetHeight = Math.max(1, Math.round(sourceHeight * scaleY));
+  if (targetWidth > MAX_TARGET_SIDE || targetHeight > MAX_TARGET_SIDE) {
+    throw new Error(`результат слишком большой (максимум ${MAX_TARGET_SIDE}px по стороне)`);
+  }
+
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = sourceWidth;
+  sourceCanvas.height = sourceHeight;
+  const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+  if (!sourceContext) throw new Error("браузер не поддерживает Canvas 2D");
+
+  sourceContext.clearRect(0, 0, sourceWidth, sourceHeight);
+  sourceContext.drawImage(image, 0, 0, sourceWidth, sourceHeight);
+
+  let sourcePixels;
+  try {
+    sourcePixels = sourceContext.getImageData(0, 0, sourceWidth, sourceHeight).data;
+  } catch {
+    throw new Error("не удалось прочитать пиксели изображения");
+  }
+
+  const resized = resizeRgba(sourcePixels, sourceWidth, sourceHeight, targetWidth, targetHeight);
+  const outputCanvas = document.createElement("canvas");
+  outputCanvas.width = targetWidth;
+  outputCanvas.height = targetHeight;
+  const outputContext = outputCanvas.getContext("2d");
+  if (!outputContext) throw new Error("браузер не поддерживает Canvas 2D");
+
+  outputContext.putImageData(new ImageData(resized, targetWidth, targetHeight), 0, 0);
+  const blob = await new Promise((resolve, reject) => {
+    outputCanvas.toBlob(
+      (result) => result ? resolve(result) : reject(new Error("не удалось закодировать PNG")),
+      "image/png",
+    );
+  });
+
+  return { blob, width: targetWidth, height: targetHeight, originalWidth: sourceWidth, originalHeight: sourceHeight };
+}
+
+function isScaleValid(value) {
+  return Number.isFinite(value) && value >= state.minScale && value <= state.maxScale;
+}
+
+function validateScaleInput(input) {
+  const value = Number(input.value);
+  const valid = input.value.trim() !== "" && isScaleValid(value);
+  input.setAttribute("aria-invalid", String(!valid));
+  return valid;
+}
+
+function readScales() {
+  const validX = validateScaleInput(elements.scaleX);
+  const validY = validateScaleInput(elements.scaleY);
+  if (!validX || !validY) return null;
+  return {
+    x: Number(elements.scaleX.value),
+    y: Number(elements.scaleY.value),
+  };
+}
+
+function isSeparateMode() {
+  return elements.separateScales.checked;
+}
+
+function snapToScaleStop(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || SCALE_STOPS.length === 0) return numeric;
+
+  let nearest = SCALE_STOPS[0];
+  let nearestDistance = Math.abs(numeric - nearest);
+  for (const stop of SCALE_STOPS) {
+    const distance = Math.abs(numeric - stop);
+    if (distance < nearestDistance) {
+      nearest = stop;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+function setRangeValue(range, value) {
+  const snapped = snapToScaleStop(value);
+  range.value = String(snapped);
+  range.setAttribute("aria-valuetext", `${formatScale(snapped)}×`);
+}
+
+function setScaleValues(value) {
+  const formatted = formatScale(value);
+  elements.scaleX.value = formatted;
+  elements.scaleY.value = formatted;
+  setRangeValue(elements.scaleXRange, value);
+  setRangeValue(elements.scaleYRange, value);
+}
+
+function updateScaleModeUI() {
+  const separate = isSeparateMode();
+  elements.scaleGrid.classList.toggle("is-common", !separate);
+  elements.heightField.hidden = !separate;
+  elements.widthLabel.textContent = separate ? "Ширина" : "Общий масштаб";
+  elements.scaleXRange.setAttribute("aria-label", separate ? "Масштаб по ширине" : "Общий масштаб");
+
+  elements.commonPresetGroup.hidden = separate;
+  elements.widthPresetGroup.hidden = !separate;
+  elements.heightPresetGroup.hidden = !separate;
+}
+
+function updatePresetState() {
+  const scales = readScales();
+
+  for (const button of elements.presetBlock.querySelectorAll(".preset[data-scale]")) {
+    const preset = Number(button.dataset.scale);
+    const axis = button.dataset.axis;
+    let active = false;
+
+    if (scales && axis === "x") {
+      active = Math.abs(scales.x - preset) < 0.000001;
+    } else if (scales && axis === "y") {
+      active = Math.abs(scales.y - preset) < 0.000001;
+    } else if (scales) {
+      active =
+        Math.abs(scales.x - preset) < 0.000001 &&
+        Math.abs(scales.y - preset) < 0.000001;
+    }
+
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  }
+}
+
+function calculateTarget(scales = readScales()) {
+  if (!scales || !state.originalWidth || !state.originalHeight) return null;
+  return {
+    width: Math.max(1, Math.round(state.originalWidth * scales.x)),
+    height: Math.max(1, Math.round(state.originalHeight * scales.y)),
+  };
+}
+
+function updateDimensionLabels() {
+  if (state.originalWidth && state.originalHeight) {
+    elements.originalDimensions.textContent = `${state.originalWidth} × ${state.originalHeight} px`;
+  } else {
+    elements.originalDimensions.textContent = "—";
+  }
+
+  const target = calculateTarget();
+  if (target) {
+    elements.resultDimensions.textContent = `${target.width} × ${target.height} px`;
+  } else {
+    elements.resultDimensions.textContent = "—";
+  }
+}
+
+function disableDownload(label = "PNG") {
+  elements.downloadBtn.disabled = true;
+  elements.downloadLabel.textContent = label;
+}
+
+function releaseOriginalUrl() {
+  if (state.originalUrl) {
+    URL.revokeObjectURL(state.originalUrl);
+    state.originalUrl = null;
+  }
+}
+
+function releaseResultUrl() {
+  if (state.resultUrl) {
+    URL.revokeObjectURL(state.resultUrl);
+    state.resultUrl = null;
+  }
+  state.resultBlob = null;
+}
+
+function hideResult() {
+  releaseResultUrl();
+  elements.resultPreview.removeAttribute("src");
+  elements.resultPreview.hidden = true;
+  disableDownload();
+  setLoading(false);
+}
+
+function cancelPendingPreview() {
+  if (state.debounceId) {
+    clearTimeout(state.debounceId);
+    state.debounceId = null;
+  }
+  if (state.abortController) {
+    state.abortController.abort();
+    state.abortController = null;
+    state.requestToken++;
+  }
+  setLoading(false);
+}
+
+function clearSelection(message = "", type = "") {
+  state.fileToken++;
+  cancelPendingPreview();
+  releaseOriginalUrl();
+  releaseResultUrl();
+
+  state.file = null;
+  state.originalWidth = 0;
+  state.originalHeight = 0;
+  state.resultWidth = 0;
+  state.resultHeight = 0;
+
+  elements.originalPreview.removeAttribute("src");
+  elements.originalPreview.hidden = true;
+  elements.fileThumb.removeAttribute("src");
+  elements.fileChip.hidden = true;
+  elements.fileName.textContent = "";
+  elements.fileDetails.textContent = "";
+  elements.originalDimensions.textContent = "—";
+  elements.resultDimensions.textContent = "—";
+  elements.resultPreview.removeAttribute("src");
+  elements.resultPreview.hidden = true;
+  elements.loadingLayer.hidden = true;
+  elements.fileInput.value = "";
+  disableDownload();
+
+  elements.dropzone.classList.remove("has-file", "is-dragging");
+
+  setStatus(message, type);
+}
+
+function applySelectedFile(file) {
+  state.file = file;
+  state.originalWidth = 0;
+  state.originalHeight = 0;
+  state.resultWidth = 0;
+  state.resultHeight = 0;
+  releaseOriginalUrl();
+  hideResult();
+
+  state.originalUrl = URL.createObjectURL(file);
+  elements.originalPreview.src = state.originalUrl;
+  elements.originalPreview.alt = `Исходный спрайт ${file.name}`;
+  elements.originalPreview.hidden = false;
+  elements.fileThumb.src = state.originalUrl;
+  elements.fileChip.hidden = false;
+  elements.fileName.textContent = file.name;
+  elements.fileDetails.textContent = formatBytes(file.size);
+  elements.originalDimensions.textContent = "—";
+  elements.resultDimensions.textContent = "—";
+
+  elements.dropzone.classList.add("has-file");
+}
+
+async function loadFile(file) {
+  if (!file) return;
+
+  if (file.size > state.maxFileBytes) {
+    setStatus(`Файл слишком большой. Максимум ${formatBytes(state.maxFileBytes)}.`, "error");
+    return;
+  }
+
+  const isPng = file.type === "image/png" || /\.png$/i.test(file.name);
+  if (!isPng) {
+    setStatus("Поддерживаются только PNG-файлы.", "error");
+    return;
+  }
+
+  const token = ++state.fileToken;
+  cancelPendingPreview();
+  applySelectedFile(file);
+  setStatus("Читаю изображение…");
+
+  try {
+    await waitForImage(elements.originalPreview);
+  } catch {
+    if (token === state.fileToken) {
+      clearSelection("Не удалось открыть PNG. Проверьте, что файл не повреждён.", "error");
+    }
+    return;
+  }
+
+  if (token !== state.fileToken) return;
+
+  state.originalWidth = elements.originalPreview.naturalWidth;
+  state.originalHeight = elements.originalPreview.naturalHeight;
+  if (!state.originalWidth || !state.originalHeight) {
+    clearSelection("Не удалось определить размер изображения.", "error");
+    return;
+  }
+
+  elements.fileDetails.textContent = `${state.originalWidth} × ${state.originalHeight} px · ${formatBytes(file.size)}`;
+  updateDimensionLabels();
+  updatePresetState();
+  await requestPreview();
+}
+
+async function requestPreview() {
+  if (state.debounceId) {
+    clearTimeout(state.debounceId);
+    state.debounceId = null;
+  }
+
+  const scales = readScales();
+  if (!scales || !state.file || !state.originalWidth) {
+    setLoading(false);
+    return;
+  }
+
+  if (state.abortController) state.abortController.abort();
+  const controller = new AbortController();
+  state.abortController = controller;
+  const requestId = ++state.requestToken;
+  updateDimensionLabels();
+  updatePresetState();
+  setLoading(true);
+  disableDownload("…");
+  setStatus("Готовлю превью…");
+
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    if (requestId !== state.requestToken) return;
+
+    const result = await resizeImageLocally(scales.x, scales.y);
+    if (requestId !== state.requestToken) return;
+
+    const {
+      blob,
+      width: resultWidth,
+      height: resultHeight,
+      originalWidth,
+      originalHeight,
+    } = result;
+    if (!blob.size) throw new Error("не удалось создать PNG");
+
+    state.originalWidth = originalWidth;
+    state.originalHeight = originalHeight;
+    state.resultWidth = resultWidth;
+    state.resultHeight = resultHeight;
+
+    releaseResultUrl();
+    state.resultBlob = blob;
+    state.resultUrl = URL.createObjectURL(blob);
+
+    elements.resultPreview.src = state.resultUrl;
+    elements.resultPreview.alt = `Уменьшенный спрайт ${state.file.name}`;
+    elements.resultPreview.hidden = false;
+    elements.originalDimensions.textContent = `${originalWidth} × ${originalHeight} px`;
+    elements.resultDimensions.textContent = `${resultWidth} × ${resultHeight} px`;
+
+    elements.downloadBtn.disabled = false;
+    elements.downloadLabel.textContent = `PNG ${resultWidth} × ${resultHeight}`;
+    setStatus(`${originalWidth} × ${originalHeight} → ${resultWidth} × ${resultHeight}`, "success");
+  } catch (error) {
+    if (controller.signal.aborted || requestId !== state.requestToken) return;
+    hideResult();
+    const message = error instanceof Error ? error.message : "не удалось обработать изображение";
+    setStatus(`Ошибка: ${message}`, "error");
+  } finally {
+    if (requestId === state.requestToken) {
+      setLoading(false);
+      state.abortController = null;
+    }
+  }
+}
+
+function handleScaleChange(delay = PREVIEW_DELAY) {
+  const scales = readScales();
+  updatePresetState();
+  updateDimensionLabels();
+
+  if (state.debounceId) {
+    clearTimeout(state.debounceId);
+    state.debounceId = null;
+  }
+  if (state.abortController) {
+    state.abortController.abort();
+    state.abortController = null;
+    state.requestToken++;
+    setLoading(false);
+  }
+
+  if (!scales) {
+    hideResult();
+    if (state.file) {
+      setStatus(`Укажите масштаб от ${formatScale(state.minScale)} до ${formatScale(state.maxScale)}.`, "error");
+    }
+    return;
+  }
+
+  if (!state.file || !state.originalWidth) return;
+
+  disableDownload("…");
+  if (delay === 0) {
+    void requestPreview();
+  } else {
+    state.debounceId = setTimeout(() => {
+      state.debounceId = null;
+      void requestPreview();
+    }, delay);
+  }
+}
+
+function applyRangeScale(axis, value, delay = PREVIEW_DELAY) {
+  const range = axis === "x" ? elements.scaleXRange : elements.scaleYRange;
+  const input = axis === "x" ? elements.scaleX : elements.scaleY;
+  const snapped = snapToScaleStop(value);
+  const formatted = formatScale(snapped);
+
+  input.value = formatted;
+  state.lastScaleAxis = axis;
+  setRangeValue(range, snapped);
+
+  if (!isSeparateMode()) {
+    const otherInput = axis === "x" ? elements.scaleY : elements.scaleX;
+    const otherRange = axis === "x" ? elements.scaleYRange : elements.scaleXRange;
+    otherInput.value = formatted;
+    setRangeValue(otherRange, snapped);
+  }
+
+  handleScaleChange(delay);
+}
+
+function handleNumberInput(axis) {
+  const input = axis === "x" ? elements.scaleX : elements.scaleY;
+  const range = axis === "x" ? elements.scaleXRange : elements.scaleYRange;
+  const value = Number(input.value);
+  const valid = input.value.trim() !== "" && isScaleValid(value);
+
+  if (valid) {
+    setRangeValue(range, value);
+    state.lastScaleAxis = axis;
+
+    if (!isSeparateMode()) {
+      const otherInput = axis === "x" ? elements.scaleY : elements.scaleX;
+      const otherRange = axis === "x" ? elements.scaleYRange : elements.scaleXRange;
+      otherInput.value = input.value;
+      setRangeValue(otherRange, value);
+    }
+  }
+
+  handleScaleChange();
+}
+
+function handleRangeInput(axis) {
+  const range = axis === "x" ? elements.scaleXRange : elements.scaleYRange;
+  applyRangeScale(axis, range.value);
+}
+
+function handleRangeKeydown(event, axis) {
+  const navigationKeys = [
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "Home",
+    "End",
+    "PageUp",
+    "PageDown",
+  ];
+  if (!navigationKeys.includes(event.key) || SCALE_STOPS.length === 0) return;
+
+  event.preventDefault();
+  const range = axis === "x" ? elements.scaleXRange : elements.scaleYRange;
+  const current = snapToScaleStop(range.value);
+  let index = SCALE_STOPS.indexOf(current);
+  if (index < 0) index = 0;
+
+  if (event.key === "Home") {
+    index = 0;
+  } else if (event.key === "End") {
+    index = SCALE_STOPS.length - 1;
+  } else if (event.key === "ArrowRight" || event.key === "ArrowUp" || event.key === "PageUp") {
+    index = Math.min(index + 1, SCALE_STOPS.length - 1);
+  } else {
+    index = Math.max(index - 1, 0);
+  }
+
+  applyRangeScale(axis, SCALE_STOPS[index]);
+}
+
+function handleSeparateChange() {
+  updateScaleModeUI();
+
+  if (isSeparateMode()) {
+    let value = Number(elements.scaleX.value);
+    if (elements.scaleX.value.trim() === "" || !isScaleValid(value)) {
+      const fallback = Number(elements.scaleY.value);
+      value = isScaleValid(fallback) ? fallback : state.initialScale;
+    }
+    setScaleValues(value);
+  } else {
+    const source = state.lastScaleAxis === "y" ? elements.scaleY : elements.scaleX;
+    const fallback = state.lastScaleAxis === "y" ? elements.scaleX : elements.scaleY;
+    let value = Number(source.value);
+    if (source.value.trim() === "" || !isScaleValid(value)) {
+      value = Number(fallback.value);
+    }
+    if (!isScaleValid(value)) {
+      value = state.initialScale;
+    }
+    setScaleValues(value);
+  }
+
+  handleScaleChange(0);
+}
+
+function downloadResult() {
+  if (!state.resultBlob || !state.resultUrl || !state.file) return;
+
+  const fileName = state.file.name;
+
+  const link = document.createElement("a");
+  link.href = state.resultUrl;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setStatus(fileName, "success");
+}
+
+function openFilePicker() {
+  elements.fileInput.click();
+}
+
+elements.scaleX.addEventListener("input", () => handleNumberInput("x"));
+elements.scaleY.addEventListener("input", () => handleNumberInput("y"));
+elements.scaleXRange.addEventListener("input", () => handleRangeInput("x"));
+elements.scaleYRange.addEventListener("input", () => handleRangeInput("y"));
+elements.scaleXRange.addEventListener("keydown", (event) => handleRangeKeydown(event, "x"));
+elements.scaleYRange.addEventListener("keydown", (event) => handleRangeKeydown(event, "y"));
+elements.separateScales.addEventListener("change", handleSeparateChange);
+
+elements.presetBlock.addEventListener("click", (event) => {
+  const button = event.target.closest(".preset[data-scale]");
+  if (!button) return;
+  const value = Number(button.dataset.scale);
+  const axis = button.dataset.axis;
+
+  if (axis === "x" || axis === "y") {
+    applyRangeScale(axis, value, 0);
+    return;
+  }
+
+  state.lastScaleAxis = "x";
+  setScaleValues(value);
+  handleScaleChange(0);
+});
+
+elements.dropzone.addEventListener("click", openFilePicker);
+elements.dropzone.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openFilePicker();
+  }
+});
+
+elements.fileInput.addEventListener("change", () => {
+  const file = elements.fileInput.files?.[0];
+  elements.fileInput.value = "";
+  if (file) void loadFile(file);
+});
+
+elements.clearFile.addEventListener("click", () => clearSelection());
+elements.downloadBtn.addEventListener("click", downloadResult);
+
+window.addEventListener("dragover", (event) => {
+  if (!event.dataTransfer?.types.includes("Files")) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "copy";
+  elements.dropzone.classList.add("is-dragging");
+});
+
+window.addEventListener("dragleave", (event) => {
+  if (event.relatedTarget === null) {
+    elements.dropzone.classList.remove("is-dragging");
+  }
+});
+
+window.addEventListener("drop", (event) => {
+  event.preventDefault();
+  elements.dropzone.classList.remove("is-dragging");
+  const file = event.dataTransfer?.files?.[0];
+  if (file) void loadFile(file);
+});
+
+window.addEventListener("dragend", () => {
+  elements.dropzone.classList.remove("is-dragging");
+});
+
+renderPresets();
+setScaleValues(state.initialScale);
+updateScaleModeUI();
+updatePresetState();
+updateDimensionLabels();
+disableDownload();
+
+/* ---------------- dynamic theme ---------------- */
+
+const root = document.documentElement;
+
+const THEME_KEY = "ui.theme";
+const CONTRAST_KEY = "ui.contrast";
+const FONTSIZE_KEY = "ui.fontsize";
+const SLIDERWIDTH_KEY = "ui.slider-width";
+const MENUPADDING_KEY = "ui.menupadding";
+const DIVIDERS_KEY = "ui.dividers";
+
+const themeEl = document.getElementById("theme");
+const contrastEl = document.getElementById("contrast");
+const fontsizeEl = document.getElementById("fontsize");
+const sliderwidthEl = document.getElementById("sliderwidth");
+const menupaddingEl = document.getElementById("menupadding");
+const dividersEl = document.getElementById("dividers");
+
+function readSetting(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function writeSetting(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) {}
+}
+
+function applyTheme(value) {
+  const brightness = Math.round((value / 100) * 255);
+  root.style.setProperty("--bg", brightness);
+  const dark = brightness <= 127;
+  root.style.setProperty("--fg-r", dark ? 255 : 0);
+  root.style.setProperty("--fg-g", dark ? 255 : 0);
+  root.style.setProperty("--fg-b", dark ? 255 : 0);
+}
+function applyContrast(value) { root.style.setProperty("--contrast", value / 100); }
+function applyFontsize(value) { root.style.setProperty("--font-size", value); }
+function applySliderWidth(value) { root.style.setProperty("--slider-width", value + "px"); }
+function applyMenuPadding(value) { root.style.setProperty("--menu-padding", value + "px"); }
+function applyDividers(on) { root.classList.toggle("hide-dividers", !on); }
+
+themeEl.value = readSetting(THEME_KEY) ?? 25;
+contrastEl.value = readSetting(CONTRAST_KEY) ?? 100;
+fontsizeEl.value = readSetting(FONTSIZE_KEY) ?? 16;
+sliderwidthEl.value = readSetting(SLIDERWIDTH_KEY) ?? 168;
+dividersEl.checked = (readSetting(DIVIDERS_KEY) ?? "1") === "1";
+
+const savedMenuPadding = readSetting(MENUPADDING_KEY);
+if (savedMenuPadding !== null) {
+  menupaddingEl.value = savedMenuPadding;
+} else {
+  const fontSize = parseFloat(getComputedStyle(root).getPropertyValue("--font-size")) || 16;
+  menupaddingEl.value = Math.round(fontSize * 0.75);
+}
+
+themeEl.addEventListener("input", () => {
+  applyTheme(themeEl.value);
+  writeSetting(THEME_KEY, themeEl.value);
+});
+contrastEl.addEventListener("input", () => {
+  applyContrast(contrastEl.value);
+  writeSetting(CONTRAST_KEY, contrastEl.value);
+});
+fontsizeEl.addEventListener("input", () => {
+  applyFontsize(fontsizeEl.value);
+  writeSetting(FONTSIZE_KEY, fontsizeEl.value);
+});
+sliderwidthEl.addEventListener("input", () => {
+  applySliderWidth(sliderwidthEl.value);
+  writeSetting(SLIDERWIDTH_KEY, sliderwidthEl.value);
+});
+menupaddingEl.addEventListener("input", () => {
+  applyMenuPadding(menupaddingEl.value);
+  writeSetting(MENUPADDING_KEY, menupaddingEl.value);
+});
+dividersEl.addEventListener("change", () => {
+  applyDividers(dividersEl.checked);
+  writeSetting(DIVIDERS_KEY, dividersEl.checked ? "1" : "0");
+});
+
+applyTheme(themeEl.value);
+applyContrast(contrastEl.value);
+applyFontsize(fontsizeEl.value);
+applySliderWidth(sliderwidthEl.value);
+if (savedMenuPadding !== null) applyMenuPadding(savedMenuPadding);
+applyDividers(dividersEl.checked);
+  </script>
+</body>
+</html>
