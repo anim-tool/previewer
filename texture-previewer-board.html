@@ -970,15 +970,15 @@
                 </div>
                 <div class="slider-value" id="scaleValue">100%</div>
                 <div class="checkbox-item">
-                    <input id="gridCheckbox" type="checkbox" checked>
+                    <input id="gridCheckbox" type="checkbox">
                     <label for="gridCheckbox">Show grid</label>
                 </div>
                 <div class="checkbox-item">
-                    <input id="axesCheckbox" type="checkbox" checked>
+                    <input id="axesCheckbox" type="checkbox">
                     <label for="axesCheckbox">Show axes</label>
                 </div>
                 <div class="checkbox-item">
-                    <input id="over2048Checkbox" type="checkbox">
+                    <input id="over2048Checkbox" type="checkbox" checked>
                     <label for="over2048Checkbox">Show over 2048</label>
                 </div>
                 <div class="checkbox-item map-only">
@@ -1078,9 +1078,9 @@
                 loadToken: 0,
                 themeL: 30,
                 themeFg: 255,
-                showGrid: true,
-                showAxes: true,
-                showOver2048: false,
+                showGrid: false,
+                showAxes: false,
+                showOver2048: true,
                 snap: true,
                 dragDepth: 0,
                 toastTimer: null
@@ -1168,9 +1168,9 @@
             }
 
             function restoreMenuOptions() {
-                state.showGrid = getStoredBool(GRID_KEY, true);
-                state.showAxes = getStoredBool(AXES_KEY, true);
-                state.showOver2048 = getStoredBool(OVER_2048_KEY, false);
+                state.showGrid = getStoredBool(GRID_KEY, false);
+                state.showAxes = getStoredBool(AXES_KEY, false);
+                state.showOver2048 = getStoredBool(OVER_2048_KEY, true);
                 state.snap = getStoredBool(SNAP_KEY, true);
                 ui.gridCheckbox.checked = state.showGrid;
                 ui.axesCheckbox.checked = state.showAxes;
