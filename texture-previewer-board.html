@@ -967,6 +967,7 @@
                     <label class="slider-label" for="scaleSlider">Scale</label>
                     <input id="scaleSlider" class="slider" type="range" min="0.005" max="4" step="0.001" value="1">
                     <button id="resetViewButton" class="small-btn" type="button" title="Fit map to viewport">Fit</button>
+                    <button id="scale100Button" class="small-btn" type="button" title="Set scale to 100%">100%</button>
                 </div>
                 <div class="slider-value" id="scaleValue">100%</div>
                 <div class="checkbox-item">
@@ -1129,7 +1130,7 @@
                     'filesButton', 'folderButton', 'fileInput', 'folderInput', 'emptyFolderButton',
                     'mapTab', 'listTab', 'groupSection', 'groupTabs', 'sortSection', 'sortSelect', 'arrangeButton',
                     'textureList', 'selectionPanel', 'selectedName', 'selectedDims', 'selectedGroup', 'selectedPath',
-                    'selectedX', 'selectedY', 'scaleSlider', 'scaleValue', 'resetViewButton',
+                    'selectedX', 'selectedY', 'scaleSlider', 'scaleValue', 'resetViewButton', 'scale100Button',
                     'gridCheckbox', 'axesCheckbox', 'over2048Checkbox', 'snapCheckbox', 'themeSlider',
                     'gridCanvas', 'mapLayer', 'listLayer', 'overlayCanvas',
                     'infoOverlay', 'infoTitle', 'infoSub', 'hoverTip', 'viewHint',
@@ -1275,6 +1276,12 @@
                     } else {
                         fitMapCamera();
                     }
+                });
+
+                ui.scale100Button.addEventListener('click', function () {
+                    if (!state.activeGroup) return;
+                    var rect = ui.viewport.getBoundingClientRect();
+                    setActiveScaleAt(1, rect.width / 2, rect.height / 2);
                 });
 
                 ui.selectedX.addEventListener('change', function () {
